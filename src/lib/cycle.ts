@@ -91,3 +91,60 @@ export function predictNext(entries: DayEntry[]): Prediction {
     avgCycleLength: avg,
   }
 }
+
+export type CyclePhase = 'period' | 'follicular' | 'ovulation' | 'luteal'
+
+/** One ring segment: half-open day range [start, end) within a cycle. */
+export interface CycleRingSegment {
+  phase: CyclePhase
+  start: number
+  end: number
+}
+
+/** Where `today` sits in the current cycle, for the Fitbit-style ring. */
+export interface CycleDayInfo {
+  /** 0-based day within the cycle (0 = first period day), wrapped mod cycle length */
+  dayInCycle: number
+  cycleLength: number
+  /** Segments covering [0, cycleLength) in order. Zero-length segments possible. */
+  segments: CycleRingSegment[]
+  phase: CyclePhase
+}
+
+/**
+ * Position of a date within the current cycle, relative to the last logged
+ * cycle start and the average cycle length. Null when fewer than two cycles
+ * are logged (no prediction). Day position wraps: on the predicted next
+ * period start, dayInCycle returns to 0 — exactly where the ring's period
+ * segment begins.
+ */
+export function cycleDayInfo(entries: DayEntry[], today: string): CycleDayInfo | null {
+  const cycles = detectCycles(entries)
+  const last = cycles[cycles.length - 1] ?? null
+  const avg = averageCycleLength(cycles)
+  if (!last || avg === null) return null
+
+  const pred = predictNext(entries)
+  if (!pred.fertileWindow || pred.ovulationDay === null) return null
+
+  const cycleLength = avg
+  const clamp = (n: number) => Math.max(0, Math.min(n, cycleLength))
+
+  const periodEnd = clamp(last.length)
+  const fertileStart = clamp(diffDays(pred.fertileWindow.start, last.start))
+  const fertileEnd = clamp(diffDays(pred.fertileWindow.end, last.start) + 1) // inclusive → exclusive
+
+  const segments: CycleRingSegment[] = [
+    { phase: 'period', start: 0, end: periodEnd },
+    { phase: 'follicular', start: periodEnd, end: Math.max(periodEnd, fertileStart) },
+    { phase: 'ovulation', start: Math.max(periodEnd, fertileStart), end: Math.max(periodEnd, fertileStart, fertileEnd) },
+    { phase: 'luteal', start: Math.max(periodEnd, fertileStart, fertileEnd), end: cycleLength },
+  ]
+
+  const raw = diffDays(today, last.start)
+  const dayInCycle = ((raw % cycleLength) + cycleLength) % cycleLength
+  const phase =
+    segments.find((s) => dayInCycle >= s.start && dayInCycle < s.end)?.phase ?? 'luteal'
+
+  return { dayInCycle, cycleLength, segments, phase }
+}

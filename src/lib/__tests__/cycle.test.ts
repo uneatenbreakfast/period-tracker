@@ -5,6 +5,7 @@ import {
   FERTILE_RANGE,
   LUTEAL_PHASE_DAYS,
   averageCycleLength,
+  cycleDayInfo,
   cycleLengths,
   detectCycles,
   isPeriodDay,
@@ -99,6 +100,92 @@ describe('cycleLengths / averageCycleLength', () => {
     const cycles = detectCycles(entries)
     expect(cycleLengths(cycles)).toEqual([30, 30])
     expect(averageCycleLength(cycles)).toBe(30)
+  })
+})
+
+describe('cycleDayInfo', () => {
+  const threeCycles = [
+    '2026-01-03', '2026-01-04',
+    '2026-01-31', '2026-02-01',
+    '2026-02-28', '2026-03-01',
+  ].map((d) => day(d))
+  // avg 28, last start 2026-02-28, period length 2 (Feb 28–Mar 1)
+  // next period 2026-03-28, ovulation 03-14, fertile 03-09..03-15
+
+  it('null with < 2 cycles', () => {
+    expect(cycleDayInfo([], '2026-03-01')).toBeNull()
+    expect(cycleDayInfo(['2026-01-03', '2026-01-04'].map((d) => day(d)), '2026-01-10')).toBeNull()
+  })
+
+  it('day 0 = last cycle start, period phase', () => {
+    const info = cycleDayInfo(threeCycles, '2026-02-28')!
+    expect(info.dayInCycle).toBe(0)
+    expect(info.phase).toBe('period')
+    expect(info.cycleLength).toBe(28)
+  })
+
+  it('period phase on second bleed day', () => {
+    const info = cycleDayInfo(threeCycles, '2026-03-01')!
+    expect(info.dayInCycle).toBe(1)
+    expect(info.phase).toBe('period')
+  })
+
+  it('follicular phase between period end and fertile window', () => {
+    const info = cycleDayInfo(threeCycles, '2026-03-05')!
+    expect(info.dayInCycle).toBe(5)
+    expect(info.phase).toBe('follicular')
+  })
+
+  it('ovulation phase inside fertile window', () => {
+    const info = cycleDayInfo(threeCycles, '2026-03-12')!
+    expect(info.phase).toBe('ovulation')
+    expect(info.dayInCycle).toBe(12)
+  })
+
+  it('luteal phase after fertile window', () => {
+    const info = cycleDayInfo(threeCycles, '2026-03-20')!
+    expect(info.phase).toBe('luteal')
+    expect(info.dayInCycle).toBe(20)
+  })
+
+  it('wraps to 0 on predicted next period start', () => {
+    const info = cycleDayInfo(threeCycles, '2026-03-28')!
+    expect(info.dayInCycle).toBe(0)
+    expect(info.phase).toBe('period')
+  })
+
+  it('segments cover [0, cycleLength) in order with expected ranges', () => {
+    const info = cycleDayInfo(threeCycles, '2026-03-10')!
+    expect(info.segments).toEqual([
+      { phase: 'period', start: 0, end: 2 },
+      { phase: 'follicular', start: 2, end: 9 }, // 03-09 fertile start → day 9
+      { phase: 'ovulation', start: 9, end: 16 }, // 03-15 + 1 inclusive → day 16
+      { phase: 'luteal', start: 16, end: 28 },
+    ])
+    // contiguous, no gaps
+    for (let i = 1; i < info.segments.length; i++) {
+      expect(info.segments[i].start).toBe(info.segments[i - 1].end)
+    }
+    expect(info.segments[0].start).toBe(0)
+    expect(info.segments[info.segments.length - 1].end).toBe(28)
+  })
+
+  it('long period clamps fertile start so segments stay ordered', () => {
+    // period 10 days, cycle 28: fertile window (day 9) falls inside period
+    const longPeriod = ['2026-01-03', ...Array.from({ length: 9 }, (_, i) => addDays('2026-01-03', i + 1))]
+      .map((d) => day(d))
+    const entries = [
+      ...longPeriod,
+      ...['2026-01-31', '2026-02-01', '2026-02-02'].map((d) => day(d)),
+    ]
+    const info = cycleDayInfo(entries, '2026-02-05')!
+    let prevEnd = 0
+    for (const s of info.segments) {
+      expect(s.start).toBeGreaterThanOrEqual(prevEnd)
+      expect(s.end).toBeGreaterThanOrEqual(s.start)
+      prevEnd = s.end
+    }
+    expect(info.segments[0].end).toBe(10)
   })
 })
 
