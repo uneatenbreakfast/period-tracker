@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+
+  --color-cream: #fff7f4;
+  --color-cream-deep: #fbe9e4;
+
+  --color-ink: #57424e;
+  --color-ink-soft: #8a7180;
+
+  --color-rose-50: #fbeaf1;
+  --color-rose-100: #f7cfdd;
+  --color-rose-200: #efb3c9;
+  --color-rose-300: #e89db9;
+  --color-rose-400: #e58aa8;
+  --color-rose-500: #d96f93;
+  --color-rose-700: #b95c7e;
+
+  --color-lavender-50: #f1ecfa;
+  --color-lavender-100: #e4dcf3;
+  --color-lavender-200: #c9b8e3;
+  --color-lavender-400: #b9a7d9;
+  --color-lavender-700: #8470b5;
+
+  --color-peach-50: #fff0e6;
+  --color-peach-100: #ffe3d3;
+  --color-peach-200: #ffcdb2;
+  --color-peach-400: #f4a88e;
+
+  --color-sage-50: #eff5ea;
+  --color-sage-100: #e3eddd;
+  --color-sage-400: #8fae8b;
+}
+
+body {
+  @apply bg-cream font-sans text-ink antialiased;
+}
+
+::selection {
+  @apply bg-rose-100;
+}
+
+input,
+textarea {
+  outline: none;
+}
