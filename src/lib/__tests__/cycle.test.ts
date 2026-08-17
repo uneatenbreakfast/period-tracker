@@ -171,12 +171,10 @@ describe('cycleDayInfo', () => {
   })
 
   it('long period clamps fertile start so segments stay ordered', () => {
-    // period 10 days, cycle 28: fertile window (day 9) falls inside period
-    const longPeriod = ['2026-01-03', ...Array.from({ length: 9 }, (_, i) => addDays('2026-01-03', i + 1))]
-      .map((d) => day(d))
+    // last cycle period is 10 days (Jan 31–Feb 9); fertile window (day 9) falls inside it
     const entries = [
-      ...longPeriod,
-      ...['2026-01-31', '2026-02-01', '2026-02-02'].map((d) => day(d)),
+      ...['2026-01-03', '2026-01-04', '2026-01-05'].map((d) => day(d)),
+      ...Array.from({ length: 10 }, (_, i) => addDays('2026-01-31', i)).map((d) => day(d)),
     ]
     const info = cycleDayInfo(entries, '2026-02-05')!
     let prevEnd = 0
