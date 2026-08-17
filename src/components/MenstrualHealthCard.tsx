@@ -64,11 +64,9 @@ function CycleRing({ info }: { info: CycleDayInfo | null }) {
     <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="h-28 w-28 shrink-0" aria-label="Cycle progress ring">
       <circle cx={CENTER} cy={CENTER} r={RADIUS} fill="none" stroke={TRACK_COLOR} strokeWidth={10} />
       {arcs}
-      <g transform={`translate(${CENTER} ${CENTER})`}>
-        <svg viewBox="0 0 24 24" className="h-7 w-7" fill="#d96f93" aria-hidden>
-          <path d="M12 2c.5 4.5 5.5 8.5 5.5 13a5.5 5.5 0 0 1-11 0C6.5 10.5 11.5 6.5 12 2z" />
-        </svg>
-      </g>
+      <svg x={-14} y={-14} viewBox="0 0 24 24" className="h-7 w-7" fill="#d96f93" aria-hidden>
+        <path d="M12 2c.5 4.5 5.5 8.5 5.5 13a5.5 5.5 0 0 1-11 0C6.5 10.5 11.5 6.5 12 2z" />
+      </svg>
       {dot}
     </svg>
   )

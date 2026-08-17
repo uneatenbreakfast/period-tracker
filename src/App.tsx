@@ -3,8 +3,8 @@ import type { FlowLevel, Snapshot } from './types'
 import Calendar from './components/Calendar'
 import DaySheet from './components/DaySheet'
 import HistoryCard from './components/HistoryCard'
-import PredictionsCard from './components/PredictionsCard'
-import { addDays, MONTH_NAMES } from './lib/dates'
+import MenstrualHealthCard from './components/MenstrualHealthCard'
+import { addDays, MONTH_NAMES, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
 import {
   createLocalStorageAdapter,
