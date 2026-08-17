@@ -1,4 +1,4 @@
-import type { DayEntry, Prediction, Snapshot } from '../types'
+import type { DayEntry, Snapshot } from '../types'
 import { FLOW_LEVELS, SYMPTOMS, symptomLabel } from './symptoms'
 import { averageCycleLength, cycleLengths, detectCycles } from './cycle'
 
@@ -26,12 +26,6 @@ export function cycleHistoryRows(snapshot: Snapshot): {
 export function formatShort(iso: string): string {
   const [, m, d] = iso.split('-')
   return `${Number(m)}/${Number(d)}`
-}
-
-export function predictionSummary(pred: Prediction, entryCount: number): string {
-  if (entryCount === 0) return 'Log your first period day to start predictions'
-  if (pred.nextPeriodStart === null) return 'Log one more cycle to predict your next period'
-  return `Next period ${formatShort(pred.nextPeriodStart)} (${pred.daysUntil} day${pred.daysUntil === 1 ? '' : 's'} away)`
 }
 
 export { FLOW_LEVELS, SYMPTOMS, symptomLabel, averageCycleLength }
