@@ -151,7 +151,12 @@ export default function App() {
             Back to today
           </button>
         ) : null}
-        <PredictionsCard prediction={prediction} entryCount={snap.entries.length} />
+        <MenstrualHealthCard
+          prediction={prediction}
+          entryCount={snap.entries.length}
+          snap={snap}
+          onLogToConfirm={() => setSelectedDate(todayISO())}
+        />
         <HistoryCard snap={snap} />
         <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
           Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
