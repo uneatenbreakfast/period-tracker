@@ -56,6 +56,25 @@ export function monthGrid(year: number, month: number): MonthCell[][] {
   return weeks
 }
 
+export interface MonthRef {
+  year: number
+  month: number // 0-based
+}
+
+/** Shift a 0-based month by n months, wrapping year boundaries. */
+export function addMonths(year: number, month: number, n: number): MonthRef {
+  const t = year * 12 + month + n
+  return { year: Math.floor(t / 12), month: ((t % 12) + 12) % 12 }
+}
+
+/** Inclusive list of months from → to (0-based), oldest first. */
+export function monthList(from: MonthRef, to: MonthRef): MonthRef[] {
+  const out: MonthRef[] = []
+  const end = to.year * 12 + to.month
+  for (let t = from.year * 12 + from.month; t <= end; t++) out.push({ year: Math.floor(t / 12), month: t % 12 })
+  return out
+}
+
 export const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',

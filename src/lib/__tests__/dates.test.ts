@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, diffDays, fromISODate, isValidISO, monthGrid, toISODate, todayISO } from '../dates'
+import {
+  addDays,
+  addMonths,
+  diffDays,
+  fromISODate,
+  isValidISO,
+  monthGrid,
+  monthList,
+  toISODate,
+  todayISO,
+} from '../dates'
 
 describe('ISO helpers', () => {
   it('toISODate → fromISODate round-trips (summer + winter)', () => {
@@ -29,6 +39,29 @@ describe('ISO helpers', () => {
 
   it('todayISO matches local date', () => {
     expect(todayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe('addMonths', () => {
+  it('wraps year forward and backward, keeps same month for n=0', () => {
+    expect(addMonths(2026, 0, 1)).toEqual({ year: 2026, month: 1 })
+    expect(addMonths(2026, 11, 1)).toEqual({ year: 2027, month: 0 })
+    expect(addMonths(2026, 5, -6)).toEqual({ year: 2025, month: 11 })
+    expect(addMonths(2026, 5, 0)).toEqual({ year: 2026, month: 5 })
+  })
+})
+
+describe('monthList', () => {
+  it('is inclusive oldest→newest and wraps years', () => {
+    expect(monthList({ year: 2026, month: 10 }, { year: 2027, month: 0 })).toEqual([
+      { year: 2026, month: 10 },
+      { year: 2026, month: 11 },
+      { year: 2027, month: 0 },
+    ])
+  })
+
+  it('single month when from === to', () => {
+    expect(monthList({ year: 2026, month: 5 }, { year: 2026, month: 5 })).toEqual([{ year: 2026, month: 5 }])
   })
 })
 

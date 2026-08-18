@@ -5,7 +5,7 @@ import DaySheet from './components/DaySheet'
 import HistoryCard from './components/HistoryCard'
 import MenstrualHealthCard from './components/MenstrualHealthCard'
 import TrendsCard from './components/TrendsCard'
-import { addDays, MONTH_NAMES, todayISO } from './lib/dates'
+import { addDays, addMonths, fromISODate, monthList, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
 import {
   createLocalStorageAdapter,
@@ -23,8 +23,6 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [tab, setTab] = useState<'calendar' | 'trends'>('calendar')
   const now = new Date()
-  const [viewYear, setViewYear] = useState(now.getFullYear())
-  const [viewMonth, setViewMonth] = useState(now.getMonth())
 
   useEffect(() => saveSnapshot(snap, storage), [snap])
 
@@ -45,6 +43,26 @@ export default function App() {
     for (let d = w.start; d <= w.end; d = addDays(d, 1)) days.push(d)
     return days
   }, [prediction.fertileWindow])
+
+  // Scrollable calendar: today − 12 months … today + 12 months, extended back to
+  // one month before the earliest logged entry so history stays reachable.
+  const months = useMemo(() => {
+    const start = addMonths(now.getFullYear(), now.getMonth(), -12)
+    const end = addMonths(now.getFullYear(), now.getMonth(), 12)
+    const earliest = snap.entries.reduce<string | null>(
+      (min, e) => (min === null || e.date < min ? e.date : min),
+      null,
+    )
+    if (earliest) {
+      const d = fromISODate(earliest)
+      const em = addMonths(d.getFullYear(), d.getMonth(), -1)
+      if (em.year < start.year || (em.year === start.year && em.month < start.month)) {
+        start.year = em.year
+        start.month = em.month
+      }
+    }
+    return monthList(start, end)
+  }, [snap.entries, now.getFullYear(), now.getMonth()])
 
   const selectedEntry = selectedDate ? getEntry(snap, selectedDate) : undefined
 
@@ -92,11 +110,15 @@ export default function App() {
     setSnap((s) => removeEntry(s, selectedDate))
   }
 
-  const nav = (dir: -1 | 1) => {
-    const d = new Date(viewYear, viewMonth + dir, 1)
-    setViewYear(d.getFullYear())
-    setViewMonth(d.getMonth())
+  const scrollToMonth = (year: number, month: number) => {
+    document.querySelector(`[data-month="${year}-${month}"]`)?.scrollIntoView({ block: 'start' })
   }
+
+  useEffect(() => {
+    // land on the current month when the calendar first renders
+    const id = requestAnimationFrame(() => scrollToMonth(now.getFullYear(), now.getMonth()))
+    return () => cancelAnimationFrame(id)
+  }, [])
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-md px-4 py-6">
@@ -108,27 +130,14 @@ export default function App() {
           <p className="text-xs text-ink-soft">period tracking, softly</p>
         </div>
         {tab === 'calendar' && (
-          <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-[0_4px_14px_rgba(217,111,147,0.15)]">
-            <button
-              type="button"
-              onClick={() => nav(-1)}
-              className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
-              aria-label="Previous month"
-            >
-              ‹
-            </button>
-            <span className="min-w-28 text-center text-sm font-bold text-ink">
-              {MONTH_NAMES[viewMonth]} {viewYear}
-            </span>
-            <button
-              type="button"
-              onClick={() => nav(1)}
-              className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
-              aria-label="Next month"
-            >
-              ›
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => scrollToMonth(now.getFullYear(), now.getMonth())}
+            aria-label="Scroll to today"
+            className="rounded-full bg-white px-4 py-1.5 text-xs font-bold text-rose-500 shadow-[0_4px_14px_rgba(217,111,147,0.15)] transition-colors hover:bg-rose-50"
+          >
+            Today
+          </button>
         )}
       </header>
 
@@ -163,8 +172,7 @@ export default function App() {
       ) : (
         <main className="flex flex-col gap-4">
         <Calendar
-          year={viewYear}
-          month={viewMonth}
+          months={months}
           snap={snap}
           prediction={prediction}
           predictedDays={predictedDays}
@@ -172,18 +180,6 @@ export default function App() {
           selectedDate={selectedDate}
           onSelect={setSelectedDate}
         />
-        {viewMonth !== now.getMonth() || viewYear !== now.getFullYear() ? (
-          <button
-            type="button"
-            onClick={() => {
-              setViewYear(now.getFullYear())
-              setViewMonth(now.getMonth())
-            }}
-            className="self-center rounded-full bg-white px-4 py-1.5 text-xs font-bold text-rose-500 shadow-[0_4px_14px_rgba(217,111,147,0.15)] transition-colors hover:bg-rose-50"
-          >
-            Back to today
-          </button>
-        ) : null}
         <MenstrualHealthCard
           prediction={prediction}
           entryCount={snap.entries.length}
