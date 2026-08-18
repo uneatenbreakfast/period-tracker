@@ -4,16 +4,19 @@ Local markdown tracker (no GitHub Issues). Prefix: `BLOOM-`.
 
 ## Open
 
+### BLOOM-0005 — Settings: user-configurable default cycle/period length
+BLOOM-0002 core shipped as hardcoded Fitbit defaults (28-day cycle / 5-day period). Settings screen to let the user customize those defaults (Fitbit setup step) = future enhancement. Not started.
+
 ### BLOOM-0001 — Sync: server blob endpoint
 When sync feature is built: whole snapshot `serializeSnapshot()` uploads as blob; server stores opaque JSON; restore replaces local snapshot. Decide: endpoint shape, auth, conflict policy (last-write-wins probably, blob is atomic). Blocked on nothing; scheduled post-RN-planning. Not started.
-
-### BLOOM-0002 — Settings: default cycle/period length
-Allow user to set expected cycle length (default 28) used when < 2 logged cycles. Currently predictions need 2+ cycles. Not started.
 
 ### BLOOM-0003 — Today shortcut
 Header month nav lacks "Today" jump when browsing other months (E2E had to click ‹ 6× to reach January). Not started.
 
 ## Done
+
+### BLOOM-0006 — Fitbit prediction model
+Bloom prediction now follows Fitbit's officially documented model: `averageCycleLength` = recency-weighted mean (linear weights, Fitbit "relies on recent data"; exact weights proprietary) falling back to `DEFAULT_CYCLE_LENGTH` 28 when < 2 cycles; `averagePeriodLength` falls back to `DEFAULT_PERIOD_LENGTH` 5. Predictions + cycle ring + trends rows now work after ONE logged period (default 28 anchor); "Waiting for data" only when no period logged. Fertile window ov−5..ov+1 already matched. OPK override NOT built (needs OPK logging UI). Completed 2026-08-18. Verified: 56 unit tests (new: recency weighting ×2, single-cycle prediction/ring/trends, defaults) + card E2E (new: single-cycle prediction "In 21 days", default avg 28, fertile row, symptoms-only waiting state) + trends E2E; tsc clean. Copy updated: welcome "predictions start after your first logged period", waiting "log your period to start predictions", fertile placeholder "log your period to predict".
 
 ### BLOOM-0004 — Trends screen
 CALENDAR/TRENDS tabs; Trends = stats grid (avg period length, avg estimated ovulation, avg cycle length) + MY CYCLES list with period/fertile/remainder bar, droplet + heart icons, chevron detail rows. Pure logic in `cycle.ts` (avgCycleLength rounds to nearest day; predicted entry shown for last cycle when < 2 completed cycles). Completed 2026-08-18. Verified: 53 unit tests + Playwright E2E (6 seeded cycles, bar geometry, tab switch, no JS errors). Design-fidelity QA 2026-08-18 (vs Fitbit ref `ref-mh.jpg` + Penpot board): bar segments (period = periodLen/cycleLen, fertile = ovulIdx−5…ovulIdx+2, heart at ovulIdx/len) match ref within ±2-3pt rendering noise; heart at 46.2% = ref crown at same fraction; ref omits bar on oldest row (Fitbit quirk) — app draws all 6, correct. No code changes needed.

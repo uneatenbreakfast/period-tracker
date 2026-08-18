@@ -13,6 +13,10 @@ export const LUTEAL_PHASE_DAYS = 14
 /** Sperm survival + egg viability window around ovulation (calendar method). */
 export const FERTILE_RANGE = { before: 5, after: 1 } as const
 
+/** Fitbit defaults when data is thin: 28-day cycle, 5-day period. */
+export const DEFAULT_CYCLE_LENGTH = 28
+export const DEFAULT_PERIOD_LENGTH = 5
+
 export function isPeriodDay(d: DayEntry): boolean {
   return d.flow !== undefined && d.flow !== null
 }
@@ -58,15 +62,31 @@ export function cycleLengths(cycles: CycleEvent[]): number[] {
   return lengths
 }
 
-export function averageCycleLength(cycles: CycleEvent[]): number | null {
+/**
+ * Recency-weighted mean of completed start-to-start cycle lengths (Fitbit
+ * model: predictions "rely on recent data"; after a logging gap it takes a
+ * few cycles to catch up). Linear weights — oldest cycle counts once, newest
+ * counts n times. Fitbit's exact weights are proprietary; linear approximates
+ * the documented recency emphasis. Falls back to DEFAULT_CYCLE_LENGTH (28)
+ * when fewer than two cycles are logged — Fitbit's default starting point.
+ * Never null.
+ */
+export function averageCycleLength(cycles: CycleEvent[]): number {
   const lens = cycleLengths(cycles)
-  if (lens.length === 0) return null
-  return Math.round(lens.reduce((a, b) => a + b, 0) / lens.length)
+  if (lens.length === 0) return DEFAULT_CYCLE_LENGTH
+  let weightSum = 0
+  let weightedSum = 0
+  lens.forEach((len, i) => {
+    const w = i + 1 // recency weight: oldest = 1, newest = lens.length
+    weightSum += w
+    weightedSum += len * w
+  })
+  return Math.round(weightedSum / weightSum)
 }
 
 /** Average period span (days between first and last period day, inclusive). */
 export function averagePeriodLength(cycles: CycleEvent[]): number | null {
-  if (cycles.length === 0) return null
+  if (cycles.length === 0) return DEFAULT_PERIOD_LENGTH
   return Math.round(cycles.reduce((sum, c) => sum + c.length, 0) / cycles.length)
 }
 
@@ -105,7 +125,7 @@ export function cycleTrends(entries: DayEntry[]): { rows: CycleTrendRow[]; stats
   if (cycles.length === 0) return { rows: [], stats: empty }
 
   const lens = cycleLengths(cycles)
-  const avg = averageCycleLength(cycles) // null when fewer than two cycles
+  const avg = averageCycleLength(cycles) // Fitbit default 28 until 2+ cycles
   const rows: CycleTrendRow[] = cycles.map((c, i) => {
     const cycleLength = i < lens.length ? lens[i] : avg
     const nextStart = cycleLength === null ? null : addDays(c.start, cycleLength)
@@ -149,7 +169,7 @@ export function predictNext(entries: DayEntry[]): Prediction {
     fertileWindow: null,
     avgCycleLength: avg,
   }
-  if (!last || avg === null) return empty
+  if (!last) return empty
 
   const nextStart = addDays(last.start, avg)
   const today = todayISO()
@@ -187,16 +207,16 @@ export interface CycleDayInfo {
 
 /**
  * Position of a date within the current cycle, relative to the last logged
- * cycle start and the average cycle length. Null when fewer than two cycles
- * are logged (no prediction). Day position wraps: on the predicted next
- * period start, dayInCycle returns to 0 — exactly where the ring's period
- * segment begins.
+ * cycle start and the average cycle length (Fitbit default 28 until 2+
+ * cycles). Day position wraps: on the predicted next period start, dayInCycle
+ * returns to 0 — exactly where the ring's period segment begins. Null only
+ * when no period has ever been logged (no anchor).
  */
 export function cycleDayInfo(entries: DayEntry[], today: string): CycleDayInfo | null {
   const cycles = detectCycles(entries)
   const last = cycles[cycles.length - 1] ?? null
   const avg = averageCycleLength(cycles)
-  if (!last || avg === null) return null
+  if (!last) return null
 
   const pred = predictNext(entries)
   if (!pred.fertileWindow || pred.ovulationDay === null) return null
