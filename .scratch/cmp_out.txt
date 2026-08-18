@@ -1,0 +1,17 @@
+REF bar1: track24-24 rose25-93 track94-123 blue124-124 track125-126 blue127-220 track@221-389
+REF bar2: track24-24 rose25-93 track@94-154 blue155-249 track@250-418
+REF bar3: track24-24 rose25-87 track88-91 blue92-172 track@173-336
+REF bar4: track24-24 rose25-105 track106-116 blue117-117 track118-122 blue123-214 track@215-378
+REF bar5: track24-24 rose25-91 track92-107 blue108-200 track@201-362
+EXP bar1: track@83-150 track152-152 track155-158 track164-165 track170-171 track176-176 track179-179 track185-185 track189-189 track192-192 track196-196 track199-200 track202-204 blue205-205 track206-206 blue207-230 track231-231 blue232-246 track247-247 blue248-256 track257-257 blue258-262 track263-276 blue277-280 track281-281 blue282-294 track295-296 track298-298 track301-301 track307-307 track311-311 track314-314 track320-320 track324-324 track327-327 track330-330 track334-334 track337-338 track340-341 track344-345 track348-348 track352-352 track355-355 track362-365 track368-372 track378-379 track383-384 track387-387 track390-391 track393-394 track396-396 track399-402
+EXP bar2: track83-89 track95-98 track101-104 track107-112 track115-119 track136-141 track144-150 track156-159 track164-165 track168-173 track176-180 track455-455
+EXP bar3: track87-92
+EXP bar4: track159-159 track165-165 track171-171 track174-175 track177-177 track180-181 track183-183 track189-189 track192-193 track201-202 track208-208 track215-215 track218-219 track224-224 track228-228 track252-252 track256-256 track262-262 track266-266 track272-272 track275-276 track281-281 track284-284 track290-290 track298-298 track301-301 track304-304 track308-308 track316-316 track322-322 track325-325 track331-331 track335-335 track338-338 track341-341 track352-352 track355-356 track358-358 track370-370 track373-373 track378-378
+EXP bar5: 
+EXP bar6: 
+EXP bar1 peach x: 264-275
+EXP bar2 peach x: NONE
+EXP bar3 peach x: 242-251
+EXP bar4 peach x: NONE
+EXP bar5 peach x: NONE
+EXP bar6 peach x: NONE

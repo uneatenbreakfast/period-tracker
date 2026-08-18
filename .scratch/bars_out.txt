@@ -1,0 +1,11 @@
+REF bar1: track x24-389  runs: cream24-24 rose25-93 cream94-123 blue124-124 cream125-126 blue127-220
+REF bar2: track x24-418  runs: cream24-24 rose25-93 blue155-249
+REF bar3: track x24-336  runs: cream24-24 rose25-87 cream88-91 blue92-172
+REF bar4: track x24-378  runs: cream24-24 rose25-105 cream106-116 blue117-117 cream118-122 blue123-214
+REF bar5: track x24-362  runs: cream24-24 rose25-91 cream92-107 blue108-200
+EXP bar1: track x23-230  runs: rose23-25 cream26-36 rose37-93 cream94-102 cream125-125 blue126-221 cream222-230
+EXP bar2: track x23-258  runs: rose23-25 cream26-36 rose37-93 cream94-102 cream153-153 blue154-249 cream250-258
+EXP bar3: track x23-188  runs: rose23-25 cream26-36 rose37-83 blue84-179 cream180-188
+EXP bar4: track x23-230  runs: rose23-25 cream26-36 rose37-107 cream108-116 cream125-125 blue126-221 cream222-230
+EXP bar5: track x23-216  runs: rose23-25 cream26-36 rose37-93 cream94-102 cream111-111 blue112-207 cream208-216
+EXP bar6: track x23-230  runs: rose23-25 cream26-36 rose37-107 cream108-116 cream125-125 blue126-221 cream222-230
