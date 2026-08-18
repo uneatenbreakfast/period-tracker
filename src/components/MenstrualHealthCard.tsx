@@ -97,8 +97,8 @@ export default function MenstrualHealthCard({
         <p className="text-3xl">🌸</p>
         <p className="mt-2 text-sm font-semibold text-ink">Welcome to Bloom</p>
         <p className="mt-1 text-sm text-ink-soft">
-          Tap a day on the calendar to log your period flow and symptoms. After a couple of cycles, predictions will
-          appear here.
+          Tap a day on the calendar to log your period flow and symptoms. Predictions start after your first
+          logged period.
         </p>
       </div>
     )
@@ -113,7 +113,7 @@ export default function MenstrualHealthCard({
   let showConfirm = false
   if (next === null) {
     headline = 'Waiting for data'
-    subtext = 'Log one more cycle to predict your next period'
+    subtext = 'Log your period to start predictions'
   } else if (loggedToday && due) {
     subtext = 'Logged today — period confirmed'
   } else if (next === today) {
@@ -152,7 +152,7 @@ export default function MenstrualHealthCard({
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider opacity-70">Fertile window</p>
             <p className="text-sm font-bold">
-              {fertile ? `${formatShort(fertile.start)} – ${formatShort(fertile.end)}` : 'Needs two logged cycles'}
+              {fertile ? `${formatShort(fertile.start)} – ${formatShort(fertile.end)}` : 'Log your period to predict'}
             </p>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function MenstrualHealthCard({
           <span className="text-lg">📅</span>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wider opacity-70">Average cycle</p>
-            <p className="text-sm font-bold">{prediction.avgCycleLength !== null ? `${prediction.avgCycleLength} days` : '—'}</p>
+            <p className="text-sm font-bold">{prediction.avgCycleLength} days</p>
           </div>
         </div>
       </div>

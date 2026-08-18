@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { DayEntry } from '../../types'
 import {
   CYCLE_GAP_THRESHOLD_DAYS,
+  DEFAULT_CYCLE_LENGTH,
+  DEFAULT_PERIOD_LENGTH,
   FERTILE_RANGE,
   LUTEAL_PHASE_DAYS,
   averageCycleLength,
@@ -74,11 +76,12 @@ describe('detectCycles', () => {
 })
 
 describe('cycleLengths / averageCycleLength', () => {
-  it('empty for < 2 cycles', () => {
+  it('no completed lengths; default 28 until 2 cycles logged (Fitbit)', () => {
     expect(cycleLengths([])).toEqual([])
     const one = detectCycles(['2026-01-03', '2026-01-04'].map((d) => day(d)))
     expect(cycleLengths(one)).toEqual([])
-    expect(averageCycleLength(one)).toBeNull()
+    expect(averageCycleLength(one)).toBe(DEFAULT_CYCLE_LENGTH)
+    expect(averageCycleLength([])).toBe(DEFAULT_CYCLE_LENGTH)
   })
 
   it('start-to-start lengths across 3 cycles', () => {
@@ -103,6 +106,28 @@ describe('cycleLengths / averageCycleLength', () => {
     expect(cycleLengths(cycles)).toEqual([30, 30])
     expect(averageCycleLength(cycles)).toBe(30)
   })
+
+  it('recency-weighted: recent shorter cycles pull the average down harder', () => {
+    // lengths [28, 28, 21]: flat mean 25.7 → 26; weighted (28+56+63)/6 = 24.5 → 25
+    const entries = [
+      '2026-01-03', '2026-01-05',
+      '2026-01-31', '2026-02-02', // +28
+      '2026-02-28', '2026-03-02', // +28
+      '2026-03-21', '2026-03-23', // +21
+    ].map((d) => day(d))
+    expect(averageCycleLength(detectCycles(entries))).toBe(25)
+  })
+
+  it('recency-weighted: recent longer cycles pull the average up harder', () => {
+    // lengths [28, 28, 40]: flat mean 32; weighted (28+56+120)/6 = 34
+    const entries = [
+      '2026-01-03', '2026-01-05',
+      '2026-01-31', '2026-02-02', // +28
+      '2026-02-28', '2026-03-02', // +28
+      '2026-04-09', '2026-04-11', // +40
+    ].map((d) => day(d))
+    expect(averageCycleLength(detectCycles(entries))).toBe(34)
+  })
 })
 
 describe('cycleDayInfo', () => {
@@ -114,9 +139,17 @@ describe('cycleDayInfo', () => {
   // avg 28, last start 2026-02-28, period length 2 (Feb 28–Mar 1)
   // next period 2026-03-28, ovulation 03-14, fertile 03-09..03-15
 
-  it('null with < 2 cycles', () => {
+  it('null with no logged period (no anchor)', () => {
     expect(cycleDayInfo([], '2026-03-01')).toBeNull()
-    expect(cycleDayInfo(['2026-01-03', '2026-01-04'].map((d) => day(d)), '2026-01-10')).toBeNull()
+    expect(cycleDayInfo([{ date: '2026-03-01', symptoms: ['cramps'] }], '2026-03-05')).toBeNull()
+  })
+
+  it('single cycle → ring at default 28 (Fitbit), day offset from last start', () => {
+    const info = cycleDayInfo(['2026-01-03', '2026-01-04'].map((d) => day(d)), '2026-01-10')!
+    expect(info.cycleLength).toBe(DEFAULT_CYCLE_LENGTH)
+    expect(info.dayInCycle).toBe(7)
+    expect(info.phase).toBe('follicular')
+    expect(info.segments[0]).toEqual({ phase: 'period', start: 0, end: 2 })
   })
 
   it('day 0 = last cycle start, period phase', () => {
@@ -196,19 +229,25 @@ describe('predictNext', () => {
     '2026-02-28', '2026-03-01',
   ].map((d) => day(d))
 
-  it('no entries → all null', () => {
+  it('no entries → all null except default avg', () => {
     const p = predictNext([])
     expect(p.nextPeriodStart).toBeNull()
     expect(p.daysUntil).toBeNull()
     expect(p.ovulationDay).toBeNull()
     expect(p.fertileWindow).toBeNull()
-    expect(p.avgCycleLength).toBeNull()
+    expect(p.avgCycleLength).toBe(DEFAULT_CYCLE_LENGTH)
   })
 
-  it('single cycle → no prediction, avg null', () => {
+  it('single cycle → predicted from last start + default 28 (Fitbit)', () => {
     const p = predictNext(['2026-01-03', '2026-01-04'].map((d) => day(d)))
-    expect(p.nextPeriodStart).toBeNull()
-    expect(p.avgCycleLength).toBeNull()
+    expect(p.nextPeriodStart).toBe(addDays('2026-01-03', DEFAULT_CYCLE_LENGTH)) // 2026-01-31
+    expect(p.avgCycleLength).toBe(DEFAULT_CYCLE_LENGTH)
+    expect(p.ovulationDay).toBe(addDays('2026-01-31', -LUTEAL_PHASE_DAYS))
+    expect(p.fertileWindow).toEqual({
+      start: addDays(p.ovulationDay!, -FERTILE_RANGE.before),
+      end: addDays(p.ovulationDay!, FERTILE_RANGE.after),
+    })
+    expect(p.daysUntil).toBeGreaterThanOrEqual(0)
   })
 
   it('next period = last start + average length, window = ovu-5..ovu+1', () => {
@@ -251,8 +290,8 @@ function sixCycles(): DayEntry[] {
 }
 
 describe('averagePeriodLength', () => {
-  it('no cycles → null', () => {
-    expect(averagePeriodLength([])).toBeNull()
+  it('no cycles → Fitbit default 5-day period', () => {
+    expect(averagePeriodLength([])).toBe(DEFAULT_PERIOD_LENGTH)
   })
 
   it('mean of period spans, rounded', () => {
@@ -267,12 +306,12 @@ describe('cycleTrends', () => {
     expect(cycleTrends([])).toEqual({ rows: [], stats: { avgPeriodLength: null, avgOvulationDay: null, avgCycleLength: null } })
   })
 
-  it('single cycle → no length/ovulation, end = last period day', () => {
+  it('single cycle → predicted row at default 28 (Fitbit), not end-of-period', () => {
     const { rows, stats } = cycleTrends(['2026-01-03', '2026-01-04', '2026-01-05'].map((d) => day(d)))
     expect(rows).toEqual([
-      { start: '2026-01-03', end: '2026-01-05', periodLength: 3, ovulationDay: null, cycleLength: null, nextStart: null, fertileWindow: null },
+      { start: '2026-01-03', end: '2026-01-30', periodLength: 3, ovulationDay: 15, cycleLength: 28, nextStart: '2026-01-31', fertileWindow: { start: '2026-01-12', end: '2026-01-18' } },
     ])
-    expect(stats).toEqual({ avgPeriodLength: 3, avgOvulationDay: null, avgCycleLength: null })
+    expect(stats).toEqual({ avgPeriodLength: 3, avgOvulationDay: 15, avgCycleLength: 28 })
   })
 
   it('six cycles → spans, ovulation days and predicted latest match reference rows', () => {

@@ -31,5 +31,6 @@ export interface Prediction {
   daysUntil: number | null
   ovulationDay: string | null
   fertileWindow: { start: string; end: string } | null
-  avgCycleLength: number | null
+  /** Recency-weighted avg (Fitbit default 28 until 2+ cycles). Never null. */
+  avgCycleLength: number
 }
