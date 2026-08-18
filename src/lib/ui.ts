@@ -28,4 +28,33 @@ export function formatShort(iso: string): string {
   return `${Number(m)}/${Number(d)}`
 }
 
+const MONTH_ABBREV = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** "21 Jul" — day + short month, for trends cycle rows. */
+export function formatDayShort(iso: string): string {
+  const [, m, d] = iso.split('-')
+  return `${Number(d)} ${MONTH_ABBREV[Number(m) - 1]}`
+}
+
+/** "21 Jul - 15 Aug" — inclusive span, for trends cycle rows. */
+export function formatRange(start: string, end: string): string {
+  return `${formatDayShort(start)} - ${formatDayShort(end)}`
+}
+
+/** English ordinal suffix: 1st, 2nd, 3rd, 11th, 21st… */
+export function ordinal(n: number): string {
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1:
+      return `${n}st`
+    case 2:
+      return `${n}nd`
+    case 3:
+      return `${n}rd`
+    default:
+      return `${n}th`
+  }
+}
+
 export { FLOW_LEVELS, SYMPTOMS, symptomLabel, averageCycleLength }

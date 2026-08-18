@@ -4,6 +4,7 @@ import Calendar from './components/Calendar'
 import DaySheet from './components/DaySheet'
 import HistoryCard from './components/HistoryCard'
 import MenstrualHealthCard from './components/MenstrualHealthCard'
+import TrendsCard from './components/TrendsCard'
 import { addDays, MONTH_NAMES, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
 import {
@@ -20,6 +21,7 @@ const storage = createLocalStorageAdapter()
 export default function App() {
   const [snap, setSnap] = useState<Snapshot>(() => loadSnapshot(storage))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [tab, setTab] = useState<'calendar' | 'trends'>('calendar')
   const now = new Date()
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [viewMonth, setViewMonth] = useState(now.getMonth())
@@ -98,37 +100,68 @@ export default function App() {
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-md px-4 py-6">
-      <header className="mb-5 flex items-center justify-between">
+      <header className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-ink">
             <span className="text-rose-400">🌸</span> Bloom
           </h1>
           <p className="text-xs text-ink-soft">period tracking, softly</p>
         </div>
-        <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-[0_4px_14px_rgba(217,111,147,0.15)]">
-          <button
-            type="button"
-            onClick={() => nav(-1)}
-            className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
-            aria-label="Previous month"
-          >
-            ‹
-          </button>
-          <span className="min-w-28 text-center text-sm font-bold text-ink">
-            {MONTH_NAMES[viewMonth]} {viewYear}
-          </span>
-          <button
-            type="button"
-            onClick={() => nav(1)}
-            className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
-            aria-label="Next month"
-          >
-            ›
-          </button>
-        </div>
+        {tab === 'calendar' && (
+          <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-[0_4px_14px_rgba(217,111,147,0.15)]">
+            <button
+              type="button"
+              onClick={() => nav(-1)}
+              className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+            <span className="min-w-28 text-center text-sm font-bold text-ink">
+              {MONTH_NAMES[viewMonth]} {viewYear}
+            </span>
+            <button
+              type="button"
+              onClick={() => nav(1)}
+              className="rounded-full px-3 py-1.5 text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
+              aria-label="Next month"
+            >
+              ›
+            </button>
+          </div>
+        )}
       </header>
 
-      <main className="flex flex-col gap-4">
+      <nav className="mb-5 flex gap-8 border-b border-rose-100" aria-label="Views">
+        <button
+          type="button"
+          onClick={() => setTab('calendar')}
+          className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
+            tab === 'calendar' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
+          }`}
+        >
+          Calendar
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('trends')}
+          className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
+            tab === 'trends' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
+          }`}
+        >
+          Trends
+        </button>
+      </nav>
+
+      {tab === 'trends' ? (
+        <main className="flex flex-col gap-4">
+          <TrendsCard snap={snap} />
+          <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
+            Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
+          </footer>
+        </main>
+      ) : (
+        <main className="flex flex-col gap-4">
         <Calendar
           year={viewYear}
           month={viewMonth}
@@ -162,6 +195,7 @@ export default function App() {
           Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
         </footer>
       </main>
+      )}
 
       {selectedDate && (
         <DaySheet

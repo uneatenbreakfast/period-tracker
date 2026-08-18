@@ -64,6 +64,80 @@ export function averageCycleLength(cycles: CycleEvent[]): number | null {
   return Math.round(lens.reduce((a, b) => a + b, 0) / lens.length)
 }
 
+/** Average period span (days between first and last period day, inclusive). */
+export function averagePeriodLength(cycles: CycleEvent[]): number | null {
+  if (cycles.length === 0) return null
+  return Math.round(cycles.reduce((sum, c) => sum + c.length, 0) / cycles.length)
+}
+
+/** One row of the trends/cycles list. Oldest first (same order as detectCycles). */
+export interface CycleTrendRow {
+  /** First logged period day of the cycle */
+  start: string
+  /** Display span end (inclusive): start + cycleLength − 1; last period day when cycleLength is null */
+  end: string
+  /** Period span in days (first to last logged period day, inclusive) */
+  periodLength: number
+  /** 1-based day index of estimated ovulation within the cycle; null when no prediction */
+  ovulationDay: number | null
+  /** Start-to-start length; the latest cycle uses the average (prediction); null for a single cycle */
+  cycleLength: number | null
+  /** Predicted/actual next period start (start + cycleLength); null when no prediction */
+  nextStart: string | null
+  /** Fertile window around ovulation (calendar method); null when no prediction */
+  fertileWindow: { start: string; end: string } | null
+}
+
+export interface CycleTrendStats {
+  avgPeriodLength: number | null
+  avgOvulationDay: number | null
+  avgCycleLength: number | null
+}
+
+/**
+ * Rows + averages for the trends screen. For the latest cycle there is no
+ * actual next start yet, so its length (and the row's span end + ovulation)
+ * come from the average prediction — mirrors predictNext.
+ */
+export function cycleTrends(entries: DayEntry[]): { rows: CycleTrendRow[]; stats: CycleTrendStats } {
+  const cycles = detectCycles(entries)
+  const empty: CycleTrendStats = { avgPeriodLength: null, avgOvulationDay: null, avgCycleLength: null }
+  if (cycles.length === 0) return { rows: [], stats: empty }
+
+  const lens = cycleLengths(cycles)
+  const avg = averageCycleLength(cycles) // null when fewer than two cycles
+  const rows: CycleTrendRow[] = cycles.map((c, i) => {
+    const cycleLength = i < lens.length ? lens[i] : avg
+    const nextStart = cycleLength === null ? null : addDays(c.start, cycleLength)
+    const ovulationDay =
+      nextStart === null ? null : diffDays(addDays(nextStart, -LUTEAL_PHASE_DAYS), c.start) + 1
+    const end = nextStart === null ? c.end : addDays(nextStart, -1)
+    const fertileWindow =
+      nextStart === null
+        ? null
+        : {
+            start: addDays(nextStart, -LUTEAL_PHASE_DAYS - FERTILE_RANGE.before),
+            end: addDays(nextStart, -LUTEAL_PHASE_DAYS + FERTILE_RANGE.after),
+          }
+    return { start: c.start, end, periodLength: c.length, ovulationDay, cycleLength, nextStart, fertileWindow }
+  })
+
+  const ovulationDays = rows
+    .map((r) => r.ovulationDay)
+    .filter((d): d is number => d !== null)
+  return {
+    rows,
+    stats: {
+      avgPeriodLength: averagePeriodLength(cycles),
+      avgOvulationDay:
+        ovulationDays.length === 0
+          ? null
+          : Math.round(ovulationDays.reduce((a, b) => a + b, 0) / ovulationDays.length),
+      avgCycleLength: avg,
+    },
+  }
+}
+
 export function predictNext(entries: DayEntry[]): Prediction {
   const cycles = detectCycles(entries)
   const avg = averageCycleLength(cycles)

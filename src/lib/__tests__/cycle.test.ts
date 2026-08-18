@@ -5,8 +5,10 @@ import {
   FERTILE_RANGE,
   LUTEAL_PHASE_DAYS,
   averageCycleLength,
+  averagePeriodLength,
   cycleDayInfo,
   cycleLengths,
+  cycleTrends,
   detectCycles,
   isPeriodDay,
   predictNext,
@@ -231,5 +233,69 @@ describe('predictNext', () => {
     const p = predictNext(entries)
     expect(p.avgCycleLength).toBe(30)
     expect(p.nextPeriodStart).toBe(addDays('2026-03-04', 30))
+  })
+})
+
+/**
+ * Six cycles matching the Trends reference screen (period days only; spans
+ * derive from cycle lengths): intervals 26, 25, 26, 23, 28 days.
+ */
+function sixCycles(): DayEntry[] {
+  const starts = ['2026-03-15', '2026-04-10', '2026-05-05', '2026-05-31', '2026-06-23', '2026-07-21']
+  const lengths = [6, 5, 6, 5, 5, 5]
+  const entries: DayEntry[] = []
+  starts.forEach((s, i) => {
+    for (let j = 0; j < lengths[i]; j++) entries.push(day(addDays(s, j)))
+  })
+  return entries
+}
+
+describe('averagePeriodLength', () => {
+  it('no cycles → null', () => {
+    expect(averagePeriodLength([])).toBeNull()
+  })
+
+  it('mean of period spans, rounded', () => {
+    expect(averagePeriodLength(detectCycles(sixCycles()))).toBe(5) // (6+5+6+5+5+5)/6 = 5.33
+    const three = ['2026-01-03', '2026-01-05', '2026-02-02', '2026-02-04', '2026-03-04', '2026-03-06'].map((d) => day(d))
+    expect(averagePeriodLength(detectCycles(three))).toBe(3)
+  })
+})
+
+describe('cycleTrends', () => {
+  it('no entries → empty rows, null stats', () => {
+    expect(cycleTrends([])).toEqual({ rows: [], stats: { avgPeriodLength: null, avgOvulationDay: null, avgCycleLength: null } })
+  })
+
+  it('single cycle → no length/ovulation, end = last period day', () => {
+    const { rows, stats } = cycleTrends(['2026-01-03', '2026-01-04', '2026-01-05'].map((d) => day(d)))
+    expect(rows).toEqual([
+      { start: '2026-01-03', end: '2026-01-05', periodLength: 3, ovulationDay: null, cycleLength: null, nextStart: null, fertileWindow: null },
+    ])
+    expect(stats).toEqual({ avgPeriodLength: 3, avgOvulationDay: null, avgCycleLength: null })
+  })
+
+  it('six cycles → spans, ovulation days and predicted latest match reference rows', () => {
+    const { rows, stats } = cycleTrends(sixCycles())
+    expect(rows).toEqual([
+      { start: '2026-03-15', end: '2026-04-09', periodLength: 6, ovulationDay: 13, cycleLength: 26, nextStart: '2026-04-10', fertileWindow: { start: '2026-03-22', end: '2026-03-28' } },
+      { start: '2026-04-10', end: '2026-05-04', periodLength: 5, ovulationDay: 12, cycleLength: 25, nextStart: '2026-05-05', fertileWindow: { start: '2026-04-16', end: '2026-04-22' } },
+      { start: '2026-05-05', end: '2026-05-30', periodLength: 6, ovulationDay: 13, cycleLength: 26, nextStart: '2026-05-31', fertileWindow: { start: '2026-05-12', end: '2026-05-18' } },
+      { start: '2026-05-31', end: '2026-06-22', periodLength: 5, ovulationDay: 10, cycleLength: 23, nextStart: '2026-06-23', fertileWindow: { start: '2026-06-04', end: '2026-06-10' } },
+      { start: '2026-06-23', end: '2026-07-20', periodLength: 5, ovulationDay: 15, cycleLength: 28, nextStart: '2026-07-21', fertileWindow: { start: '2026-07-02', end: '2026-07-08' } },
+      // latest cycle: length from the average (prediction), not yet observed
+      { start: '2026-07-21', end: '2026-08-15', periodLength: 5, ovulationDay: 13, cycleLength: 26, nextStart: '2026-08-16', fertileWindow: { start: '2026-07-28', end: '2026-08-03' } },
+    ])
+    expect(stats).toEqual({ avgPeriodLength: 5, avgOvulationDay: 13, avgCycleLength: 26 })
+  })
+
+  it('avg ovulation day derives from per-row ovulation days (round)', () => {
+    const { stats } = cycleTrends(sixCycles())
+    expect(stats.avgOvulationDay).toBe(Math.round((13 + 12 + 13 + 10 + 15 + 13) / 6))
+  })
+
+  it('sorts ascending (same order as detectCycles)', () => {
+    const { rows } = cycleTrends(sixCycles())
+    expect(rows[0].start < rows[rows.length - 1].start).toBe(true)
   })
 })
