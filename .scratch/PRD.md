@@ -16,6 +16,7 @@ Period tracker app ("Bloom"). Soft pastel feminine design approved.
 - [x] Month calendar: period days (rose), predicted period (dashed outline), fertile window (lavender tint), today ring
 - [x] Predictions: next period start, fertile window, ovulation day, average cycle length
 - [x] Cycle history: start dates + lengths
+- [x] Trends view: avg period/ovulation/cycle stats + per-cycle bars (CALENDAR/TRENDS tabs)
 - [x] Persistence: localStorage snapshot, survives reload
 - [ ] Settings (period length, cycle length inputs) — post-MVP
 - [ ] Server sync (blob) — post-MVP, after RN
@@ -23,7 +24,7 @@ Period tracker app ("Bloom"). Soft pastel feminine design approved.
 ## Out of scope (later)
 - Server + auth (blob endpoint design TBD when sync lands)
 - RN/Expo app (reuse `src/lib/*` pure logic + snapshot shape)
-- Charts/trends, reminders/notifications, export/import
+- Reminders/notifications, export/import
 
 ## Prediction model
 - Cycle = run of period days; gap > 3 days starts a new cycle; cycle length = start-to-start days

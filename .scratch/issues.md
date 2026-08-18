@@ -14,4 +14,6 @@ Allow user to set expected cycle length (default 28) used when < 2 logged cycles
 Header month nav lacks "Today" jump when browsing other months (E2E had to click ‹ 6× to reach January). Not started.
 
 ## Done
-(none yet — first issue batch created with project kickoff)
+
+### BLOOM-0004 — Trends screen
+CALENDAR/TRENDS tabs; Trends = stats grid (avg period length, avg estimated ovulation, avg cycle length) + MY CYCLES list with period/fertile/remainder bar, droplet + heart icons, chevron detail rows. Pure logic in `cycle.ts` (avgCycleLength rounds to nearest day; predicted entry shown for last cycle when < 2 completed cycles). Completed 2026-08-18. Verified: 53 unit tests + Playwright E2E (6 seeded cycles, bar geometry, tab switch, no JS errors).
