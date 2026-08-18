@@ -3,6 +3,7 @@
 // Prereq: dev server on :5174 (bun run dev --port 5174), then:
 //   NODE_PATH=/mnt/c/Repos/bookmarker/node_modules node bloom-trends-e2e.js
 const { chromium } = require('playwright');
+const BASE = process.env.BLOOM_BASE_URL || 'http://localhost:5174/';
 
 const cycles = [
   { start: '2026-03-15', days: 6 },
@@ -35,7 +36,7 @@ const cycles = [
     for (let i = 0; i < days; i++) seed.push({ date: isoAdd(start, i), flow: i % 2 ? 'medium' : 'light', symptoms: [] });
   });
 
-  await page.goto('http://localhost:5174/', { waitUntil: 'networkidle0' });
+  await page.goto(BASE, { waitUntil: 'networkidle0' });
   await page.evaluate(() => localStorage.clear());
   await page.evaluate((seed) => {
     localStorage.setItem('bloom.snapshot.v1', JSON.stringify({ version: 1, entries: seed, updatedAt: new Date().toISOString() }));

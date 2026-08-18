@@ -37,6 +37,11 @@ export default function Calendar({
 
   return (
     <div className="rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
+      {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
+      <div
+        data-calendar-scroll
+        className="-mx-5 h-[21rem] overflow-y-auto overscroll-contain px-5"
+      >
       {months.map(({ year, month }, mi) => {
         const grid = monthGrid(year, month)
         const isCurrentMonth = year === todayYear && month === todayMonth
@@ -101,6 +106,7 @@ export default function Calendar({
           </section>
         )
       })}
+      </div>
       {!showLegend ? null : (
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-rose-50 pt-3 text-xs text-ink-soft">
           <span className="flex items-center gap-1.5">
