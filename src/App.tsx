@@ -111,7 +111,17 @@ export default function App() {
   }
 
   const scrollToMonth = (year: number, month: number) => {
-    document.querySelector(`[data-month="${year}-${month}"]`)?.scrollIntoView({ block: 'start' })
+    // scroll the calendar's inner box (data-calendar-scroll), not the page.
+    // rect-based: current positions already reflect current scrollTop, so the
+    // delta is exact (offsetTop is unreliable across the scroll container).
+    const scroller = document.querySelector<HTMLElement>('[data-calendar-scroll]')
+    const el = document.querySelector<HTMLElement>(`[data-month="${year}-${month}"]`)
+    if (!el) return
+    if (scroller) {
+      scroller.scrollTop += el.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    } else {
+      el.scrollIntoView({ block: 'start' })
+    }
   }
 
   useEffect(() => {

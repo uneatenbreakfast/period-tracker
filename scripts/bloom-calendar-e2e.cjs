@@ -1,8 +1,11 @@
 // Bloom scrollable calendar E2E — months list, initial scroll to today,
 // range extension to old entries, day tap → DaySheet, Today pill re-scroll.
-// Prereq: dev server on :5174 (bun run dev --port 5174), then:
+// Prereq: dev server (bun run dev --port 5174), then:
 //   NODE_PATH=/mnt/c/Repos/bookmarker/node_modules node bloom-calendar-e2e.cjs
+// Port override (e.g. when a sibling session holds 5174): BLOOM_BASE_URL=http://localhost:5176/
 const { chromium } = require('playwright');
+
+const BASE = process.env.BLOOM_BASE_URL || BASE;
 
 const pad = (n) => String(n).padStart(2, '0');
 const localISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -25,12 +28,15 @@ const isoAdd = (iso, n) => {
 
   const today = localISO(new Date());
   const oldDay = isoAdd(today, -400); // ~13 months back → forces range extension
-  const [todayY, todayM] = today.split('-').map(Number);
+  const [todayY, todayM1] = today.split('-').map(Number);
+  // data-month attributes are 0-based months — the 1-based calendar month would
+  // match the NEXT month's section (classic "346px offset" phantom).
+  const todayM = todayM1 - 1;
   const oldY = +oldDay.slice(0, 4), oldM = +oldDay.slice(5, 7) - 1;
   const em = oldY * 12 + oldM - 1; // one month before earliest entry
   const expFirst = `${Math.floor(em / 12)}-${((em % 12) + 12) % 12}`;
 
-  await page.goto('http://localhost:5174/', { waitUntil: 'networkidle0' });
+  await page.goto(BASE, { waitUntil: 'networkidle0' });
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle0' });
 
@@ -56,16 +62,38 @@ const isoAdd = (iso, n) => {
   if (months[0] === expFirst) ok(`range extended back to ${expFirst} (before ${oldDay})`);
   else fail(`first month ${months[0]}, expected ${expFirst}`);
 
-  // STEP 3 — initial scroll lands on current month
+  // STEP 3 — calendar scrolls inside its own box; the PAGE must not scroll for months
+  const box = await page.evaluate(() => {
+    const s = document.querySelector('[data-calendar-scroll]');
+    const cs = getComputedStyle(s);
+    const r = s.getBoundingClientRect();
+    return {
+      height: Math.round(r.height),
+      overflowY: cs.overflowY,
+      clientH: s.clientHeight,
+      scrollH: s.scrollHeight,
+    };
+  });
+  if (box.height >= 300 && box.height <= 400) ok(`calendar box ≈ one month tall (${box.height}px)`);
+  else fail('calendar box height not ~1 month: ' + box.height);
+  if (box.overflowY === 'auto') ok('calendar box overflow-y auto (inner scroll)');
+  else fail('calendar box overflowY=' + box.overflowY);
+  if (box.scrollH > box.clientH) ok(`box is scrollable (client ${box.clientH}px < content ${box.scrollH}px)`);
+  else fail('box not scrollable: client=' + box.clientH + ' scroll=' + box.scrollH);
+
   const pos = await page.evaluate(({ todayY, todayM }) => {
+    const scroller = document.querySelector('[data-calendar-scroll]');
     const el = document.querySelector(`[data-month="${todayY}-${todayM}"]`);
+    const sr = scroller.getBoundingClientRect();
     const r = el.getBoundingClientRect();
-    return { top: Math.round(r.top), scrollY: Math.round(window.scrollY) };
+    return { scrollY: Math.round(window.scrollY), scrollTop: Math.round(scroller.scrollTop), monthTop: Math.round(r.top - sr.top) };
   }, { todayY, todayM });
-  if (pos.scrollY > 500) ok('page scrolled down to current month (scrollY=' + pos.scrollY + ')');
-  else fail('no initial scroll: scrollY=' + pos.scrollY);
-  if (pos.top >= -80 && pos.top < 500) ok('current month near top of viewport (top=' + pos.top + ')');
-  else fail('current month not in view: top=' + pos.top);
+  if (pos.scrollY < 100) ok('page did NOT scroll (scrollY=' + pos.scrollY + ')');
+  else fail('page scrolled for calendar: scrollY=' + pos.scrollY);
+  if (pos.scrollTop > 500) ok('calendar box scrolled to current month (scrollTop=' + pos.scrollTop + ')');
+  else fail('calendar box not scrolled: scrollTop=' + pos.scrollTop);
+  if (pos.monthTop >= -10 && pos.monthTop < 120) ok('current month at top of calendar box (top=' + pos.monthTop + ')');
+  else fail('current month not at box top: top=' + pos.monthTop);
 
   // STEP 4 — tap old period day (scrolled away) → DaySheet for that date
   await page.click(`button[aria-label="${oldDay}"]`);
@@ -78,15 +106,19 @@ const isoAdd = (iso, n) => {
   await page.click('button[aria-label="Close"]');
   await page.waitForTimeout(300);
 
-  // STEP 5 — Today pill scrolls back to current month
+  // STEP 5 — Today pill scrolls box back to current month (page stays put)
   await page.click('button[aria-label="Scroll to today"]');
   await page.waitForTimeout(500);
   const back = await page.evaluate(({ todayY, todayM }) => {
+    const scroller = document.querySelector('[data-calendar-scroll]');
     const el = document.querySelector(`[data-month="${todayY}-${todayM}"]`);
-    return { top: Math.round(el.getBoundingClientRect().top), scrollY: Math.round(window.scrollY) };
+    const sr = scroller.getBoundingClientRect();
+    return { monthTop: Math.round(el.getBoundingClientRect().top - sr.top), scrollY: Math.round(window.scrollY) };
   }, { todayY, todayM });
-  if (back.top >= -80 && back.top < 500) ok('Today pill re-scrolls to current month (top=' + back.top + ')');
-  else fail('Today pill scroll failed: top=' + back.top + ' scrollY=' + back.scrollY);
+  if (back.monthTop >= -10 && back.monthTop < 120) ok('Today pill re-scrolls box to current month (top=' + back.monthTop + ')');
+  else fail('Today pill scroll failed: top=' + back.monthTop + ' scrollY=' + back.scrollY);
+  if (back.scrollY < 100) ok('page still not scrolled by Today pill (scrollY=' + back.scrollY + ')');
+  else fail('Today pill scrolled page: scrollY=' + back.scrollY);
 
   await page.screenshot({ path: '/tmp/bloom-calendar-scrollable.png' });
   console.log('JS ERRORS:', errors.length ? errors.join(' | ') : 'none');
