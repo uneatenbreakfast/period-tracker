@@ -1,5 +1,5 @@
-import type { DayEntry, Snapshot } from '../types'
-import { isValidISO, todayISO } from './dates'
+import type { DayEntry, FlowLevel, Snapshot } from '../types'
+import { addDays, isValidISO, todayISO } from './dates'
 
 export const SNAPSHOT_VERSION = 1 as const
 const STORAGE_KEY = 'bloom.snapshot.v1'
@@ -60,6 +60,20 @@ export function upsertReact(snap: Snapshot, date: string, patch: Partial<DayEntr
   const existing = snap.entries.find((e) => e.date === date)
   const base: DayEntry = existing ?? { date, symptoms: [] }
   return upsertEntry(snap, { ...base, ...patch, date })
+}
+
+/**
+ * Mark every day in the inclusive [start, end] range as a period day.
+ * Days that already have a flow keep it (per-day level wins over the range bulk).
+ */
+export function setRangeFlow(snap: Snapshot, start: string, end: string, flow: FlowLevel): Snapshot {
+  let next = snap
+  const [from, to] = start <= end ? [start, end] : [end, start]
+  for (let d = from; d <= to; d = addDays(d, 1)) {
+    const existing = getEntry(next, d)
+    next = upsertReact(next, d, { flow: existing?.flow ?? flow })
+  }
+  return next
 }
 
 export function getEntry(snap: Snapshot, date: string): DayEntry | undefined {

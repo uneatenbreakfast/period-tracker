@@ -12,6 +12,9 @@ BLOOM-0002 core shipped as hardcoded Fitbit defaults (28-day cycle / 5-day perio
 
 ## Done
 
+### BLOOM-0007 — Drag to log a period range
+Calendar: click a day, drag across days, release → the whole range is logged as the period (start day → end day). Live rose highlight while dragging; committed on mouseup with `DEFAULT_FLOW` ('medium') on days that have no flow yet — per-day flow levels already set are preserved. Single click (no drag) still opens DaySheet; the trailing click after a drag is swallowed. Pure helpers: `dateRange` (dates.ts), `setRangeFlow` (storage.ts). Completed 2026-08-19. Verified: 64 unit tests (3 dateRange + 3 setRangeFlow) + calendar E2E STEP 6 (live mid-drag highlight, no DaySheet on drag, committed range all rose + 5 persisted flow days, plain click still opens DaySheet) + card/trends E2E unchanged green; pixel-verified computed bg rgb(229,138,168) = palette rose on all range days.
+
 ### BLOOM-0003 — Today shortcut
 Resolved 2026-08-18 by BLOOM-0005: scrollable calendar's "Today" pill scrolls back to the current month; no month-arrow nav remains to get lost in.
 

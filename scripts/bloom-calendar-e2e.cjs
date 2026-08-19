@@ -5,7 +5,7 @@
 // Port override (e.g. when a sibling session holds 5174): BLOOM_BASE_URL=http://localhost:5176/
 const { chromium } = require('playwright');
 
-const BASE = process.env.BLOOM_BASE_URL || BASE;
+const BASE = process.env.BLOOM_BASE_URL || 'http://localhost:5174/';
 
 const pad = (n) => String(n).padStart(2, '0');
 const localISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -119,6 +119,65 @@ const isoAdd = (iso, n) => {
   else fail('Today pill scroll failed: top=' + back.monthTop + ' scrollY=' + back.scrollY);
   if (back.scrollY < 100) ok('page still not scrolled by Today pill (scrollY=' + back.scrollY + ')');
   else fail('Today pill scrolled page: scrollY=' + back.scrollY);
+
+  // STEP 6 — click-drag across days creates a period range (start → end),
+  // highlighted live while dragging, committed as flow on mouseup; DaySheet stays closed.
+  let dragStartISO = `${todayY}-${pad(todayM + 1)}-12`;
+  let dragMidISO = `${todayY}-${pad(todayM + 1)}-14`;
+  let dragEndISO = `${todayY}-${pad(todayM + 1)}-16`;
+  if (`${todayY}-${pad(todayM + 1)}-12` === today) {
+    // month day 12 collides with today's seeded entry — pick days 20..24 instead
+    dragStartISO = `${todayY}-${pad(todayM + 1)}-20`;
+    dragMidISO = `${todayY}-${pad(todayM + 1)}-22`;
+    dragEndISO = `${todayY}-${pad(todayM + 1)}-24`;
+  }
+  const d1 = await page.locator(`button[aria-label="${dragStartISO}"]`).boundingBox();
+  const dm = await page.locator(`button[aria-label="${dragMidISO}"]`).boundingBox();
+  const d2 = await page.locator(`button[aria-label="${dragEndISO}"]`).boundingBox();
+  if (!d1 || !dm || !d2) fail(`drag days not rendered (${dragStartISO}, ${dragMidISO}, ${dragEndISO})`);
+  else {
+    await page.mouse.move(d1.x + d1.width / 2, d1.y + d1.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(dm.x + dm.width / 2, dm.y + dm.height / 2, { steps: 6 });
+    await page.waitForTimeout(120);
+    const midCls = await page.evaluate((iso) => {
+      const el = document.querySelector(`button[aria-label="${iso}"]`);
+      return el ? el.className : '';
+    }, dragMidISO);
+    if (midCls.includes('bg-rose-400')) ok(`live drag highlight spans range (mid ${dragMidISO} rose)`);
+    else fail('mid-drag highlight missing: ' + midCls.slice(0, 160));
+    await page.mouse.move(d2.x + d2.width / 2, d2.y + d2.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(350);
+    const sheetAfter = await page.evaluate(() => document.body.innerText.includes('PERIOD FLOW'));
+    if (!sheetAfter) ok('drag commits range without opening DaySheet');
+    else fail('drag opened DaySheet');
+    const rose = await page.evaluate((isos) => {
+      return isos.map((iso) => {
+        const el = document.querySelector(`button[aria-label="${iso}"]`);
+        return el ? el.className.includes('bg-rose-400') : false;
+      });
+    }, [dragStartISO, dragMidISO, dragEndISO]);
+    if (rose.every(Boolean)) ok(`committed range fully highlighted rose (${dragStartISO}..${dragEndISO})`);
+    else fail('range not fully rose after commit: ' + JSON.stringify(rose));
+    const stored = await page.evaluate(({ a, b }) => {
+      const snap = JSON.parse(localStorage.getItem('bloom.snapshot.v1'));
+      return snap.entries.filter((e) => e.date >= a && e.date <= b);
+    }, { a: dragStartISO, b: dragEndISO });
+    const rangeLen = 5;
+    if (stored.length === rangeLen && stored.every((e) => e.flow === 'medium'))
+      ok(`range persisted as ${rangeLen} flow days (medium default)`);
+    else fail('range entries wrong: ' + JSON.stringify(stored.map((e) => e.date + ':' + e.flow)));
+    // click still works post-drag: day before range opens DaySheet
+    const clickDay = isoAdd(dragStartISO, -1);
+    await page.click(`button[aria-label="${clickDay}"]`);
+    await page.waitForTimeout(300);
+    const sheet2 = await page.evaluate(() => document.body.innerText);
+    if (sheet2.toUpperCase().includes('PERIOD FLOW')) ok('plain click after drag still opens DaySheet');
+    else fail('click after drag did not open DaySheet');
+    await page.click('button[aria-label="Close"]');
+    await page.waitForTimeout(300);
+  }
 
   await page.screenshot({ path: '/tmp/bloom-calendar-scrollable.png' });
   console.log('JS ERRORS:', errors.length ? errors.join(' | ') : 'none');

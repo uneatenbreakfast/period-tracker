@@ -21,6 +21,14 @@ export function addDays(iso: string, n: number): string {
   return toISODate(d)
 }
 
+/** Inclusive ISO date list from a to b, order-agnostic, ascending. */
+export function dateRange(a: string, b: string): string[] {
+  const [start, end] = a <= b ? [a, b] : [b, a]
+  const out: string[] = []
+  for (let d = start; d <= end; d = addDays(d, 1)) out.push(d)
+  return out
+}
+
 /** Whole days from b to a (a - b). Negative when a < b. */
 export function diffDays(a: string, b: string): number {
   const ms = fromISODate(a).getTime() - fromISODate(b).getTime()

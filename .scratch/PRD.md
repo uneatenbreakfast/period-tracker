@@ -12,6 +12,7 @@ Period tracker app ("Bloom"). Soft pastel feminine design approved.
 
 ## MVP scope (web)
 - [x] Log period days + flow level (spotting/light/medium/heavy)
+- [x] Calendar drag: click + drag across days logs the whole period range (start → end)
 - [x] Log symptoms per day (cramps, headache, bloating, fatigue, mood swings, tender breasts, acne, backache, nausea, cravings) + free-text note
 - [x] Month calendar: period days (rose), predicted period (dashed outline), fertile window (lavender tint), today ring
 - [x] Predictions: next period start, fertile window, ovulation day, average cycle length

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addDays,
   addMonths,
+  dateRange,
   diffDays,
   fromISODate,
   isValidISO,
@@ -21,6 +22,16 @@ describe('ISO helpers', () => {
     expect(addDays('2026-01-31', 1)).toBe('2026-02-01')
     expect(addDays('2026-12-31', 1)).toBe('2027-01-01')
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28')
+  })
+
+  it('dateRange lists inclusive days, ascending, order-agnostic', () => {
+    expect(dateRange('2026-01-03', '2026-01-05')).toEqual(['2026-01-03', '2026-01-04', '2026-01-05'])
+    expect(dateRange('2026-01-05', '2026-01-03')).toEqual(['2026-01-03', '2026-01-04', '2026-01-05'])
+    expect(dateRange('2026-01-05', '2026-01-05')).toEqual(['2026-01-05'])
+  })
+
+  it('dateRange crosses month boundaries', () => {
+    expect(dateRange('2026-01-30', '2026-02-02')).toEqual(['2026-01-30', '2026-01-31', '2026-02-01', '2026-02-02'])
   })
 
   it('diffDays is whole-day, sign-correct', () => {

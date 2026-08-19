@@ -7,6 +7,7 @@ import {
   removeEntry,
   saveSnapshot,
   serializeSnapshot,
+  setRangeFlow,
   upsertEntry,
   upsertReact,
 } from '../storage'
@@ -108,5 +109,31 @@ describe('entry mutations (pure)', () => {
     const blob = serializeSnapshot(s)
     expect(typeof blob).toBe('string')
     expect(parseSnapshot(blob)?.entries).toEqual(s.entries)
+  })
+
+  it('setRangeFlow marks every day in range, order-agnostic', () => {
+    const s = createEmptySnapshot()
+    const a = setRangeFlow(s, '2026-01-03', '2026-01-05', 'medium')
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-03', '2026-01-04', '2026-01-05'])
+    expect(a.entries.every((e) => e.flow === 'medium')).toBe(true)
+    const b = setRangeFlow(s, '2026-01-05', '2026-01-03', 'light')
+    expect(b.entries.map((e) => e.date)).toEqual(['2026-01-03', '2026-01-04', '2026-01-05'])
+    expect(b.entries.every((e) => e.flow === 'light')).toBe(true)
+  })
+
+  it('setRangeFlow keeps an existing per-day flow level', () => {
+    const s = upsertEntry(createEmptySnapshot(), { date: '2026-01-04', flow: 'heavy', symptoms: ['cramps'], notes: 'bad day' })
+    const a = setRangeFlow(s, '2026-01-03', '2026-01-05', 'medium')
+    expect(getEntry(a, '2026-01-04')).toEqual({ date: '2026-01-04', flow: 'heavy', symptoms: ['cramps'], notes: 'bad day' })
+    expect(getEntry(a, '2026-01-03')?.flow).toBe('medium')
+    expect(getEntry(a, '2026-01-05')?.flow).toBe('medium')
+  })
+
+  it('setRangeFlow crosses month boundaries and leaves outside days alone', () => {
+    const s = createEmptySnapshot()
+    const a = setRangeFlow(s, '2026-01-30', '2026-02-02', 'light')
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-30', '2026-01-31', '2026-02-01', '2026-02-02'])
+    const withOutside = setRangeFlow(upsertEntry(s, { date: '2026-01-10', symptoms: [] }), '2026-01-03', '2026-01-05', 'medium')
+    expect(getEntry(withOutside, '2026-01-10')).toEqual({ date: '2026-01-10', symptoms: [] })
   })
 })

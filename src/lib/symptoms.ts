@@ -26,6 +26,9 @@ export const FLOW_LEVELS: { value: FlowLevel; label: string; emoji: string }[] =
   { value: 'heavy', label: 'Heavy', emoji: '💧💧💧' },
 ]
 
+/** Flow applied to days in a drag-created period range; per-day tweaks via DaySheet. */
+export const DEFAULT_FLOW: FlowLevel = 'medium'
+
 export function symptomLabel(key: string): string {
   return SYMPTOMS.find((s) => s.key === key)?.label ?? key
 }
