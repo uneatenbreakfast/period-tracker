@@ -8,6 +8,7 @@ import TrendsCard from './components/TrendsCard'
 import { addDays, addMonths, fromISODate, monthList, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
 import {
+  applyFlowRange,
   createLocalStorageAdapter,
   getEntry,
   loadSnapshot,
@@ -110,6 +111,11 @@ export default function App() {
     setSnap((s) => removeEntry(s, selectedDate))
   }
 
+  /** Drag on the calendar: log the whole dragged span as period days. */
+  const logFlowRange = (from: string, to: string) => {
+    setSnap((s) => applyFlowRange(s, from, to, 'medium'))
+  }
+
   const scrollToMonth = (year: number, month: number) => {
     // scroll the calendar's inner box (data-calendar-scroll), not the page.
     // rect-based: current positions already reflect current scrollTop, so the
@@ -189,6 +195,7 @@ export default function App() {
           fertileDays={fertileDays}
           selectedDate={selectedDate}
           onSelect={setSelectedDate}
+          onLogRange={logFlowRange}
         />
         <MenstrualHealthCard
           prediction={prediction}

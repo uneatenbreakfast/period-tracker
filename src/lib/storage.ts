@@ -1,5 +1,5 @@
-import type { DayEntry, Snapshot } from '../types'
-import { isValidISO, todayISO } from './dates'
+import type { DayEntry, FlowLevel, Snapshot } from '../types'
+import { addDays, isValidISO, todayISO } from './dates'
 
 export const SNAPSHOT_VERSION = 1 as const
 const STORAGE_KEY = 'bloom.snapshot.v1'
@@ -64,6 +64,20 @@ export function upsertReact(snap: Snapshot, date: string, patch: Partial<DayEntr
 
 export function getEntry(snap: Snapshot, date: string): DayEntry | undefined {
   return snap.entries.find((e) => e.date === date)
+}
+
+/**
+ * Mark every day between `from` and `to` (inclusive, order-independent) as a
+ * period day with the given flow. Existing symptoms/notes on those days are
+ * kept (upsert merge). Returns a new snapshot.
+ */
+export function applyFlowRange(snap: Snapshot, from: string, to: string, flow: FlowLevel): Snapshot {
+  const [a, b] = from <= to ? [from, to] : [to, from]
+  let next = snap
+  for (let d = a; d <= b; d = addDays(d, 1)) {
+    next = upsertReact(next, d, { flow })
+  }
+  return next
 }
 
 export function createLocalStorageAdapter(): StorageLike {
