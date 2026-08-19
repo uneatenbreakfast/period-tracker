@@ -1,7 +1,10 @@
 // Bloom drag-to-range E2E — LONG PRESS a day (400ms hold), THEN drag to
 // another day: live rose highlight (bg-rose-400, same style as committed
 // period days) spans covered cells while dragging, whole inclusive span
-// logged as period flow on release. Quick drags (movement before the hold
+// logged as period flow on release. Ranges render as a CONTINUOUS STRIP:
+// start day = left semicircle cap (rounded-l-full), end day = right cap,
+// interior days = flush squares (rounded-none) filling the column edge-to-
+// edge; a lone day stays a circle. Quick drags (movement before the hold
 // fires) select nothing; a long press WITHOUT a drag is still a plain tap
 // (DaySheet). Prereq: dev server (bun run dev --port <own port>), then:
 //   NODE_PATH=/mnt/c/Repos/period-tracker/node_modules node bloom-range-e2e.cjs
@@ -118,6 +121,14 @@ const isoAdd = (iso, n) => {
   else fail('live highlight missing on passed-over cells');
   if (await hasClass(d11, 'bg-rose-400')) ok('intermediate day highlighted');
   else fail('intermediate day not highlighted');
+  // Continuous-strip preview: drag start = left semicircle cap, interior =
+  // flush square, drag end = right semicircle cap.
+  if (await hasClass(d10, 'rounded-l-full')) ok('preview: start day has left semicircle cap (rounded-l-full)');
+  else fail('preview: start day missing left cap');
+  if (await hasClass(d12, 'rounded-none')) ok('preview: interior day is a flush square (rounded-none)');
+  else fail('preview: interior day not a square');
+  if (await hasClass(d13, 'rounded-r-full')) ok('preview: end day has right semicircle cap (rounded-r-full)');
+  else fail('preview: end day missing right cap');
   await page.mouse.up();
   await page.waitForTimeout(300);
 
@@ -128,6 +139,26 @@ const isoAdd = (iso, n) => {
   }
   if (!(await sheetOpen())) ok('drag did NOT open DaySheet');
   else fail('DaySheet opened after drag commit');
+  // Committed strip shape: 10 = left cap, 11/12 = squares, 13 = right cap.
+  if (await hasClass(d10, 'rounded-l-full') && await hasClass(d10, 'rounded-r-none'))
+    ok('committed: run start keeps the left semicircle cap');
+  else fail('committed: run start cap wrong: ' + await page.evaluate((i) => document.querySelector(`button[aria-label="${i}"]`)?.className, d10));
+  if (await hasClass(d11, 'rounded-none') && await hasClass(d12, 'rounded-none'))
+    ok('committed: interior days are flush squares');
+  else fail('committed: interior days not squares');
+  if (await hasClass(d13, 'rounded-r-full') && await hasClass(d13, 'rounded-l-none'))
+    ok('committed: run end keeps the right semicircle cap');
+  else fail('committed: run end cap wrong');
+  // Continuous geometry: strip cells fill the column edge-to-edge (no gap
+  // between consecutive days) and are wider than the plain day circles.
+  const [b10, b11, b12, b13, b15] = await Promise.all([box(d10), box(d11), box(d12), box(d13), box(d15)]);
+  const gaps = [b10.x + b10.width - b11.x, b11.x + b11.width - b12.x, b12.x + b12.width - b13.x];
+  if (gaps.every((g) => Math.abs(g) < 1.5))
+    ok(`strip is continuous: consecutive strip days touch edge-to-edge (gaps ${gaps.map((g) => g.toFixed(2)).join(', ')})`);
+  else fail(`strip has gaps: ${gaps.map((g) => g.toFixed(2)).join(', ')}px`);
+  if (b10.width > b15.width && b13.width > b15.width)
+    ok('strip days fill the grid column (wider than plain circles)');
+  else fail(`strip width ${b10.width.toFixed(1)}px not wider than circle ${b15.width.toFixed(1)}px`);
 
   // STEP 5 — storage: 4 entries, all flow medium
   stored = await storedEntries();
@@ -213,6 +244,9 @@ const isoAdd = (iso, n) => {
   if (await hasClass(d22, 'bg-rose-400') && await hasClass(d25, 'bg-rose-400'))
     ok('touch drag highlights start + end cells');
   else fail('touch drag end highlight missing');
+  if (await hasClass(d22, 'rounded-l-full') && await hasClass(d25, 'rounded-r-full'))
+    ok('touch drag preview shows strip caps (start left, end right)');
+  else fail('touch drag strip caps missing');
   await touchEnd();
   await page.waitForTimeout(300);
   stored = await storedEntries();
@@ -262,9 +296,31 @@ const isoAdd = (iso, n) => {
     ok(`swipe on month header still scrolls (${JSON.stringify(before)} → ${JSON.stringify(scrolled)})`);
   else fail('calendar vertical scroll broken — touch-none too aggressive');
 
-  // STEP 12 — Today pill + scroll still fine, screenshot for visual review
+  // STEP 12 — Today pill + scroll still fine.
   await page.click('button[aria-label="Scroll to today"]');
   await page.waitForTimeout(400);
+
+  // STEP 13 — single day via DaySheet: a lone period day keeps the full
+  // circle (no caps), stays small (not a strip), and neighbors unaffected.
+  const d14 = D(14);
+  await page.click(`button[aria-label="${d14}"]`);
+  await page.waitForTimeout(300);
+  if (!(await sheetOpen())) fail('tap on 14 did not open DaySheet for single-day test');
+  await page.click('button:has-text("Medium")');
+  await page.waitForTimeout(300);
+  await page.click('button[aria-label="Close"]');
+  await page.waitForTimeout(300);
+  if (await hasClass(d14, 'bg-rose-400') && await hasClass(d14, 'rounded-full'))
+    ok('single day logged via DaySheet keeps the full circle (rounded-full)');
+  else fail('single day not a circle: ' + (await page.evaluate((i) => document.querySelector(`button[aria-label="${i}"]`)?.className, d14)));
+  const b14 = await box(d14);
+  if (b14.width < 48 && !(await hasClass(d13, 'bg-rose-400')) && !(await hasClass(d15, 'bg-rose-400')))
+    ok('single day is a small circle and neighbors 13/15 stay unstyled');
+  else fail('single-day circle geometry or neighbor isolation wrong');
+  stored = await storedEntries();
+  if (stored.length === 5) ok('single-day log persisted (5 entries total)');
+  else fail('single-day log not persisted: ' + stored.length);
+
   await page.screenshot({ path: '/tmp/bloom-range-drag.png' });
   console.log('JS ERRORS:', errors.length ? errors.join(' | ') : 'none');
   if (errors.length) fail('page errors present');

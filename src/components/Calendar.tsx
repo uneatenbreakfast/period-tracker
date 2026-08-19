@@ -11,6 +11,8 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
+import { dragShape, runShape } from '../lib/rangeStyle'
+import type { DayShape } from '../lib/rangeStyle'
 
 interface CalendarProps {
   /** Months to render, oldest first */
@@ -99,11 +101,16 @@ export default function Calendar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drag !== null])
 
-  const inDragRange = (iso: string) => {
-    // Preview only once the long press has armed the selection.
-    if (!drag?.armed) return false
-    const [a, b] = drag.start <= drag.end ? [drag.start, drag.end] : [drag.end, drag.start]
-    return iso >= a && iso <= b
+  // Continuous-strip shape for a cell: run caps (start/end get the semicircle
+  // ends, interior days are flush squares, a lone day stays a circle). The
+  // committed period run is shaped from global day-neighbors (spans month
+  // boundaries without a seam); the armed drag preview is shaped from the
+  // drag bounds (hypothetical run — draws over whatever was committed before).
+  const committedShape = (iso: string): DayShape | null =>
+    runShape(iso, (i) => !!entriesByDate.get(i)?.flow)
+  const dragShapeFor = (iso: string): DayShape | null => {
+    if (!drag?.armed) return null
+    return dragShape(iso, drag.start, drag.end)
   }
 
   // Cell under the pointer, by coordinates. Used instead of pointerenter:
@@ -176,24 +183,44 @@ export default function Calendar({
                 {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
-                  const isDragRange = inDragRange(cell.iso)
+                  // Committed period run wins over the live drag preview when
+                  // they overlap — both paint the same rose, class assembly
+                  // below only differs in which shape source to use.
+                  const shape = isPeriod ? committedShape(cell.iso) : dragShapeFor(cell.iso)
+                  const isStrip = shape === 'start' || shape === 'middle' || shape === 'end'
                   const isPredicted = predictedDays.includes(cell.iso)
                   const isFertile = fertileDays.includes(cell.iso)
                   const isToday = cell.iso === today
                   const isSelected = cell.iso === selectedDate
 
+                  // Strip cells (start cap / square / end cap) fill their grid
+                  // column edge-to-edge so adjacent days read as ONE continuous
+                  // period bar; the run ends are semicircle caps, the middle a
+                  // flush square. A lone day keeps the circle. Everything else
+                  // stays the small centered circle.
                   let cls =
-                    'mx-auto flex aspect-square w-full max-w-11 select-none items-center justify-center rounded-full text-sm transition-colors touch-none'
+                    'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-none'
+                  if (isStrip) {
+                    cls += ' w-full'
+                    if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
+                    else if (shape === 'end') cls += ' rounded-r-full rounded-l-none'
+                    else cls += ' rounded-none'
+                  } else {
+                    cls += ' mx-auto w-full max-w-11 rounded-full'
+                  }
                   if (!cell.inMonth) cls += ' opacity-25'
-                  if (isPeriod || isDragRange) {
+                  if (shape) {
                     cls += ' bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
                   } else if (isFertile) {
                     cls += ' bg-lavender-100 font-semibold text-lavender-700'
                   } else if (isPredicted) {
                     cls += ' border-2 border-dashed border-rose-300 text-rose-400'
                   }
-                  if (isToday) cls += ' ring-2 ring-rose-400 ring-offset-1 ring-offset-white'
-                  if (isSelected) cls += ' outline-2 outline-offset-2 outline-rose-300'
+                  // The today ring and the selected outline would cut through
+                  // the strip (ring-offset seam) — drop them on strip cells so
+                  // the period bar stays visually continuous.
+                  if (isToday && !isStrip) cls += ' ring-2 ring-rose-400 ring-offset-1 ring-offset-white'
+                  if (isSelected && !isStrip) cls += ' outline-2 outline-offset-2 outline-rose-300'
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
 
                   return (
