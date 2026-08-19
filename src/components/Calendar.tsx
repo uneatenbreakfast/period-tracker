@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Prediction, Snapshot } from '../types'
 import { monthGrid, MONTH_NAMES, todayISO, WEEKDAY_LABELS } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
+import { hapticPulse } from '../lib/haptics'
 import {
   armDrag,
   beginDrag,
@@ -244,6 +245,9 @@ export default function Calendar({
                           const armed = armDrag(cur)
                           dragRef.current = armed
                           setDrag(armed)
+                          // Tactile confirmation that range selection armed
+                          // (no-op on platforms without a vibrator).
+                          hapticPulse()
                         }, LONG_PRESS_MS)
                       }}
                       onPointerCancel={() => {

@@ -42,6 +42,19 @@ const isoAdd = (iso, n) => {
   const fail = (msg) => { console.error('ASSERT FAIL:', msg); process.exitCode = 1; };
   const ok = (msg) => console.log('ok -', msg);
 
+  // BLOOM-0011 — haptic arm pulse: spy on navigator.vibrate BEFORE any app
+  // code runs. The calendar must pulse exactly once when the long-press
+  // timer arms the selection — and never on fast drags/swipes.
+  await page.addInitScript(() => {
+    window.__vibrate = { calls: [] };
+    try {
+      Object.defineProperty(navigator, 'vibrate', {
+        configurable: true,
+        value: (p) => { window.__vibrate.calls.push(p); return true; },
+      });
+    } catch { /* native vibrate is non-configurable — arm asserts will fail */ }
+  });
+
   const today = localISO(new Date());
   // current month's day-10..25 (grid rows, always visible after initial scroll)
   const [y, m1] = today.split('-').map(Number);
@@ -69,6 +82,7 @@ const isoAdd = (iso, n) => {
   // "PERIOD FLOW" is VACUOUS — the menstrual card's placeholder text also
   // contains "period flow" and is always rendered.)
   const sheetOpen = () => page.evaluate(() => !!document.querySelector('button[aria-label="Close"]'));
+  const vibrateCalls = () => page.evaluate(() => window.__vibrate.calls);
 
   // STEP 1 — FAST mouse drag 15 → 16 (no hold): the long-press gate must
   // reject it — no highlight, nothing logged.
@@ -89,6 +103,8 @@ const isoAdd = (iso, n) => {
   if (!(await hasClass(d15, 'bg-rose-400')) && !(await hasClass(d16, 'bg-rose-400')))
     ok('cells 15/16 unstyled after fast drag');
   else fail('fast drag left cells styled');
+  if ((await vibrateCalls()).length === 0) ok('fast drag (no hold) fired no vibration');
+  else fail('fast drag vibrated: ' + JSON.stringify(await vibrateCalls()));
 
   // STEP 2 — long press WITHOUT a drag on 21: still a plain tap — DaySheet
   // opens, nothing logged.
@@ -105,6 +121,10 @@ const isoAdd = (iso, n) => {
   stored = await storedEntries();
   if (stored.length === 0) ok('long press alone logged nothing (0 entries)');
   else fail('long press alone logged entries: ' + stored.length);
+  // 15 = HAPTIC_PULSE_MS in src/lib/haptics.ts — the arm tick.
+  const v2 = await vibrateCalls();
+  if (v2.length === 1 && v2[0] === 15) ok('long press fired one 15ms pulse (selection armed)');
+  else fail('long press vibrate wrong: ' + JSON.stringify(v2));
 
   // STEP 3 — LONG-PRESS drag 10 → 13 (forward, same row): hold, then drag;
   // live preview as we pass over cells, commit on release.
@@ -131,6 +151,8 @@ const isoAdd = (iso, n) => {
   else fail('preview: end day missing right cap');
   await page.mouse.up();
   await page.waitForTimeout(300);
+  if ((await vibrateCalls()).length === 2) ok('long-press drag armed with a second pulse');
+  else fail('arm pulse count wrong after STEP 3');
 
   // STEP 4 — committed range: all 4 days styled as period, DaySheet NOT opened
   for (const d of [d10, d11, d12, d13]) {
@@ -223,6 +245,8 @@ const isoAdd = (iso, n) => {
   if (!(await hasClass(d22, 'bg-rose-400')) && !(await hasClass(d23, 'bg-rose-400')))
     ok('quick touch swipe left no highlight');
   else fail('quick touch swipe highlighted cells');
+  if ((await vibrateCalls()).length === 2) ok('quick touch swipe fired no vibration');
+  else fail('quick touch swipe vibrated');
 
   // STEP 10 — LONG-PRESS touch drag 22 → 25 must select a range, NOT scroll
   // the calendar. On a phone this was the reported bug: the browser grabbed
@@ -249,6 +273,8 @@ const isoAdd = (iso, n) => {
   else fail('touch drag strip caps missing');
   await touchEnd();
   await page.waitForTimeout(300);
+  if ((await vibrateCalls()).length === 3) ok('touch long-press armed with a pulse');
+  else fail('touch arm pulse missing: ' + JSON.stringify(await vibrateCalls()));
   stored = await storedEntries();
   const r4 = stored.filter((x) => x.date >= d22 && x.date <= d25);
   if (r4.length === 4 && stored.length === 4)
