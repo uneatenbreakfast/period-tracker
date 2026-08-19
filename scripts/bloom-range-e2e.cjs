@@ -1,13 +1,16 @@
-// Bloom drag-to-range E2E — press on a day, drag to another day:
-// live rose highlight (bg-rose-400, same style as committed period days)
-// spans covered cells while dragging, whole inclusive span logged as period
-// flow on release; plain tap still opens DaySheet. No drag = no range.
-// Prereq: dev server (bun run dev --port <own port>), then:
+// Bloom drag-to-range E2E — LONG PRESS a day (400ms hold), THEN drag to
+// another day: live rose highlight (bg-rose-400, same style as committed
+// period days) spans covered cells while dragging, whole inclusive span
+// logged as period flow on release. Quick drags (movement before the hold
+// fires) select nothing; a long press WITHOUT a drag is still a plain tap
+// (DaySheet). Prereq: dev server (bun run dev --port <own port>), then:
 //   NODE_PATH=/mnt/c/Repos/period-tracker/node_modules node bloom-range-e2e.cjs
 // Port override: BLOOM_BASE_URL=http://localhost:5177/
 const { chromium } = require('playwright');
 
 const BASE = process.env.BLOOM_BASE_URL || 'http://localhost:5174/';
+// Long-press gate in src/lib/rangeDrag.ts — E2E holds must comfortably exceed it.
+const HOLD_MS = 600;
 
 const pad = (n) => String(n).padStart(2, '0');
 const localISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -37,11 +40,13 @@ const isoAdd = (iso, n) => {
   const ok = (msg) => console.log('ok -', msg);
 
   const today = localISO(new Date());
-  // current month's day-10..13 (one grid row, always visible after initial scroll)
+  // current month's day-10..25 (grid rows, always visible after initial scroll)
   const [y, m1] = today.split('-').map(Number);
   const mm = `${y}-${pad(m1)}`;
-  const d10 = `${mm}-10`, d11 = `${mm}-11`, d12 = `${mm}-12`, d13 = `${mm}-13`;
-  const d17 = `${mm}-17`, d18 = `${mm}-18`, d19 = `${mm}-19`, d20 = `${mm}-20`;
+  const D = (n) => `${mm}-${pad(n)}`;
+  const d10 = D(10), d11 = D(11), d12 = D(12), d13 = D(13);
+  const d15 = D(15), d16 = D(16), d17 = D(17), d18 = D(18), d19 = D(19), d20 = D(20);
+  const d21 = D(21), d22 = D(22), d23 = D(23), d25 = D(25);
 
   await page.goto(BASE, { waitUntil: 'networkidle0' });
   await page.evaluate(() => localStorage.clear());
@@ -55,52 +60,96 @@ const isoAdd = (iso, n) => {
       ([i, c]) => document.querySelector(`button[aria-label="${i}"]`)?.classList.contains(c),
       [iso, cls],
     );
+  const storedEntries = () =>
+    page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
+  // DaySheet is the only element with the Close button. (A body-text check for
+  // "PERIOD FLOW" is VACUOUS — the menstrual card's placeholder text also
+  // contains "period flow" and is always rendered.)
+  const sheetOpen = () => page.evaluate(() => !!document.querySelector('button[aria-label="Close"]'));
 
-  // STEP 1 — drag 10 → 13 (forward, same row): live preview as we pass over cells
-  const s = center(await box(d10)), m = center(await box(d12)), e = center(await box(d13));
+  // STEP 1 — FAST mouse drag 15 → 16 (no hold): the long-press gate must
+  // reject it — no highlight, nothing logged.
+  const s = center(await box(d15)), q = center(await box(d16));
   await page.mouse.move(s.x, s.y);
   await page.mouse.down();
-  await page.mouse.move(m.x, m.y, { steps: 12 });
+  await page.mouse.move(q.x, q.y, { steps: 2 });
+  if (!(await hasClass(d16, 'bg-rose-400')))
+    ok('fast drag (no hold) shows no selection highlight');
+  else fail('fast drag highlighted a cell before the long press');
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  let stored = await storedEntries();
+  if (stored.length === 0) ok('fast drag logged nothing (0 entries)');
+  else fail('fast drag committed a range: ' + JSON.stringify(stored));
+  if (!(await sheetOpen())) ok('fast drag did NOT open DaySheet');
+  else fail('fast drag opened DaySheet');
+  if (!(await hasClass(d15, 'bg-rose-400')) && !(await hasClass(d16, 'bg-rose-400')))
+    ok('cells 15/16 unstyled after fast drag');
+  else fail('fast drag left cells styled');
+
+  // STEP 2 — long press WITHOUT a drag on 21: still a plain tap — DaySheet
+  // opens, nothing logged.
+  const t = center(await box(d21));
+  await page.mouse.move(t.x, t.y);
+  await page.mouse.down();
+  await page.waitForTimeout(HOLD_MS);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  if (await sheetOpen()) ok('long press without drag = plain tap (DaySheet opens)');
+  else fail('long press without drag did not open DaySheet');
+  await page.click('button[aria-label="Close"]');
+  await page.waitForTimeout(300);
+  stored = await storedEntries();
+  if (stored.length === 0) ok('long press alone logged nothing (0 entries)');
+  else fail('long press alone logged entries: ' + stored.length);
+
+  // STEP 3 — LONG-PRESS drag 10 → 13 (forward, same row): hold, then drag;
+  // live preview as we pass over cells, commit on release.
+  const s3 = center(await box(d10)), m3 = center(await box(d12)), e3 = center(await box(d13));
+  await page.mouse.move(s3.x, s3.y);
+  await page.mouse.down();
+  await page.waitForTimeout(HOLD_MS); // long press arms the selection
+  await page.mouse.move(m3.x, m3.y, { steps: 12 });
   await page.waitForTimeout(150);
-  await page.mouse.move(e.x, e.y, { steps: 12 });
+  await page.mouse.move(e3.x, e3.y, { steps: 12 });
   await page.waitForTimeout(150);
   if (await hasClass(d10, 'bg-rose-400') && await hasClass(d12, 'bg-rose-400'))
-    ok('drag highlights start + passed-over cells (rose-400)');
+    ok('long-press drag highlights start + passed-over cells (rose-400)');
   else fail('live highlight missing on passed-over cells');
   if (await hasClass(d11, 'bg-rose-400')) ok('intermediate day highlighted');
   else fail('intermediate day not highlighted');
   await page.mouse.up();
   await page.waitForTimeout(300);
 
-  // STEP 2 — committed range: all 4 days styled as period, DaySheet NOT opened
+  // STEP 4 — committed range: all 4 days styled as period, DaySheet NOT opened
   for (const d of [d10, d11, d12, d13]) {
     if (await hasClass(d, 'bg-rose-400')) ok(`${d} committed as period day`);
     else fail(`${d} not styled as period after drag`);
   }
-  const sheetOpen = await page.evaluate(() => document.body.innerText.toUpperCase().includes('PERIOD FLOW'));
-  if (!sheetOpen) ok('drag did NOT open DaySheet');
+  if (!(await sheetOpen())) ok('drag did NOT open DaySheet');
   else fail('DaySheet opened after drag commit');
 
-  // STEP 3 — storage: 4 entries, all flow medium
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
+  // STEP 5 — storage: 4 entries, all flow medium
+  stored = await storedEntries();
   const r1 = stored.filter((x) => x.date >= d10 && x.date <= d13);
   if (r1.length === 4 && r1.every((x) => x.flow === 'medium'))
     ok('localStorage: 4 day range logged with medium flow');
   else fail('range not persisted: ' + JSON.stringify(stored));
 
-  // STEP 4 — backward drag 20 → 17: same month, so it REPLACES the previous
-  // range — 10..13 must be cleared, only 17..20 remain marked.
-  const a = center(await box(d20)), b = center(await box(d17));
-  await page.mouse.move(a.x, a.y);
+  // STEP 6 — backward long-press drag 20 → 17: same month, so it REPLACES
+  // the previous range — 10..13 must be cleared, only 17..20 remain marked.
+  const a6 = center(await box(d20)), b6 = center(await box(d17));
+  await page.mouse.move(a6.x, a6.y);
   await page.mouse.down();
-  await page.mouse.move(b.x, b.y, { steps: 12 });
+  await page.waitForTimeout(HOLD_MS);
+  await page.mouse.move(b6.x, b6.y, { steps: 12 });
   await page.mouse.up();
   await page.waitForTimeout(300);
-  const stored2 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
-  const r2 = stored2.filter((x) => x.date >= d17 && x.date <= d20);
-  if (r2.length === 4 && stored2.length === 4)
+  stored = await storedEntries();
+  const r2 = stored.filter((x) => x.date >= d17 && x.date <= d20);
+  if (r2.length === 4 && stored.length === 4)
     ok('backward drag (20 → 17) logged 17..20 — old 10..13 range cleared (4 entries total)');
-  else fail('backward drag wrong: ' + JSON.stringify(stored2.map((x) => [x.date, x.flow])));
+  else fail('backward drag wrong: ' + JSON.stringify(stored.map((x) => [x.date, x.flow])));
   let staleCleared = true;
   for (const d of [d10, d11, d12, d13]) {
     if (await hasClass(d, 'bg-rose-400')) staleCleared = false;
@@ -108,21 +157,18 @@ const isoAdd = (iso, n) => {
   if (staleCleared) ok('previously marked days 10..13 no longer styled as period');
   else fail('old range still styled as period after new drag');
 
-  // STEP 5 — plain tap still opens DaySheet and logs nothing new
-  const d5 = `${mm}-05`;
-  await page.click(`button[aria-label="${d5}"]`);
+  // STEP 7 — quick plain tap on 05 still opens DaySheet and logs nothing new
+  await page.click(`button[aria-label="${D(5)}"]`);
   await page.waitForTimeout(300);
-  const text = await page.evaluate(() => document.body.innerText);
-  if (text.toUpperCase().includes('PERIOD FLOW')) ok('plain tap opens DaySheet (tap unchanged)');
+  if (await sheetOpen()) ok('plain tap opens DaySheet (tap unchanged)');
   else fail('plain tap did not open DaySheet');
   await page.click('button[aria-label="Close"]');
   await page.waitForTimeout(300);
-  const stored3 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
-  if (stored3.length === 4) ok('tap did not add entries (4 remain)');
-  else fail('tap added entries: ' + stored3.length);
+  stored = await storedEntries();
+  if (stored.length === 4) ok('tap did not add entries (4 remain)');
+  else fail('tap added entries: ' + stored.length);
 
-  // STEP 6 — touch drag 22 → 25 (days loggable with the replace semantics)
-  const d22 = `${mm}-22`, d23 = `${mm}-23`, d25 = `${mm}-25`;
+  // STEP 8 — touch pipeline
   const touchStart = (x, y) => cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: Math.round(x), y: Math.round(y) }] });
   const touchMove = (x, y) => cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: Math.round(x), y: Math.round(y) }] });
   const touchEnd = () => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -131,12 +177,29 @@ const isoAdd = (iso, n) => {
     doc: (document.scrollingElement || document.documentElement).scrollTop,
   }));
 
-  // STEP 7 — touch drag 22 → 25 must select a range, NOT scroll the calendar.
-  // On a phone this was the reported bug: the browser grabbed the gesture.
-  const before = await scrollTop();
-  const t0 = center(await box(d22)), t1 = center(await box(d23)), t2 = center(await box(d25));
+  // STEP 9 — QUICK touch swipe 22 → 23 (no hold): must NOT select, nor scroll
+  // past the slop abort. On a phone this distinguishes accidental swipes from
+  // intent.
+  const t0 = center(await box(d22)), t1 = center(await box(d23));
   await touchStart(t0.x, t0.y);
-  await page.waitForTimeout(60);
+  await touchMove(t1.x, t1.y);
+  await touchEnd();
+  await page.waitForTimeout(300);
+  stored = await storedEntries();
+  if (stored.length === 4)
+    ok('quick touch swipe (no hold) logged nothing');
+  else fail('quick touch swipe committed: ' + stored.length);
+  if (!(await hasClass(d22, 'bg-rose-400')) && !(await hasClass(d23, 'bg-rose-400')))
+    ok('quick touch swipe left no highlight');
+  else fail('quick touch swipe highlighted cells');
+
+  // STEP 10 — LONG-PRESS touch drag 22 → 25 must select a range, NOT scroll
+  // the calendar. On a phone this was the reported bug: the browser grabbed
+  // the gesture.
+  const before = await scrollTop();
+  const t2 = center(await box(d25));
+  await touchStart(t0.x, t0.y);
+  await page.waitForTimeout(HOLD_MS); // long press arms the selection
   await touchMove(t1.x, t1.y);
   await page.waitForTimeout(60);
   if (await hasClass(d23, 'bg-rose-400')) ok('touch drag previews passed-over cells');
@@ -152,11 +215,11 @@ const isoAdd = (iso, n) => {
   else fail('touch drag end highlight missing');
   await touchEnd();
   await page.waitForTimeout(300);
-  const stored4 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
-  const r4 = stored4.filter((x) => x.date >= d22 && x.date <= d25);
-  if (r4.length === 4 && stored4.length === 4)
+  stored = await storedEntries();
+  const r4 = stored.filter((x) => x.date >= d22 && x.date <= d25);
+  if (r4.length === 4 && stored.length === 4)
     ok('touch drag committed 22..25 as period days — old 17..20 range cleared (4 entries total)');
-  else fail('touch drag not committed: ' + stored4.length + ' entries');
+  else fail('touch drag not committed: ' + stored.length + ' entries');
   let touchCleared = true;
   for (const d of [d17, d18, d19, d20]) {
     if (await hasClass(d, 'bg-rose-400')) touchCleared = false;
@@ -168,10 +231,10 @@ const isoAdd = (iso, n) => {
     ok('calendar still unscrolled after touch release');
   else fail('calendar moved after touch drag');
 
-  // STEP 8 — escape hatch: touch drag starting on a sticky month header
+  // STEP 11 — escape hatch: touch drag starting on a sticky month header
   // (no touch-none there) still scrolls the calendar vertically.
   // Pick a header that is actually on screen at the current scroll position:
-  // after step 7 the calendar is scrolled deep, so the current month's header
+  // after step 10 the calendar is scrolled deep, so the current month's header
   // may be out of view — choose the first h2 with a visible bounding box.
   const visibleHeader = await page.evaluate(() => {
     const vh = window.innerHeight;
@@ -199,7 +262,7 @@ const isoAdd = (iso, n) => {
     ok(`swipe on month header still scrolls (${JSON.stringify(before)} → ${JSON.stringify(scrolled)})`);
   else fail('calendar vertical scroll broken — touch-none too aggressive');
 
-  // STEP 9 — Today pill + scroll still fine, screenshot for visual review
+  // STEP 12 — Today pill + scroll still fine, screenshot for visual review
   await page.click('button[aria-label="Scroll to today"]');
   await page.waitForTimeout(400);
   await page.screenshot({ path: '/tmp/bloom-range-drag.png' });

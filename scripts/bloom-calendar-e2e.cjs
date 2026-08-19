@@ -120,8 +120,9 @@ const isoAdd = (iso, n) => {
   if (back.scrollY < 100) ok('page still not scrolled by Today pill (scrollY=' + back.scrollY + ')');
   else fail('Today pill scrolled page: scrollY=' + back.scrollY);
 
-  // STEP 6 — click-drag across days creates a period range (start → end),
+  // STEP 6 — LONG-PRESS + drag across days creates a period range (start → end),
   // highlighted live while dragging, committed as flow on mouseup; DaySheet stays closed.
+  // (Selection arms only after a ~400ms hold — the long-press gate in rangeDrag.ts.)
   let dragStartISO = `${todayY}-${pad(todayM + 1)}-12`;
   let dragMidISO = `${todayY}-${pad(todayM + 1)}-14`;
   let dragEndISO = `${todayY}-${pad(todayM + 1)}-16`;
@@ -138,6 +139,7 @@ const isoAdd = (iso, n) => {
   else {
     await page.mouse.move(d1.x + d1.width / 2, d1.y + d1.height / 2);
     await page.mouse.down();
+    await page.waitForTimeout(600); // hold arms the selection (long-press gate)
     await page.mouse.move(dm.x + dm.width / 2, dm.y + dm.height / 2, { steps: 6 });
     await page.waitForTimeout(120);
     const midCls = await page.evaluate((iso) => {

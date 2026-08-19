@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Prediction, Snapshot } from '../types'
 import { monthGrid, MONTH_NAMES, todayISO, WEEKDAY_LABELS } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
-import { beginDrag, commitDrag, extendDrag } from '../lib/rangeDrag'
+import {
+  armDrag,
+  beginDrag,
+  commitDrag,
+  extendDrag,
+  LONG_PRESS_MS,
+  SLOP_PX,
+} from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
 
 interface CalendarProps {
@@ -34,6 +41,17 @@ export default function Calendar({
   const [drag, setDrag] = useState<RangeDrag | null>(null)
   // Set when a drag commits on release; the trailing click (same element) is swallowed.
   const dragJustEnded = useRef(false)
+  // Long-press gate: hold LONG_PRESS_MS without moving beyond SLOP_PX → arm
+  // the drag. Pre-arm movement aborts; quick taps never arm.
+  const holdTimer = useRef<number | null>(null)
+  const pressOrigin = useRef<{ x: number; y: number } | null>(null)
+  const clearHold = () => {
+    if (holdTimer.current !== null) {
+      window.clearTimeout(holdTimer.current)
+      holdTimer.current = null
+    }
+  }
+  useEffect(() => () => clearHold(), [])
   const rangeCompleteRef = useRef(onRangeComplete)
   useEffect(() => {
     rangeCompleteRef.current = onRangeComplete
@@ -55,6 +73,7 @@ export default function Calendar({
     if (!drag) return
     const up = () => {
       const d = dragRef.current
+      clearHold()
       dragRef.current = null
       setDrag(null)
       if (!d) return
@@ -67,6 +86,7 @@ export default function Calendar({
     // Pointer cancel = the browser reclaimed the gesture (system gesture,
     // palm, interruption) — abort without committing.
     const cancel = () => {
+      clearHold()
       dragRef.current = null
       setDrag(null)
     }
@@ -80,7 +100,8 @@ export default function Calendar({
   }, [drag !== null])
 
   const inDragRange = (iso: string) => {
-    if (!drag) return false
+    // Preview only once the long press has armed the selection.
+    if (!drag?.armed) return false
     const [a, b] = drag.start <= drag.end ? [drag.start, drag.end] : [drag.end, drag.start]
     return iso >= a && iso <= b
   }
@@ -107,10 +128,24 @@ export default function Calendar({
         data-calendar-scroll
         className="-mx-5 h-[21rem] overflow-y-auto overscroll-contain px-5 select-none"
         onPointerMove={(e) => {
-          // extend the drag to whatever day cell is under the pointer
+          const d = dragRef.current
+          if (!d) return
+          if (!d.armed) {
+            // Pre-arm movement beyond the slop aborts the long press — a fast
+            // drag (or scroll attempt) is not a range selection. Jitter within
+            // the slop keeps the hold alive.
+            const o = pressOrigin.current
+            if (o && (Math.abs(e.clientX - o.x) > SLOP_PX || Math.abs(e.clientY - o.y) > SLOP_PX)) {
+              clearHold()
+              dragRef.current = null
+              setDrag(null)
+            }
+            return
+          }
+          // extend the armed drag to whatever day cell is under the pointer
           const iso = isoAt(e.clientX, e.clientY)
           if (!iso) return
-          setDrag((d) => (d ? extendDrag(d, iso) : d))
+          setDrag((prev) => (prev ? extendDrag(prev, iso) : prev))
         }}
       >
       {months.map(({ year, month }, mi) => {
@@ -172,8 +207,20 @@ export default function Calendar({
                         const d = beginDrag(cell.iso)
                         dragRef.current = d
                         setDrag(d)
+                        pressOrigin.current = { x: e.clientX, y: e.clientY }
+                        clearHold()
+                        // Selection starts only after a long press: hold
+                        // LONG_PRESS_MS without moving → arm the drag.
+                        holdTimer.current = window.setTimeout(() => {
+                          const cur = dragRef.current
+                          if (!cur) return
+                          const armed = armDrag(cur)
+                          dragRef.current = armed
+                          setDrag(armed)
+                        }, LONG_PRESS_MS)
                       }}
                       onPointerCancel={() => {
+                        clearHold()
                         dragRef.current = null
                         setDrag(null)
                       }}
