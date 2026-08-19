@@ -7,7 +7,7 @@
  * helper, and stays a no-op elsewhere. The navigator lookup happens at call
  * time, which keeps the helper unit-testable via a stubbed global.
  */
-export const HAPTIC_PULSE_MS = 15
+export const HAPTIC_PULSE_MS = 30
 
 /**
  * Fire a short vibration pulse. Returns whether the platform honored it

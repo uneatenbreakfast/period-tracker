@@ -121,9 +121,9 @@ const isoAdd = (iso, n) => {
   stored = await storedEntries();
   if (stored.length === 0) ok('long press alone logged nothing (0 entries)');
   else fail('long press alone logged entries: ' + stored.length);
-  // 15 = HAPTIC_PULSE_MS in src/lib/haptics.ts — the arm tick.
+  // 30 = HAPTIC_PULSE_MS in src/lib/haptics.ts — the arm tick.
   const v2 = await vibrateCalls();
-  if (v2.length === 1 && v2[0] === 15) ok('long press fired one 15ms pulse (selection armed)');
+  if (v2.length === 1 && v2[0] === 30) ok('long press fired one 30ms pulse (selection armed)');
   else fail('long press vibrate wrong: ' + JSON.stringify(v2));
 
   // STEP 3 — LONG-PRESS drag 10 → 13 (forward, same row): hold, then drag;
@@ -245,7 +245,8 @@ const isoAdd = (iso, n) => {
   if (!(await hasClass(d22, 'bg-rose-400')) && !(await hasClass(d23, 'bg-rose-400')))
     ok('quick touch swipe left no highlight');
   else fail('quick touch swipe highlighted cells');
-  if ((await vibrateCalls()).length === 2) ok('quick touch swipe fired no vibration');
+  // 3 pulses by now: STEP2 arm, STEP3 arm, backward-drag arm.
+  if ((await vibrateCalls()).length === 3) ok('quick touch swipe fired no vibration');
   else fail('quick touch swipe vibrated');
 
   // STEP 10 — LONG-PRESS touch drag 22 → 25 must select a range, NOT scroll
@@ -273,7 +274,7 @@ const isoAdd = (iso, n) => {
   else fail('touch drag strip caps missing');
   await touchEnd();
   await page.waitForTimeout(300);
-  if ((await vibrateCalls()).length === 3) ok('touch long-press armed with a pulse');
+  if ((await vibrateCalls()).length === 4) ok('touch long-press armed with a pulse');
   else fail('touch arm pulse missing: ' + JSON.stringify(await vibrateCalls()));
   stored = await storedEntries();
   const r4 = stored.filter((x) => x.date >= d22 && x.date <= d25);
