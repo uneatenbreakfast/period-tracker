@@ -15,6 +15,9 @@ BLOOM-0002 core shipped as hardcoded Fitbit defaults (28-day cycle / 5-day perio
 
 ## Done
 
+### BLOOM-0012 — Live preview served stale pre-BLOOM-0010 layout on both tabs
+Phone/tailnet preview (:5190) showed Calendar + MenstrualHealth + History tiles on BOTH Calendar and Health tabs (Health nav button existed but no render branch → fell through to the calendar branch; v12 badge). Root cause: `dist/` was built while main was dirty with the pre-0010 tree + partial Health-tab edit (stashed since; session `api_1787106411_716a82f7`). Code on main already had the correct BLOOM-0010 layout — no source change needed. Fixed by rebuilding `dist/` from clean main + restarting `:5190` preview. Verified live: Calendar tab = calendar tile only; Health tab = MenstrualHealthCard + HistoryCard only. Completed 2026-08-20.
+
 ### BLOOM-0011 — Haptic pulse when long-press arms range selection
 Long-pressing a calendar day past `LONG_PRESS_MS` (400ms) arms range selection and fires a short vibration (`navigator.vibrate`, 30ms single pulse via `src/lib/haptics.ts` `hapticPulse()`) — tactile confirmation the selection mode is active. Fast drags, quick swipes and plain taps never vibrate. No-op on platforms without the API (iOS Safari, desktop). NOTE: Vibration API is secure-context only — the phone must load the app over HTTPS (tailnet `https://desktop-qvifnj1.tail12d54b.ts.net:5190`), plain-http LAN URLs silently no-op. Completed 2026-08-20. Verified: 105 unit tests (4 new for haptics: default pulse, custom pattern, no-API no-op, no-navigator no-op) + range E2E spy on `navigator.vibrate` (fast drag 0 pulses, long-press 1×30ms, drag-armed second pulse, touch long-press third pulse, quick touch swipe 0) + tsc + build green.
 
