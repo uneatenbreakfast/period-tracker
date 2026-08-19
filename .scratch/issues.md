@@ -12,6 +12,9 @@ BLOOM-0002 core shipped as hardcoded Fitbit defaults (28-day cycle / 5-day perio
 
 ## Done
 
+### BLOOM-0008 — Drag range replaces the month's period marking
+Dragging a new range now clears any previously marked period days in the month(s) the range touches — the drag means "my period this month was exactly these days". Days keep their symptoms/notes; pure flow days (no symptoms/notes) are removed entirely; per-day flow levels inside the new range still win. Pure helper `replaceRangeFlow` (storage.ts), wired into App `commitRange`. Completed 2026-08-19. Verified: 80 unit tests (7 new for replaceRangeFlow: same-month clear, symptoms/notes preserved, other months untouched, cross-month clears both touched months, per-day flow preserved in-range, order-agnostic) + range E2E updated (backward 20→17 drag clears 10..13, touch drag 22..25 clears 17..20, storage counts 12→4→4) + tsc + build green.
+
 ### BLOOM-0007 — Drag to log a period range
 Calendar: click a day, drag across days, release → the whole range is logged as the period (start day → end day). Live rose highlight while dragging; committed on mouseup with `DEFAULT_FLOW` ('medium') on days that have no flow yet — per-day flow levels already set are preserved. Single click (no drag) still opens DaySheet; the trailing click after a drag is swallowed. Pure helpers: `dateRange` (dates.ts), `setRangeFlow` (storage.ts). Completed 2026-08-19. Verified: 64 unit tests (3 dateRange + 3 setRangeFlow) + calendar E2E STEP 6 (live mid-drag highlight, no DaySheet on drag, committed range all rose + 5 persisted flow days, plain click still opens DaySheet) + card/trends E2E unchanged green; pixel-verified computed bg rgb(229,138,168) = palette rose on all range days.
 

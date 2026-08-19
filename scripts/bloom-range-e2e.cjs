@@ -41,7 +41,7 @@ const isoAdd = (iso, n) => {
   const [y, m1] = today.split('-').map(Number);
   const mm = `${y}-${pad(m1)}`;
   const d10 = `${mm}-10`, d11 = `${mm}-11`, d12 = `${mm}-12`, d13 = `${mm}-13`;
-  const d17 = `${mm}-17`, d20 = `${mm}-20`;
+  const d17 = `${mm}-17`, d18 = `${mm}-18`, d19 = `${mm}-19`, d20 = `${mm}-20`;
 
   await page.goto(BASE, { waitUntil: 'networkidle0' });
   await page.evaluate(() => localStorage.clear());
@@ -88,7 +88,8 @@ const isoAdd = (iso, n) => {
     ok('localStorage: 4 day range logged with medium flow');
   else fail('range not persisted: ' + JSON.stringify(stored));
 
-  // STEP 4 — backward drag 20 → 17 lands same inclusive span
+  // STEP 4 — backward drag 20 → 17: same month, so it REPLACES the previous
+  // range — 10..13 must be cleared, only 17..20 remain marked.
   const a = center(await box(d20)), b = center(await box(d17));
   await page.mouse.move(a.x, a.y);
   await page.mouse.down();
@@ -97,9 +98,15 @@ const isoAdd = (iso, n) => {
   await page.waitForTimeout(300);
   const stored2 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
   const r2 = stored2.filter((x) => x.date >= d17 && x.date <= d20);
-  if (r2.length === 4 && stored2.length === 8)
-    ok('backward drag (20 → 17) logged 17..20, total 8 entries');
+  if (r2.length === 4 && stored2.length === 4)
+    ok('backward drag (20 → 17) logged 17..20 — old 10..13 range cleared (4 entries total)');
   else fail('backward drag wrong: ' + JSON.stringify(stored2.map((x) => [x.date, x.flow])));
+  let staleCleared = true;
+  for (const d of [d10, d11, d12, d13]) {
+    if (await hasClass(d, 'bg-rose-400')) staleCleared = false;
+  }
+  if (staleCleared) ok('previously marked days 10..13 no longer styled as period');
+  else fail('old range still styled as period after new drag');
 
   // STEP 5 — plain tap still opens DaySheet and logs nothing new
   const d5 = `${mm}-05`;
@@ -111,10 +118,10 @@ const isoAdd = (iso, n) => {
   await page.click('button[aria-label="Close"]');
   await page.waitForTimeout(300);
   const stored3 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
-  if (stored3.length === 8) ok('tap did not add entries (8 remain)');
+  if (stored3.length === 4) ok('tap did not add entries (4 remain)');
   else fail('tap added entries: ' + stored3.length);
 
-  // STEP 6 — do NOT pick already-logged cells for the touch drag (d10..d20 used)
+  // STEP 6 — touch drag 22 → 25 (days loggable with the replace semantics)
   const d22 = `${mm}-22`, d23 = `${mm}-23`, d25 = `${mm}-25`;
   const touchStart = (x, y) => cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: Math.round(x), y: Math.round(y) }] });
   const touchMove = (x, y) => cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: Math.round(x), y: Math.round(y) }] });
@@ -147,9 +154,15 @@ const isoAdd = (iso, n) => {
   await page.waitForTimeout(300);
   const stored4 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
   const r4 = stored4.filter((x) => x.date >= d22 && x.date <= d25);
-  if (r4.length === 4 && stored4.length === 12)
-    ok('touch drag committed 22..25 as period days (12 entries total)');
+  if (r4.length === 4 && stored4.length === 4)
+    ok('touch drag committed 22..25 as period days — old 17..20 range cleared (4 entries total)');
   else fail('touch drag not committed: ' + stored4.length + ' entries');
+  let touchCleared = true;
+  for (const d of [d17, d18, d19, d20]) {
+    if (await hasClass(d, 'bg-rose-400')) touchCleared = false;
+  }
+  if (touchCleared) ok('touch drag cleared the previous 17..20 marking');
+  else fail('previous range still styled after touch drag');
   const after = await scrollTop();
   if (after.cal === before.cal && after.doc === before.doc)
     ok('calendar still unscrolled after touch release');

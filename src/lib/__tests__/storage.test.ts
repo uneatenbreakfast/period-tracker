@@ -5,6 +5,7 @@ import {
   loadSnapshot,
   parseSnapshot,
   removeEntry,
+  replaceRangeFlow,
   saveSnapshot,
   serializeSnapshot,
   setRangeFlow,
@@ -135,5 +136,58 @@ describe('entry mutations (pure)', () => {
     expect(a.entries.map((e) => e.date)).toEqual(['2026-01-30', '2026-01-31', '2026-02-01', '2026-02-02'])
     const withOutside = setRangeFlow(upsertEntry(s, { date: '2026-01-10', symptoms: [] }), '2026-01-03', '2026-01-05', 'medium')
     expect(getEntry(withOutside, '2026-01-10')).toEqual({ date: '2026-01-10', symptoms: [] })
+  })
+
+  it('replaceRangeFlow clears a previously marked range in the same month', () => {
+    const s = setRangeFlow(createEmptySnapshot(), '2026-01-03', '2026-01-05', 'medium')
+    const a = replaceRangeFlow(s, '2026-01-10', '2026-01-12', 'medium')
+    // old range gone, new range present
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-10', '2026-01-11', '2026-01-12'])
+    expect(a.entries.every((e) => e.flow === 'medium')).toBe(true)
+  })
+
+  it('replaceRangeFlow keeps symptoms/notes on days it unmarks', () => {
+    const s = upsertEntry(createEmptySnapshot(), {
+      date: '2026-01-04',
+      flow: 'light',
+      symptoms: ['cramps'],
+      notes: 'bad day',
+    })
+    const a = replaceRangeFlow(s, '2026-01-10', '2026-01-12', 'medium')
+    expect(getEntry(a, '2026-01-04')).toEqual({ date: '2026-01-04', symptoms: ['cramps'], notes: 'bad day' })
+  })
+
+  it('replaceRangeFlow leaves other months untouched', () => {
+    const feb = setRangeFlow(createEmptySnapshot(), '2026-02-01', '2026-02-03', 'light')
+    const a = replaceRangeFlow(feb, '2026-01-10', '2026-01-12', 'medium')
+    expect(getEntry(a, '2026-02-01')?.flow).toBe('light')
+    expect(getEntry(a, '2026-02-03')?.flow).toBe('light')
+  })
+
+  it('replaceRangeFlow crossing a month boundary clears both touched months', () => {
+    const s = setRangeFlow(setRangeFlow(createEmptySnapshot(), '2026-01-28', '2026-01-29', 'light'), '2026-02-01', '2026-02-02', 'medium')
+    const a = replaceRangeFlow(s, '2026-01-30', '2026-02-02', 'heavy')
+    // Jan 28-29 (old month range) cleared; Feb 1-2 inside the new range keep per-day flow
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-30', '2026-01-31', '2026-02-01', '2026-02-02'])
+    expect(getEntry(a, '2026-01-30')?.flow).toBe('heavy')
+    expect(getEntry(a, '2026-01-31')?.flow).toBe('heavy')
+    expect(getEntry(a, '2026-02-01')?.flow).toBe('medium')
+    expect(getEntry(a, '2026-02-02')?.flow).toBe('medium')
+  })
+
+  it('replaceRangeFlow preserves a per-day flow inside the new range', () => {
+    const s = upsertEntry(createEmptySnapshot(), { date: '2026-01-11', flow: 'heavy', symptoms: [] })
+    // day 11 has flow but sits inside the new range — untouched by the clear pass
+    const a = replaceRangeFlow(s, '2026-01-10', '2026-01-12', 'medium')
+    expect(getEntry(a, '2026-01-11')?.flow).toBe('heavy')
+    expect(getEntry(a, '2026-01-10')?.flow).toBe('medium')
+    expect(getEntry(a, '2026-01-12')?.flow).toBe('medium')
+  })
+
+  it('replaceRangeFlow is order-agnostic', () => {
+    const s = setRangeFlow(createEmptySnapshot(), '2026-01-03', '2026-01-05', 'medium')
+    const a = replaceRangeFlow(s, '2026-01-12', '2026-01-10', 'light')
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-10', '2026-01-11', '2026-01-12'])
+    expect(a.entries.every((e) => e.flow === 'light')).toBe(true)
   })
 })

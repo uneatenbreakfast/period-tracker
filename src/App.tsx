@@ -13,8 +13,8 @@ import {
   getEntry,
   loadSnapshot,
   removeEntry,
+  replaceRangeFlow,
   saveSnapshot,
-  setRangeFlow,
   upsertReact,
 } from './lib/storage'
 
@@ -115,9 +115,10 @@ export default function App() {
     setSnap((s) => removeEntry(s, selectedDate))
   }
 
-  // Drag across calendar days: whole range becomes the period (start → end).
+  // Drag across calendar days: the range becomes THE period for the month(s)
+  // it touches — any previously marked period days in those months are cleared.
   const commitRange = (start: string, end: string) => {
-    setSnap((s) => setRangeFlow(s, start, end, DEFAULT_FLOW))
+    setSnap((s) => replaceRangeFlow(s, start, end, DEFAULT_FLOW))
   }
 
   const scrollToMonth = (year: number, month: number) => {

@@ -76,6 +76,29 @@ export function setRangeFlow(snap: Snapshot, start: string, end: string, flow: F
   return next
 }
 
+/**
+ * Replace the current period marking for the month(s) the range touches:
+ * clears flow from every period-marked day in those months, then marks the
+ * new range. Days keep their symptoms/notes; only pure flow days (no
+ * symptoms, no notes) are removed entirely. A drag therefore means "my
+ * period this month was exactly these days" — stale ranges disappear
+ * instead of accumulating.
+ */
+export function replaceRangeFlow(snap: Snapshot, start: string, end: string, flow: FlowLevel): Snapshot {
+  const [from, to] = start <= end ? [start, end] : [end, start]
+  const months = new Set<string>()
+  for (let d = from; d <= to; d = addDays(d, 1)) months.add(d.slice(0, 7))
+  let next = snap
+  for (const e of snap.entries) {
+    if (e.flow === undefined) continue
+    if (e.date >= from && e.date <= to) continue // inside the new range — keep
+    if (!months.has(e.date.slice(0, 7))) continue // other months — keep
+    const { flow: _flow, ...rest } = e
+    next = e.symptoms.length === 0 && !e.notes ? removeEntry(next, e.date) : upsertEntry(next, rest)
+  }
+  return setRangeFlow(next, from, to, flow)
+}
+
 export function getEntry(snap: Snapshot, date: string): DayEntry | undefined {
   return snap.entries.find((e) => e.date === date)
 }
