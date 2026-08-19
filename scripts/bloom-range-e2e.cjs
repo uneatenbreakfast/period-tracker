@@ -1,0 +1,117 @@
+// Bloom drag-to-range E2E — press on a day, drag to another day:
+// live rose preview while dragging, whole inclusive span logged as period
+// flow on release; plain tap still opens DaySheet. No drag = no range.
+// Prereq: dev server (bun run dev --port <own port>), then:
+//   NODE_PATH=/mnt/c/Repos/period-tracker/node_modules node bloom-range-e2e.cjs
+// Port override: BLOOM_BASE_URL=http://localhost:5177/
+const { chromium } = require('playwright');
+
+const BASE = process.env.BLOOM_BASE_URL || 'http://localhost:5174/';
+
+const pad = (n) => String(n).padStart(2, '0');
+const localISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const isoAdd = (iso, n) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
+
+(async () => {
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
+  });
+  const page = await browser.newPage({ viewport: { width: 430, height: 932 } });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
+  const fail = (msg) => { console.error('ASSERT FAIL:', msg); process.exitCode = 1; };
+  const ok = (msg) => console.log('ok -', msg);
+
+  const today = localISO(new Date());
+  // current month's day-10..13 (one grid row, always visible after initial scroll)
+  const [y, m1] = today.split('-').map(Number);
+  const mm = `${y}-${pad(m1)}`;
+  const d10 = `${mm}-10`, d11 = `${mm}-11`, d12 = `${mm}-12`, d13 = `${mm}-13`;
+  const d17 = `${mm}-17`, d20 = `${mm}-20`;
+
+  await page.goto(BASE, { waitUntil: 'networkidle0' });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForTimeout(700); // initial scroll rAF
+
+  const box = async (iso) => (await page.$(`button[aria-label="${iso}"]`)).boundingBox();
+  const center = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+  const hasClass = async (iso, cls) =>
+    page.evaluate(
+      ([i, c]) => document.querySelector(`button[aria-label="${i}"]`)?.classList.contains(c),
+      [iso, cls],
+    );
+
+  // STEP 1 — drag 10 → 13 (forward, same row): live preview as we pass over cells
+  const s = center(await box(d10)), m = center(await box(d12)), e = center(await box(d13));
+  await page.mouse.move(s.x, s.y);
+  await page.mouse.down();
+  await page.mouse.move(m.x, m.y, { steps: 12 });
+  await page.waitForTimeout(150);
+  await page.mouse.move(e.x, e.y, { steps: 12 });
+  await page.waitForTimeout(150);
+  if (await hasClass(d10, 'bg-rose-200') && await hasClass(d12, 'bg-rose-200'))
+    ok('preview highlights days passed over (rose-200)');
+  else fail('live preview missing on intermediate cells');
+  if (await hasClass(d11, 'bg-rose-200')) ok('intermediate day previewed');
+  else fail('intermediate day not previewed');
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+
+  // STEP 2 — committed range: all 4 days styled as period, DaySheet NOT opened
+  for (const d of [d10, d11, d12, d13]) {
+    if (await hasClass(d, 'bg-rose-400')) ok(`${d} committed as period day`);
+    else fail(`${d} not styled as period after drag`);
+  }
+  const sheetOpen = await page.evaluate(() => document.body.innerText.toUpperCase().includes('PERIOD FLOW'));
+  if (!sheetOpen) ok('drag did NOT open DaySheet');
+  else fail('DaySheet opened after drag commit');
+
+  // STEP 3 — storage: 4 entries, all flow medium
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
+  const r1 = stored.filter((x) => x.date >= d10 && x.date <= d13);
+  if (r1.length === 4 && r1.every((x) => x.flow === 'medium'))
+    ok('localStorage: 4 day range logged with medium flow');
+  else fail('range not persisted: ' + JSON.stringify(stored));
+
+  // STEP 4 — backward drag 20 → 17 lands same inclusive span
+  const a = center(await box(d20)), b = center(await box(d17));
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const stored2 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
+  const r2 = stored2.filter((x) => x.date >= d17 && x.date <= d20);
+  if (r2.length === 4 && stored2.length === 8)
+    ok('backward drag (20 → 17) logged 17..20, total 8 entries');
+  else fail('backward drag wrong: ' + JSON.stringify(stored2.map((x) => [x.date, x.flow])));
+
+  // STEP 5 — plain tap still opens DaySheet and logs nothing new
+  const d5 = `${mm}-05`;
+  await page.click(`button[aria-label="${d5}"]`);
+  await page.waitForTimeout(300);
+  const text = await page.evaluate(() => document.body.innerText);
+  if (text.toUpperCase().includes('PERIOD FLOW')) ok('plain tap opens DaySheet (tap unchanged)');
+  else fail('plain tap did not open DaySheet');
+  await page.click('button[aria-label="Close"]');
+  await page.waitForTimeout(300);
+  const stored3 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
+  if (stored3.length === 8) ok('tap did not add entries (8 remain)');
+  else fail('tap added entries: ' + stored3.length);
+
+  // STEP 6 — Today pill + scroll still fine, screenshot for visual review
+  await page.click('button[aria-label="Scroll to today"]');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: '/tmp/bloom-range-drag.png' });
+  console.log('JS ERRORS:', errors.length ? errors.join(' | ') : 'none');
+  if (errors.length) fail('page errors present');
+  await browser.close();
+  if (process.exitCode) { console.error('E2E FAILED'); process.exit(1); }
+  console.log('E2E PASS');
+})().catch((e) => { console.error('E2E FAILED:', e.message); process.exit(1); });
