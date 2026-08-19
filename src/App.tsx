@@ -20,6 +20,9 @@ import {
 
 const storage = createLocalStorageAdapter()
 
+// Injected at build time by vite.config.ts define — build counter from VERSION.
+declare const __APP_VERSION__: number
+
 export default function App() {
   const [snap, setSnap] = useState<Snapshot>(() => loadSnapshot(storage))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -225,6 +228,10 @@ export default function App() {
           onClose={() => setSelectedDate(null)}
         />
       )}
+
+      <span className="pointer-events-none fixed bottom-1 left-2 z-0 font-mono text-[10px] text-ink-soft/50">
+        v{__APP_VERSION__}
+      </span>
     </div>
   )
 }
