@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Prediction, Snapshot } from '../types'
 import { monthGrid, MONTH_NAMES, todayISO, WEEKDAY_LABELS } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
+import { beginDrag, commitDrag, extendDrag } from '../lib/rangeDrag'
+import type { RangeDrag } from '../lib/rangeDrag'
 
 interface CalendarProps {
   /** Months to render, oldest first */
@@ -29,13 +31,18 @@ export default function Calendar({
 }: CalendarProps) {
   const today = todayISO()
   const [todayYear, todayMonth] = today.split('-').map(Number)
-  const [dragStart, setDragStart] = useState<string | null>(null)
-  const [dragEnd, setDragEnd] = useState<string | null>(null)
-  // Set when a drag commits on mouseup; the trailing click (same element) is swallowed.
+  const [drag, setDrag] = useState<RangeDrag | null>(null)
+  // Set when a drag commits on release; the trailing click (same element) is swallowed.
   const dragJustEnded = useRef(false)
   const rangeCompleteRef = useRef(onRangeComplete)
   useEffect(() => {
     rangeCompleteRef.current = onRangeComplete
+  })
+  // Mirror for the window listener — the effect below only re-subscribes when
+  // a drag starts/ends, so it must read the CURRENT drag, not a stale one.
+  const dragRef = useRef<RangeDrag | null>(null)
+  useEffect(() => {
+    dragRef.current = drag
   })
   const entriesByDate = useMemo(() => {
     const m = new Map<string, Snapshot['entries'][number]>()
@@ -43,29 +50,49 @@ export default function Calendar({
     return m
   }, [snap.entries])
 
-  // Commit the drag range when the mouse is released anywhere.
+  // Release (or cancel) anywhere ends the drag; only a real multi-day drag commits.
   useEffect(() => {
-    if (dragStart === null) return
+    if (!drag) return
     const up = () => {
-      if (dragEnd !== null && dragEnd !== dragStart) {
+      const d = dragRef.current
+      dragRef.current = null
+      setDrag(null)
+      if (!d) return
+      const range = commitDrag(d)
+      if (range) {
         dragJustEnded.current = true
-        rangeCompleteRef.current(dragStart, dragEnd)
+        rangeCompleteRef.current(range.from, range.to)
       }
-      setDragStart(null)
-      setDragEnd(null)
     }
-    window.addEventListener('mouseup', up)
-    return () => window.removeEventListener('mouseup', up)
-  }, [dragStart, dragEnd])
+    // Pointer cancel = the browser reclaimed the gesture (system gesture,
+    // palm, interruption) — abort without committing.
+    const cancel = () => {
+      dragRef.current = null
+      setDrag(null)
+    }
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
+    return () => {
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag !== null])
 
-  const dragBounds: [string, string] | null =
-    dragStart !== null && dragEnd !== null
-      ? dragStart <= dragEnd
-        ? [dragStart, dragEnd]
-        : [dragEnd, dragStart]
-      : null
-  const inDragRange = (iso: string) =>
-    dragBounds !== null && iso >= dragBounds[0] && iso <= dragBounds[1]
+  const inDragRange = (iso: string) => {
+    if (!drag) return false
+    const [a, b] = drag.start <= drag.end ? [drag.start, drag.end] : [drag.end, drag.start]
+    return iso >= a && iso <= b
+  }
+
+  // Cell under the pointer, by coordinates. Used instead of pointerenter:
+  // touch pointers get IMPLICIT capture on the pressed cell, so boundary
+  // events never fire on other cells during a touch drag.
+  const isoAt = (x: number, y: number): string | null => {
+    const el = document.elementFromPoint(x, y)
+    const label = el instanceof Element ? (el.closest('button[aria-label]')?.getAttribute('aria-label') ?? '') : ''
+    return /^\d{4}-\d{2}-\d{2}$/.test(label) ? label : null
+  }
 
   const showLegend =
     !!prediction && (prediction.fertileWindow !== null || predictedDays.length > 0)
@@ -73,9 +100,18 @@ export default function Calendar({
   return (
     <div className="rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
       {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
+      {/* Day cells are touch-none: a touch drag always selects a range and never
+          scrolls. Vertical scrolling still works from the sticky month header
+          strip, the weekday row, and the Today pill. */}
       <div
         data-calendar-scroll
-        className="-mx-5 h-[21rem] overflow-y-auto overscroll-contain px-5"
+        className="-mx-5 h-[21rem] overflow-y-auto overscroll-contain px-5 select-none"
+        onPointerMove={(e) => {
+          // extend the drag to whatever day cell is under the pointer
+          const iso = isoAt(e.clientX, e.clientY)
+          if (!iso) return
+          setDrag((d) => (d ? extendDrag(d, iso) : d))
+        }}
       >
       {months.map(({ year, month }, mi) => {
         const grid = monthGrid(year, month)
@@ -112,7 +148,7 @@ export default function Calendar({
                   const isSelected = cell.iso === selectedDate
 
                   let cls =
-                    'mx-auto flex aspect-square w-full max-w-11 select-none items-center justify-center rounded-full text-sm transition-colors'
+                    'mx-auto flex aspect-square w-full max-w-11 select-none items-center justify-center rounded-full text-sm transition-colors touch-none'
                   if (!cell.inMonth) cls += ' opacity-25'
                   if (isPeriod || isDragRange) {
                     cls += ' bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
@@ -129,17 +165,20 @@ export default function Calendar({
                     <button
                       key={cell.iso}
                       type="button"
-                      onMouseDown={(e) => {
-                        if (e.button !== 0) return
+                      onPointerDown={(e) => {
+                        // left button / primary touch only — ignore right-click & second finger
+                        if (e.button !== 0 || !e.isPrimary) return
                         dragJustEnded.current = false
-                        setDragStart(cell.iso)
-                        setDragEnd(cell.iso)
+                        const d = beginDrag(cell.iso)
+                        dragRef.current = d
+                        setDrag(d)
                       }}
-                      onMouseEnter={() => {
-                        if (dragStart !== null) setDragEnd(cell.iso)
+                      onPointerCancel={() => {
+                        dragRef.current = null
+                        setDrag(null)
                       }}
                       onClick={() => {
-                        // A drag commits on mouseup; swallow the trailing click.
+                        // A drag commits on release; swallow the trailing click.
                         if (dragJustEnded.current) {
                           dragJustEnded.current = false
                           return

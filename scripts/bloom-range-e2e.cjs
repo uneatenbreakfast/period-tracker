@@ -21,7 +21,15 @@ const isoAdd = (iso, n) => {
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
   });
-  const page = await browser.newPage({ viewport: { width: 430, height: 932 } });
+  // hasTouch: true — a phone-like context; touch drags assert the real touch
+  // pipeline (touch-action, scroll-swallowing) end-to-end, not synthesized events.
+  const context = await browser.newContext({ viewport: { width: 430, height: 932 }, hasTouch: true });
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+  // Real touch pipeline: headless chromium only performs native touch scrolling
+  // (and thus respects touch-action) with touch emulation enabled. Without it,
+  // "did not scroll" assertions are vacuous.
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   const errors = [];
   page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
@@ -106,7 +114,79 @@ const isoAdd = (iso, n) => {
   if (stored3.length === 8) ok('tap did not add entries (8 remain)');
   else fail('tap added entries: ' + stored3.length);
 
-  // STEP 6 — Today pill + scroll still fine, screenshot for visual review
+  // STEP 6 — do NOT pick already-logged cells for the touch drag (d10..d20 used)
+  const d22 = `${mm}-22`, d23 = `${mm}-23`, d25 = `${mm}-25`;
+  const touchStart = (x, y) => cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: Math.round(x), y: Math.round(y) }] });
+  const touchMove = (x, y) => cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: Math.round(x), y: Math.round(y) }] });
+  const touchEnd = () => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const scrollTop = () => page.evaluate(() => ({
+    cal: document.querySelector('[data-calendar-scroll]').scrollTop,
+    doc: (document.scrollingElement || document.documentElement).scrollTop,
+  }));
+
+  // STEP 7 — touch drag 22 → 25 must select a range, NOT scroll the calendar.
+  // On a phone this was the reported bug: the browser grabbed the gesture.
+  const before = await scrollTop();
+  const t0 = center(await box(d22)), t1 = center(await box(d23)), t2 = center(await box(d25));
+  await touchStart(t0.x, t0.y);
+  await page.waitForTimeout(60);
+  await touchMove(t1.x, t1.y);
+  await page.waitForTimeout(60);
+  if (await hasClass(d23, 'bg-rose-400')) ok('touch drag previews passed-over cells');
+  else fail('touch drag preview missing mid-drag');
+  const mid = await scrollTop();
+  if (mid.cal === before.cal && mid.doc === before.doc)
+    ok('touch drag did NOT scroll the calendar (touch-action: none works)');
+  else fail(`calendar scrolled during touch drag: ${JSON.stringify(before)} → ${JSON.stringify(mid)}`);
+  await touchMove(t2.x, t2.y);
+  await page.waitForTimeout(120);
+  if (await hasClass(d22, 'bg-rose-400') && await hasClass(d25, 'bg-rose-400'))
+    ok('touch drag highlights start + end cells');
+  else fail('touch drag end highlight missing');
+  await touchEnd();
+  await page.waitForTimeout(300);
+  const stored4 = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
+  const r4 = stored4.filter((x) => x.date >= d22 && x.date <= d25);
+  if (r4.length === 4 && stored4.length === 12)
+    ok('touch drag committed 22..25 as period days (12 entries total)');
+  else fail('touch drag not committed: ' + stored4.length + ' entries');
+  const after = await scrollTop();
+  if (after.cal === before.cal && after.doc === before.doc)
+    ok('calendar still unscrolled after touch release');
+  else fail('calendar moved after touch drag');
+
+  // STEP 8 — escape hatch: touch drag starting on a sticky month header
+  // (no touch-none there) still scrolls the calendar vertically.
+  // Pick a header that is actually on screen at the current scroll position:
+  // after step 7 the calendar is scrolled deep, so the current month's header
+  // may be out of view — choose the first h2 with a visible bounding box.
+  const visibleHeader = await page.evaluate(() => {
+    const vh = window.innerHeight;
+    for (const h of document.querySelectorAll('[data-month] h2')) {
+      const r = h.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= vh) return { x: r.left, y: r.top, w: r.width, h: r.height };
+    }
+    return null;
+  });
+  if (!visibleHeader) throw new Error('no visible month header to swipe on');
+  const hx = visibleHeader.x + visibleHeader.w / 2;
+  const hy = visibleHeader.y + visibleHeader.h / 2;
+  await touchStart(hx, hy);
+  for (let i = 1; i <= 4; i++) {
+    await touchMove(hx, hy - i * 40);
+    await page.waitForTimeout(40);
+  }
+  await touchEnd();
+  await page.waitForTimeout(200);
+  const scrolled = await scrollTop();
+  // Headless chromium can route the gesture to the document scroller instead of
+  // the calendar container; either moving proves the touch-action: none on the
+  // cells did not kill scrolling for the whole calendar.
+  if (scrolled.cal !== before.cal || scrolled.doc !== before.doc)
+    ok(`swipe on month header still scrolls (${JSON.stringify(before)} → ${JSON.stringify(scrolled)})`);
+  else fail('calendar vertical scroll broken — touch-none too aggressive');
+
+  // STEP 9 — Today pill + scroll still fine, screenshot for visual review
   await page.click('button[aria-label="Scroll to today"]');
   await page.waitForTimeout(400);
   await page.screenshot({ path: '/tmp/bloom-range-drag.png' });
