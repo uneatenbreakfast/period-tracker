@@ -4,6 +4,9 @@ Local markdown tracker (no GitHub Issues). Prefix: `BLOOM-`.
 
 ## Open
 
+### BLOOM-0010 — Calendar tab holds only the calendar; cards move to Health tab
+MenstrualHealthCard (predicted period) + HistoryCard (cycle history) moved OFF the calendar tab onto a new HEALTH tab (CALENDAR | HEALTH | TRENDS). Calendar tab = calendar grid only; "Today" pill stays on calendar. Card/trends E2E updated (card E2E clicks Health after each reload; trends E2E asserts 3 tabs, health card absent on calendar, calendar absent on health). Completed 2026-08-19. Verified: 85 unit tests + tsc + full Playwright suite green on port 5181 — trends E2E (3-tab structure, STEP 6 calendar-only checks, STEP 7 health-tab checks), card E2E (all states via Health tab), calendar E2E, range E2E. Range E2E STEP 11 got layout-aware: calendar-only tab leaves the document unscrollable (docScrollH == viewport), so the headless doc-routed header swipe had nowhere to go — fallback asserts the container still scrolls via wheel (3661→3961) when the doc has zero scroll range. Root cause of a first-run failure was the shared-port trap on 5176 (foreign server, stale code) + predev hook bumped VERSION to 11.
+
 ### BLOOM-0001 — Sync: server blob endpoint
 When sync feature is built: whole snapshot `serializeSnapshot()` uploads as blob; server stores opaque JSON; restore replaces local snapshot. Decide: endpoint shape, auth, conflict policy (last-write-wins probably, blob is atomic). Blocked on nothing; scheduled post-RN-planning. Not started.
 

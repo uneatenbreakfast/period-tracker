@@ -26,7 +26,7 @@ declare const __APP_VERSION__: number
 export default function App() {
   const [snap, setSnap] = useState<Snapshot>(() => loadSnapshot(storage))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [tab, setTab] = useState<'calendar' | 'trends'>('calendar')
+  const [tab, setTab] = useState<'calendar' | 'health' | 'trends'>('calendar')
   const now = new Date()
 
   useEffect(() => saveSnapshot(snap, storage), [snap])
@@ -174,6 +174,15 @@ export default function App() {
         </button>
         <button
           type="button"
+          onClick={() => setTab('health')}
+          className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
+            tab === 'health' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
+          }`}
+        >
+          Health
+        </button>
+        <button
+          type="button"
           onClick={() => setTab('trends')}
           className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
             tab === 'trends' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
@@ -190,29 +199,35 @@ export default function App() {
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
           </footer>
         </main>
+      ) : tab === 'health' ? (
+        <main className="flex flex-col gap-4">
+          <MenstrualHealthCard
+            prediction={prediction}
+            entryCount={snap.entries.length}
+            snap={snap}
+            onLogToConfirm={() => setSelectedDate(todayISO())}
+          />
+          <HistoryCard snap={snap} />
+          <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
+            Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
+          </footer>
+        </main>
       ) : (
         <main className="flex flex-col gap-4">
-        <Calendar
-          months={months}
-          snap={snap}
-          prediction={prediction}
-          predictedDays={predictedDays}
-          fertileDays={fertileDays}
-          selectedDate={selectedDate}
-          onSelect={setSelectedDate}
-          onRangeComplete={commitRange}
-        />
-        <MenstrualHealthCard
-          prediction={prediction}
-          entryCount={snap.entries.length}
-          snap={snap}
-          onLogToConfirm={() => setSelectedDate(todayISO())}
-        />
-        <HistoryCard snap={snap} />
-        <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
-          Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
-        </footer>
-      </main>
+          <Calendar
+            months={months}
+            snap={snap}
+            prediction={prediction}
+            predictedDays={predictedDays}
+            fertileDays={fertileDays}
+            selectedDate={selectedDate}
+            onSelect={setSelectedDate}
+            onRangeComplete={commitRange}
+          />
+          <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
+            Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
+          </footer>
+        </main>
       )}
 
       {selectedDate && (

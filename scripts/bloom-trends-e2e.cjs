@@ -48,7 +48,7 @@ const cycles = [
     const nav = document.querySelector('nav[aria-label="Views"]');
     return nav ? [...nav.querySelectorAll('button')].map((b) => b.textContent.trim()) : [];
   });
-  if (tabs.join(',') === 'Calendar,Trends') ok('tabs CALENDAR | TRENDS present (uppercased by CSS)');
+  if (tabs.join(',') === 'Calendar,Health,Trends') ok('tabs CALENDAR | HEALTH | TRENDS present (uppercased by CSS)');
   else fail('tabs wrong: ' + JSON.stringify(tabs));
 
   await page.click('nav[aria-label="Views"] button:has-text("Trends")');
@@ -133,13 +133,29 @@ const cycles = [
   await page.click('[data-testid="cycle-row-2026-07-21"]');
   await page.waitForTimeout(150);
 
-  // STEP 6 — back to calendar tab (calendar grid intact)
+  // STEP 6 — back to calendar tab: calendar grid only, no cards
   await page.click('nav[aria-label="Views"] button:has-text("Calendar")');
   await page.waitForTimeout(250);
-  const cal = await page.evaluate(() => document.body.innerText);
-  if (cal.toUpperCase().includes('MENSTRUAL HEALTH') && cal.includes('Predicted period')) ok('calendar tab intact: menstrual health card present');
-  else fail('calendar tab broken');
+  const calState = await page.evaluate(() => ({
+    scroller: !!document.querySelector('[data-calendar-scroll]'),
+    body: document.body.innerText
+  }));
+  if (calState.scroller) ok('calendar tab shows the calendar grid');
+  else fail('calendar grid missing on calendar tab');
+  if (!calState.body.toUpperCase().includes('MENSTRUAL HEALTH')) ok('calendar tab has no menstrual health card');
+  else fail('calendar tab still shows menstrual health card');
   await page.screenshot({ path: '/tmp/bloom-trends-calendar-back.png' });
+
+  // STEP 7 — health tab: menstrual health card + cycle history, no calendar
+  await page.click('nav[aria-label="Views"] button:has-text("Health")');
+  await page.waitForTimeout(250);
+  const healthText = await page.evaluate(() => document.body.innerText);
+  if (healthText.toUpperCase().includes('MENSTRUAL HEALTH') && healthText.includes('Predicted period')) ok('health tab shows menstrual health card');
+  else fail('health tab broken: menstrual health card missing');
+  if (healthText.toUpperCase().includes('CYCLE HISTORY')) ok('health tab shows cycle history card');
+  else fail('health tab broken: cycle history missing');
+  if (!healthText.includes('Calendar')) ok('health tab has no calendar');
+  else fail('health tab still shows calendar');
 
   console.log('JS ERRORS:', errors.length ? errors.join(' | ') : 'none');
   if (errors.length) fail('page errors present');

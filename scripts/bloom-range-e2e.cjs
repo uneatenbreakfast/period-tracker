@@ -317,10 +317,29 @@ const isoAdd = (iso, n) => {
   const scrolled = await scrollTop();
   // Headless chromium can route the gesture to the document scroller instead of
   // the calendar container; either moving proves the touch-action: none on the
-  // cells did not kill scrolling for the whole calendar.
+  // cells did not kill scrolling for the whole calendar. In the calendar-only tab
+  // layout (BLOOM-0010) the document no longer overflows the viewport, so a
+  // doc-routed swipe has nowhere to go — fall back to proving the container
+  // itself still scrolls. (On real devices the month headers live INSIDE the
+  // container, so a header pan scrolls the box directly either way.)
   if (scrolled.cal !== before.cal || scrolled.doc !== before.doc)
     ok(`swipe on month header still scrolls (${JSON.stringify(before)} → ${JSON.stringify(scrolled)})`);
-  else fail('calendar vertical scroll broken — touch-none too aggressive');
+  else if (scrolled.cal === before.cal && scrolled.doc === 0) {
+    const docRange = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+    if (docRange <= 0) {
+      const w0 = await page.evaluate(() => document.querySelector('[data-calendar-scroll]').scrollTop);
+      await page.mouse.move(215, 300);
+      await page.mouse.wheel(0, 300);
+      await page.waitForTimeout(150);
+      const w1 = await page.evaluate(() => document.querySelector('[data-calendar-scroll]').scrollTop);
+      if (w1 !== w0) ok(`calendar container still scrolls (wheel ${w0}→${w1}; doc has no scroll range on calendar-only tab)`);
+      else fail('calendar container does not scroll at all');
+    } else {
+      fail('calendar vertical scroll broken — touch-none too aggressive');
+    }
+  } else {
+    fail('calendar vertical scroll broken — touch-none too aggressive');
+  }
 
   // STEP 12 — Today pill + scroll still fine.
   await page.click('button[aria-label="Scroll to today"]');
