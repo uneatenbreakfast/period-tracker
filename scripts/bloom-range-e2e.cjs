@@ -1,5 +1,6 @@
 // Bloom drag-to-range E2E — press on a day, drag to another day:
-// live rose preview while dragging, whole inclusive span logged as period
+// live rose highlight (bg-rose-400, same style as committed period days)
+// spans covered cells while dragging, whole inclusive span logged as period
 // flow on release; plain tap still opens DaySheet. No drag = no range.
 // Prereq: dev server (bun run dev --port <own port>), then:
 //   NODE_PATH=/mnt/c/Repos/period-tracker/node_modules node bloom-range-e2e.cjs
@@ -55,11 +56,11 @@ const isoAdd = (iso, n) => {
   await page.waitForTimeout(150);
   await page.mouse.move(e.x, e.y, { steps: 12 });
   await page.waitForTimeout(150);
-  if (await hasClass(d10, 'bg-rose-200') && await hasClass(d12, 'bg-rose-200'))
-    ok('preview highlights days passed over (rose-200)');
-  else fail('live preview missing on intermediate cells');
-  if (await hasClass(d11, 'bg-rose-200')) ok('intermediate day previewed');
-  else fail('intermediate day not previewed');
+  if (await hasClass(d10, 'bg-rose-400') && await hasClass(d12, 'bg-rose-400'))
+    ok('drag highlights start + passed-over cells (rose-400)');
+  else fail('live highlight missing on passed-over cells');
+  if (await hasClass(d11, 'bg-rose-400')) ok('intermediate day highlighted');
+  else fail('intermediate day not highlighted');
   await page.mouse.up();
   await page.waitForTimeout(300);
 
