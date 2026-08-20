@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Prediction, Snapshot } from '../types'
-import { addMonths, monthGrid, MONTH_NAMES, monthList, todayISO, WEEKDAY_LABELS } from '../lib/dates'
+import { addMonths, continuousGrid, MONTH_NAMES, monthList, todayISO, WEEKDAY_LABELS } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
 import { hapticPulse } from '../lib/haptics'
 import {
@@ -73,10 +73,12 @@ export default function Calendar({
   onRangeComplete,
 }: CalendarProps) {
   const today = todayISO()
-  const [todayYear, todayMonth] = today.split('-').map(Number)
   // The calendar is continuous: the window starts at today ±12 (plus history)
   // and GROWS in both directions as the user scrolls near either edge.
   const [months, setMonths] = useState<MonthRef[]>(() => initialMonths(snap))
+  // ONE flowing week strip across the whole month window — weeks span month
+  // boundaries (a month ending Tue 31 continues same-row into Wed 1).
+  const weeks = useMemo(() => continuousGrid(months), [months])
   // Edit mode for an existing committed run: drag the start/end handles,
   // confirm with the Save/Cancel modal.
   const [edit, setEdit] = useState<EditRange | null>(null)
@@ -354,8 +356,8 @@ export default function Calendar({
       )}
       {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
       {/* Day cells are touch-none: a touch drag always selects a range and never
-          scrolls. Vertical scrolling still works from the sticky month header
-          strip, the weekday row, and the Today pill. */}
+          scrolls. Vertical scrolling still works from the sticky weekday strip
+          and the Today pill. */}
       <div
         data-calendar-scroll
         ref={scrollElRef}
@@ -384,32 +386,29 @@ export default function Calendar({
           setDrag((prev) => (prev ? extendDrag(prev, iso) : prev))
         }}
       >
-      {months.map(({ year, month }, mi) => {
-        const grid = monthGrid(year, month)
-        const isCurrentMonth = year === todayYear && month === todayMonth
+      {/* One sticky weekday strip stays at the box top while the continuous
+          week rows scroll under it; month boundaries are marked by the
+          superscript month label on each 1st. */}
+      <div
+        data-calendar-weekdays
+        className="sticky top-0 z-10 -mx-5 mb-1 bg-white/95 px-5 pb-1.5 pt-3 backdrop-blur-sm"
+      >
+        <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+          {WEEKDAY_LABELS.map((w) => (
+            <div key={w}>{w}</div>
+          ))}
+        </div>
+      </div>
+      {weeks.map((week, wi) => {
+        // Anchor for the month whose 1st falls in this row — App's Today pill
+        // and the initial scroll bring the row containing the 1st to the top.
+        const firstCell = week.find((c) => Number(c.iso.slice(8)) === 1)
+        const monthRef = firstCell
+          ? `${firstCell.iso.slice(0, 4)}-${Number(firstCell.iso.slice(5, 7)) - 1}`
+          : undefined
         return (
-          <section
-            key={`${year}-${month}`}
-            data-month={`${year}-${month}`}
-            aria-label={`${MONTH_NAMES[month]} ${year}`}
-            className={mi === 0 ? '' : 'mt-5 border-t border-rose-50'}
-          >
-            <div className="sticky top-0 z-10 -mx-5 mb-1 bg-white/95 px-5 pb-1 pt-3 backdrop-blur-sm">
-              <div className="flex items-baseline justify-between">
-                <h2 className="text-sm font-extrabold uppercase tracking-wider text-ink">
-                  {MONTH_NAMES[month]} {year}
-                </h2>
-                {isCurrentMonth && <span className="text-[11px] font-bold text-rose-400">Today</span>}
-              </div>
-              <div className="mt-1 grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-ink-soft">
-                {WEEKDAY_LABELS.map((w) => (
-                  <div key={w}>{w}</div>
-                ))}
-              </div>
-            </div>
-            {grid.map((week, wi) => (
-              <div key={wi} className="grid grid-cols-7">
-                {week.map((cell) => {
+          <div key={`w${wi}`} data-month={monthRef} className="grid grid-cols-7">
+            {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
                   // Committed period run wins over the live drag preview when
@@ -426,6 +425,9 @@ export default function Calendar({
                   const isFertile = fertileDays.includes(cell.iso)
                   const isToday = cell.iso === today
                   const isSelected = cell.iso === selectedDate
+                  // Superscript month tag on the 1st of every month (e.g. “AUG 1”
+                  // with AUG raised) — the only per-month marker in the strip.
+                  const isMonthStart = Number(cell.iso.slice(8)) === 1
                   const editHandle = edit
                     ? cell.iso === edit.start
                       ? 'start'
@@ -522,16 +524,21 @@ export default function Calendar({
                       aria-label={cell.iso}
                     >
                       {editHandle === 'start' ? grip : null}
-                      {Number(cell.iso.slice(8))}
+                      <span>
+                        {isMonthStart && (
+                          <sup className="text-[8px] font-bold uppercase leading-none tracking-wide">
+                            {MONTH_NAMES[Number(cell.iso.slice(5, 7)) - 1].slice(0, 3)}
+                          </sup>
+                        )}
+                        {Number(cell.iso.slice(8))}
+                      </span>
                       {editHandle === 'end' ? grip : null}
                     </button>
                   )
                 })}
               </div>
-            ))}
-          </section>
-        )
-      })}
+            )
+          })}
       </div>
       {!showLegend ? null : (
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-rose-50 pt-3 text-xs text-ink-soft">

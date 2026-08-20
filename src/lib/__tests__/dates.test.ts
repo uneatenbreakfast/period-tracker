@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   addDays,
   addMonths,
+  continuousGrid,
   dateRange,
   diffDays,
   fromISODate,
   isValidISO,
-  monthGrid,
   monthList,
   toISODate,
   todayISO,
@@ -76,31 +76,67 @@ describe('monthList', () => {
   })
 })
 
-describe('monthGrid', () => {
-  it('June 2026 starts on Monday → no leading pad, 5 weeks', () => {
-    const grid = monthGrid(2026, 5)
+describe('continuousGrid', () => {
+  it('June 2026 starts on Monday → no leading pad, 5 weeks, only July tail pads', () => {
+    const grid = continuousGrid([{ year: 2026, month: 5 }])
     expect(grid.length).toBe(5)
     expect(grid[0][0].iso).toBe('2026-06-01')
     expect(grid[0][0].inMonth).toBe(true)
+    expect(grid.flat().filter((c) => c.inMonth)).toHaveLength(30)
+    // trailing pad only: the window's last Sunday is July 5
+    expect(grid[4][6].iso).toBe('2026-07-05')
+    expect(grid[4][6].inMonth).toBe(false)
   })
 
   it('August 2026 starts on Saturday → 5 leading pad cells from July', () => {
-    const grid = monthGrid(2026, 7)
+    const grid = continuousGrid([{ year: 2026, month: 7 }])
     expect(grid[0][0].iso).toBe('2026-07-27')
     expect(grid[0][0].inMonth).toBe(false)
     expect(grid[0][5].iso).toBe('2026-08-01')
     expect(grid[0][5].inMonth).toBe(true)
   })
 
-  it('every week has 7 cells; inMonth cells count = days in month', () => {
+  it('month ending Tue 31 → next month\'s Wed 1st continues the SAME row (BLOOM-0015)', () => {
+    // March 2026: 31st is Tuesday, April 1st is Wednesday.
+    const grid = continuousGrid([
+      { year: 2026, month: 2 },
+      { year: 2026, month: 3 },
+    ])
+    const flat = grid.flat().map((c) => c.iso)
+    const tue31 = flat.indexOf('2026-03-31')
+    const wed1 = flat.indexOf('2026-04-01')
+    expect(tue31).toBeGreaterThanOrEqual(0)
+    expect(wed1).toBe(tue31 + 1) // adjacent — no row break at the boundary
+    const sameWeek = grid.find((w) => w.some((c) => c.iso === '2026-03-31'))
+    expect(sameWeek!.some((c) => c.iso === '2026-04-01')).toBe(true)
+  })
+
+  it('never duplicates a day and spans the window without gaps', () => {
+    const grid = continuousGrid([
+      { year: 2026, month: 0 },
+      { year: 2026, month: 1 },
+      { year: 2026, month: 2 },
+    ])
+    const flat = grid.flat().map((c) => c.iso)
+    expect(new Set(flat).size).toBe(flat.length)
+    for (let i = 1; i < flat.length; i++) {
+      expect(addDays(flat[i - 1], 1)).toBe(flat[i])
+    }
+  })
+
+  it('every week has 7 cells; inMonth cells count = days in window months', () => {
     for (const [year, month, daysInMonth] of [
       [2026, 0, 31],
       [2026, 1, 28],
       [2028, 1, 29], // leap year
     ] as const) {
-      const grid = monthGrid(year, month)
+      const grid = continuousGrid([{ year, month }])
       expect(grid.every((w) => w.length === 7)).toBe(true)
       expect(grid.flat().filter((c) => c.inMonth)).toHaveLength(daysInMonth)
     }
+  })
+
+  it('empty window → empty grid', () => {
+    expect(continuousGrid([])).toEqual([])
   })
 })

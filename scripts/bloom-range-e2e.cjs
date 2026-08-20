@@ -294,22 +294,18 @@ const isoAdd = (iso, n) => {
     ok('calendar still unscrolled after touch release');
   else fail('calendar moved after touch drag');
 
-  // STEP 11 — escape hatch: touch drag starting on a sticky month header
+  // STEP 11 — escape hatch: touch drag starting on the sticky weekday row
   // (no touch-none there) still scrolls the calendar vertically.
-  // Pick a header that is actually on screen at the current scroll position:
-  // after step 10 the calendar is scrolled deep, so the current month's header
-  // may be out of view — choose the first h2 with a visible bounding box.
-  const visibleHeader = await page.evaluate(() => {
-    const vh = window.innerHeight;
-    for (const h of document.querySelectorAll('[data-month] h2')) {
-      const r = h.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= vh) return { x: r.left, y: r.top, w: r.width, h: r.height };
-    }
-    return null;
+  // The weekday strip is sticky inside the calendar box, so it is always on
+  // screen regardless of the current scroll position.
+  const weekdayBox = await page.evaluate(() => {
+    const h = document.querySelector('[data-calendar-weekdays]');
+    const r = h.getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
   });
-  if (!visibleHeader) throw new Error('no visible month header to swipe on');
-  const hx = visibleHeader.x + visibleHeader.w / 2;
-  const hy = visibleHeader.y + visibleHeader.h / 2;
+  if (!weekdayBox.w) throw new Error('no sticky weekday row to swipe on');
+  const hx = weekdayBox.x + weekdayBox.w / 2;
+  const hy = weekdayBox.y + weekdayBox.h / 2;
   await touchStart(hx, hy);
   for (let i = 1; i <= 4; i++) {
     await touchMove(hx, hy - i * 40);
@@ -323,10 +319,10 @@ const isoAdd = (iso, n) => {
   // cells did not kill scrolling for the whole calendar. In the calendar-only tab
   // layout (BLOOM-0010) the document no longer overflows the viewport, so a
   // doc-routed swipe has nowhere to go — fall back to proving the container
-  // itself still scrolls. (On real devices the month headers live INSIDE the
-  // container, so a header pan scrolls the box directly either way.)
+  // itself still scrolls. (On real devices the weekday strip lives INSIDE the
+  // container, so a strip pan scrolls the box directly either way.)
   if (scrolled.cal !== before.cal || scrolled.doc !== before.doc)
-    ok(`swipe on month header still scrolls (${JSON.stringify(before)} → ${JSON.stringify(scrolled)})`);
+    ok(`swipe on weekday row still scrolls (${JSON.stringify(before)} → ${JSON.stringify(scrolled)})`);
   else if (scrolled.cal === before.cal && scrolled.doc === 0) {
     const docRange = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
     if (docRange <= 0) {
@@ -372,7 +368,10 @@ const isoAdd = (iso, n) => {
   // ==== BLOOM-0013 — edit mode + continuous (growing) calendar ====
   const monthCount = () => page.evaluate(() => document.querySelectorAll('[data-month]').length);
   const monthAttr = (pos) =>
-    page.evaluate((p) => document.querySelector(`[data-month]:${p}-of-type`)?.getAttribute('data-month'), pos);
+    page.evaluate((p) => {
+      const els = [...document.querySelectorAll('[data-month]')];
+      return (els.at(p === 'first' ? 0 : -1) || null)?.getAttribute('data-month');
+    }, pos);
   const editRangeText = () =>
     page.evaluate(() => document.querySelector('[data-edit-range]')?.textContent ?? '');
   const editHandleIso = (which) =>

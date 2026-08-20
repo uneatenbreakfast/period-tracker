@@ -44,20 +44,24 @@ export interface MonthCell {
   inMonth: boolean
 }
 
-/** Calendar grid for a month: array of weeks, each 7 cells (Mon-first), padded from prev/next month. */
-export function monthGrid(year: number, month: number): MonthCell[][] {
-  // month: 0-based
-  const first = new Date(year, month, 1)
+/** Continuous calendar grid across a month window: ONE flowing Mon-first strip
+ * where weeks span month boundaries — if a month ends on Tue 31, the next
+ * month's 1st continues the SAME row on Wed. Only the Monday before the first
+ * month and the Sunday after the last month pad the strip (inMonth = false). */
+export function continuousGrid(months: MonthRef[]): MonthCell[][] {
+  if (months.length === 0) return []
+  const first = months[0]
+  const last = months[months.length - 1]
+  const firstDate = new Date(first.year, first.month, 1)
+  const lastDate = new Date(last.year, last.month + 1, 0)
   // Monday-first: pad = (getDay() + 6) % 7
-  const padStart = (first.getDay() + 6) % 7
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const padStart = (firstDate.getDay() + 6) % 7
+  const padEnd = 6 - ((lastDate.getDay() + 6) % 7)
+  const start = new Date(first.year, first.month, 1 - padStart)
+  const end = new Date(last.year, last.month, lastDate.getDate() + padEnd)
   const cells: MonthCell[] = []
-  const gridStart = new Date(year, month, 1 - padStart)
-  const total = Math.ceil((padStart + daysInMonth) / 7) * 7
-  for (let i = 0; i < total; i++) {
-    const d = new Date(gridStart)
-    d.setDate(gridStart.getDate() + i)
-    cells.push({ iso: toISODate(d), inMonth: d.getMonth() === month })
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    cells.push({ iso: toISODate(d), inMonth: d >= firstDate && d <= lastDate })
   }
   const weeks: MonthCell[][] = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))

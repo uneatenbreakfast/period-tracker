@@ -62,6 +62,35 @@ const isoAdd = (iso, n) => {
   if (months[0] === expFirst) ok(`range extended back to ${expFirst} (before ${oldDay})`);
   else fail(`first month ${months[0]}, expected ${expFirst}`);
 
+  // STEP 2b — CONTINUOUS STRIP: day cells in DOM order are one unbroken chain
+  // of consecutive dates across month boundaries (no padded restart), and each
+  // month's 1st carries a superscript month label.
+  const chain = await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll('[data-calendar-scroll] button[aria-label]')]
+      .map((b) => b.getAttribute('aria-label'))
+      .filter((a) => /^\d{4}-\d{2}-\d{2}$/.test(a));
+    let broken = false;
+    for (let i = 1; i < buttons.length; i++) {
+      const [y, m, d] = buttons[i - 1].split('-').map(Number);
+      const expect = `${y}-${String(m).padStart(2, '0')}-${String(d + 1).padStart(2, '0')}`;
+      if (buttons[i] !== new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)) { broken = true; break; }
+    }
+    return { count: buttons.length, broken };
+  });
+  if (chain.count >= 35 && !chain.broken) ok(`continuous strip: ${chain.count} day cells form one unbroken date chain`);
+  else fail('day cells not continuous across month boundary: ' + JSON.stringify(chain));
+  const labels = await page.evaluate(({ todayY, todayM }) => {
+    const rows = document.querySelectorAll('[data-month]');
+    const out = { rows: rows.length, sups: document.querySelectorAll('[data-month] sup').length, todaySup: null, todayTransform: null };
+    const t = document.querySelector(`[data-month="${todayY}-${todayM}"] sup`);
+    if (t) { out.todaySup = t.textContent; out.todayTransform = getComputedStyle(t).textTransform; }
+    return out;
+  }, { todayY, todayM });
+  const expectSup = ['January','February','March','April','May','June','July','August','September','October','November','December'][todayM].slice(0, 3);
+  if (labels.rows > 0 && labels.sups === labels.rows && labels.todaySup === expectSup && labels.todayTransform === 'uppercase')
+    ok(`superscript month labels on every month 1st (${labels.rows} rows; today month = ${labels.todaySup} → ${labels.todayTransform})`);
+  else fail('superscript labels wrong: ' + JSON.stringify(labels) + ' expected ' + expectSup);
+
   // STEP 3 — calendar scrolls inside its own box; the PAGE must not scroll for months
   const box = await page.evaluate(() => {
     const s = document.querySelector('[data-calendar-scroll]');
