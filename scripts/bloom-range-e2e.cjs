@@ -121,10 +121,12 @@ const isoAdd = (iso, n) => {
   stored = await storedEntries();
   if (stored.length === 0) ok('long press alone logged nothing (0 entries)');
   else fail('long press alone logged entries: ' + stored.length);
-  // 30 = HAPTIC_PULSE_MS in src/lib/haptics.ts — the arm tick.
+  // [30, 30, 30] = HAPTIC_DOUBLE_PULSE_PATTERN in src/lib/haptics.ts — two
+  // bursts, one arm tick (even indices vibrate, odd indices pause).
   const v2 = await vibrateCalls();
-  if (v2.length === 1 && v2[0] === 30) ok('long press fired one 30ms pulse (selection armed)');
-  else fail('long press vibrate wrong: ' + JSON.stringify(v2));
+  if (v2.length === 1 && JSON.stringify(v2[0]) === '[30,30,30]') {
+    ok('long press fired the double pulse (selection armed)');
+  } else fail('long press vibrate wrong: ' + JSON.stringify(v2));
 
   // STEP 3 — LONG-PRESS drag 10 → 13 (forward, same row): hold, then drag;
   // live preview as we pass over cells, commit on release.

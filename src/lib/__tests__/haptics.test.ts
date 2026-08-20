@@ -1,14 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { HAPTIC_PULSE_MS, hapticPulse } from '../haptics'
+import { HAPTIC_DOUBLE_PULSE_PATTERN, HAPTIC_PULSE_MS, hapticPulse } from '../haptics'
 
 describe('hapticPulse', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('calls navigator.vibrate with the short default pulse when supported', () => {
+  it('calls navigator.vibrate with the default double-pulse pattern when supported', () => {
     const vibrate = vi.fn(() => true)
     vi.stubGlobal('navigator', { vibrate })
     expect(hapticPulse()).toBe(true)
-    expect(vibrate).toHaveBeenCalledWith(HAPTIC_PULSE_MS)
+    expect(vibrate).toHaveBeenCalledWith(HAPTIC_DOUBLE_PULSE_PATTERN)
+  })
+
+  it('default pattern fires two bursts separated by a pause (double pulse)', () => {
+    expect(HAPTIC_DOUBLE_PULSE_PATTERN).toEqual([HAPTIC_PULSE_MS, HAPTIC_PULSE_MS, HAPTIC_PULSE_MS])
   })
 
   it('forwards a custom pattern so callers can vary the tick', () => {
