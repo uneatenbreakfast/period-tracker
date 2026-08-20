@@ -264,7 +264,7 @@ const isoAdd = (iso, n) => {
   else fail('touch drag preview missing mid-drag');
   const mid = await scrollTop();
   if (mid.cal === before.cal && mid.doc === before.doc)
-    ok('touch drag did NOT scroll the calendar (touch-action: none works)');
+    ok('touch drag did NOT scroll the calendar (touch-pan-y + armed veto hold the gesture)');
   else fail(`calendar scrolled during touch drag: ${JSON.stringify(before)} → ${JSON.stringify(mid)}`);
   await touchMove(t2.x, t2.y);
   await page.waitForTimeout(120);
@@ -315,8 +315,8 @@ const isoAdd = (iso, n) => {
   await page.waitForTimeout(200);
   const scrolled = await scrollTop();
   // Headless chromium can route the gesture to the document scroller instead of
-  // the calendar container; either moving proves the touch-action: none on the
-  // cells did not kill scrolling for the whole calendar. In the calendar-only tab
+  // the calendar container; either moving proves the cell pan restriction did
+  // not kill scrolling for the whole calendar. In the calendar-only tab
   // layout (BLOOM-0010) the document no longer overflows the viewport, so a
   // doc-routed swipe has nowhere to go — fall back to proving the container
   // itself still scrolls. (On real devices the weekday strip lives INSIDE the
@@ -334,13 +334,32 @@ const isoAdd = (iso, n) => {
       if (w1 !== w0) ok(`calendar container still scrolls (wheel ${w0}→${w1}; doc has no scroll range on calendar-only tab)`);
       else fail('calendar container does not scroll at all');
     } else {
-      fail('calendar vertical scroll broken — touch-none too aggressive');
+      fail('calendar vertical scroll broken — cell swipe does not scroll');
     }
   } else {
-    fail('calendar vertical scroll broken — touch-none too aggressive');
+    fail('calendar vertical scroll broken — cell swipe does not scroll');
   }
 
   // STEP 12 — Today pill + scroll still fine.
+  await page.click('button[aria-label="Scroll to today"]');
+  await page.waitForTimeout(400);
+
+  // STEP 12b — BLOOM-0015: a REGULAR vertical swipe ON A DAY CELL scrolls the
+  // calendar (cells are touch-pan-y; only an ARMED gesture hands the touch to
+  // the selection). Quick swipe = no long press = no veto = browser pan.
+  const sc0 = await scrollTop();
+  const cellPt = center(await box(d22));
+  await touchStart(cellPt.x, cellPt.y);
+  for (let i = 1; i <= 4; i++) {
+    await touchMove(cellPt.x, cellPt.y - i * 40);
+    await page.waitForTimeout(40);
+  }
+  await touchEnd();
+  await page.waitForTimeout(300);
+  const sc1 = await scrollTop();
+  if (sc1.cal !== sc0.cal)
+    ok(`swipe on a day cell scrolls the calendar (${sc0.cal} → ${sc1.cal})`);
+  else fail('swipe on a day cell did not scroll the calendar');
   await page.click('button[aria-label="Scroll to today"]');
   await page.waitForTimeout(400);
 
@@ -385,6 +404,15 @@ const isoAdd = (iso, n) => {
   await page.mouse.move(e14.x, e14.y);
   await page.mouse.down();
   await page.waitForTimeout(HOLD_MS); // arms → edit entry, not a drag commit
+  // BLOOM-0015: edit mode + the pulse fire AT ARM (400ms) — while the finger
+  // is still DOWN, not on release. Assert the modal is already up mid-hold.
+  const modalWhileHeld = await page.evaluate(
+    () => !!document.querySelector('[data-edit-modal]') && !!document.querySelector('button[aria-label="Save edit"]'),
+  );
+  if (modalWhileHeld) ok('edit mode opened AT ARM (modal visible while still holding)');
+  else fail('edit mode did not open until finger release');
+  if ((await vibrateCalls()).length === 5) ok('haptic pulse fired AT ARM (5 calls while still holding)');
+  else fail('pulse not fired at arm: ' + JSON.stringify(await vibrateCalls()));
   await page.mouse.up();
   await page.waitForTimeout(400);
   const modalShown = await page.evaluate(
@@ -493,6 +521,12 @@ const isoAdd = (iso, n) => {
   await page.mouse.move(e18.x, e18.y);
   await page.mouse.down();
   await page.waitForTimeout(HOLD_MS);
+  // BLOOM-0015: re-entry is ALSO at arm (modal + pulse while still holding).
+  if (await page.evaluate(() => !!document.querySelector('[data-edit-modal]')))
+    ok('re-entered edit mode AT ARM (modal visible while holding)');
+  else fail('re-entry did not happen at arm');
+  if ((await vibrateCalls()).length === 6) ok('re-entry pulse fired at arm (6 calls)');
+  else fail('re-entry pulse wrong: ' + JSON.stringify(await vibrateCalls()));
   await page.mouse.up();
   await page.waitForTimeout(350);
   if ((await editHandleIso('start')) === d23 && (await editHandleIso('end')) === endIso)

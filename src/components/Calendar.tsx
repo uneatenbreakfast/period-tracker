@@ -139,6 +139,25 @@ export default function Calendar({
     }
   }
 
+  // Touch veto: day cells are touch-pan-y so a REGULAR vertical swipe scrolls
+  // the calendar (BLOOM-0015 — touch-none made the whole day grid dead to
+  // scrolling). A swipe that the user never intends is a browser pan, so it
+  // must stay a scroll UNLESS a gesture is armed: once the long-press timer
+  // fired (or an edit handle is being dragged) the gesture belongs to the
+  // calendar, and the first touchmove is prevented from becoming a pan.
+  // Non-passive NATIVE listener — React's onTouchMove is passive and cannot
+  // preventDefault. touch-action is consulted at gesture start, so this veto
+  // is the only way to hand a cell touch to the selection after arming.
+  useEffect(() => {
+    const el = scrollElRef.current
+    if (!el) return
+    const onTouchMove = (e: TouchEvent) => {
+      if (dragRef.current?.armed || editAxisRef.current) e.preventDefault()
+    }
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onTouchMove)
+  }, [])
+
   // While a drag is armed (or an edit handle is being dragged), hovering at
   // the top/bottom edge of the scroll box keeps it scrolling — the range can
   // cross month after month in ONE gesture. The pointer itself never moves,
@@ -210,27 +229,20 @@ export default function Calendar({
     else stopAutoScroll()
   }
 
-  // Release (or cancel) anywhere ends the drag. A release ON a committed
-  // period day (long-press, armed) enters edit mode instead of committing:
-  // that day becomes the new START, the run's END stays.
+  // Release (or cancel) anywhere ends the drag. Edit mode is entered AT ARM
+  // (see the hold timer) — by the time the pointer lifts, an armed press on a
+  // committed period day already owns the gesture, so release only commits
+  // creation drags. A long-press tap on a non-flow day stays a plain tap
+  // (DaySheet via the trailing click).
   useEffect(() => {
     if (!drag) return
     const up = () => {
-      const d = dragRef.current
       clearHold()
+      stopAutoScroll()
+      const d = dragRef.current
       dragRef.current = null
       setDrag(null)
-      stopAutoScroll()
-      if (!d) return
-      if (d.armed && hasFlowAt(d.start)) {
-        const run = runBoundsAt(hasFlowAt, d.start)
-        if (run) {
-          dragJustEnded.current = true
-          const ed = beginEdit(run, d.start)
-          setEdit(d.end !== d.start ? moveStart(ed, d.end) : ed)
-          return
-        }
-      }
+      if (!d?.armed) return
       const range = commitDrag(d)
       if (range) {
         dragJustEnded.current = true
@@ -355,9 +367,12 @@ export default function Calendar({
         </div>
       )}
       {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
-      {/* Day cells are touch-none: a touch drag always selects a range and never
-          scrolls. Vertical scrolling still works from the sticky weekday strip
-          and the Today pill. */}
+      {/* Day cells are touch-pan-y: a REGULAR vertical swipe over the grid
+          scrolls the calendar (BLOOM-0015). A quick swipe never arms — the
+          browser takes the pan — and once a long press arms (or an edit
+          handle is held) a non-passive touchmove veto keeps the gesture with
+          the calendar instead of the scroller. Vertical scrolling also works
+          from the sticky weekday strip and the Today pill. */}
       <div
         data-calendar-scroll
         ref={scrollElRef}
@@ -442,7 +457,7 @@ export default function Calendar({
                   // flush square. A lone day keeps the circle. Everything else
                   // stays the small centered circle.
                   let cls =
-                    'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-none'
+                    'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
                   if (isStrip) {
                     cls += ' w-full'
                     if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
@@ -498,9 +513,33 @@ export default function Calendar({
                           const armed = armDrag(cur)
                           dragRef.current = armed
                           setDrag(armed)
-                          // Tactile confirmation that range selection armed
-                          // (no-op on platforms without a vibrator).
+                          // Tactile confirmation that the long press registered
+                          // (no-op on platforms without a vibrator). Fires at
+                          // ARM — the same moment edit mode (below) or the
+                          // selection highlight appears.
                           hapticPulse()
+                          // BLOOM-0015: long press REGISTERED = edit mode NOW,
+                          // not on finger release. An armed press on a day with
+                          // committed flow becomes the run's new START (the END
+                          // stays) and the still-down pointer continues as the
+                          // start handle — the modal shows up while the finger
+                          // is still on the screen.
+                          if (hasFlowAt(cur.start) && !editRef.current) {
+                            const run = runBoundsAt(hasFlowAt, cur.start)
+                            if (run) {
+                              dragRef.current = null
+                              setDrag(null)
+                              dragJustEnded.current = true
+                              // Set the ref SYNCHRONOUSLY: the modal render
+                              // commits on the next tick, but the touch-veto
+                              // must reject panning from the very next
+                              // touchmove — no window for the browser to steal
+                              // the still-down finger as a scroll.
+                              editAxisRef.current = 'start'
+                              setEditAxis('start')
+                              setEdit(beginEdit(run, cur.start))
+                            }
+                          }
                         }, LONG_PRESS_MS)
                       }}
                       onPointerCancel={() => {
