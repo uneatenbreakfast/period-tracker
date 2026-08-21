@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Prediction, Snapshot } from '../types'
 import {
-  addMonths,
   continuousGrid,
-  futureLimitMonth,
   initialMonths,
-  monthsToGrowFuture,
+  loadOlderMonths,
   MONTH_NAMES,
-  monthList,
   todayISO,
   WEEKDAY_LABELS,
 } from '../lib/dates'
@@ -27,14 +24,10 @@ import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
-/** Scroll a month section within this many px of an edge → grow the window. */
-const EXTEND_PX = 240
 /** Pointer within this many px of the scroll-box edge → auto-scroll while dragging. */
 const EDGE_PX = 64
 /** Auto-scroll speed while dragging at an edge (px per animation frame). */
 const AUTO_SCROLL_PX = 14
-/** Months added per growth step at either end of the window. */
-const GROW_STEP = 6
 
 interface CalendarProps {
   snap: Snapshot
@@ -69,9 +62,10 @@ export default function Calendar({
   maxPeriodDays,
 }: CalendarProps) {
   const today = todayISO()
-  // The calendar is continuous: the window starts at today ±12 (plus history)
-  // and GROWS in both directions as the user scrolls near either edge.
-  const [months, setMonths] = useState<MonthRef[]>(() => initialMonths(snap.entries))
+  // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead;
+  // older history is revealed on demand via the "Load older periods" button
+  // (loadOlder) — the past never auto-grows on scroll.
+  const [months, setMonths] = useState<MonthRef[]>(() => initialMonths())
   // ONE flowing week strip across the whole month window — weeks span month
   // boundaries (a month ending Tue 31 continues same-row into Wed 1).
   const weeks = useMemo(() => continuousGrid(months), [months])
@@ -87,7 +81,6 @@ export default function Calendar({
   const holdTimer = useRef<number | null>(null)
   const pressOrigin = useRef<{ x: number; y: number } | null>(null)
   const scrollElRef = useRef<HTMLDivElement | null>(null)
-  const extendingRef = useRef(false)
   const lastPointerRef = useRef({ x: 0, y: 0 })
   const autoScrollDirRef = useRef(0)
   const rafRef = useRef(0)
@@ -188,40 +181,19 @@ export default function Calendar({
     rafRef.current = requestAnimationFrame(tick)
   }
 
-  // Grow the month window when the scroll box nears either end.
-  const onScroll = () => {
+  // Reveal another LOAD_STEP months of history behind the oldest loaded month.
+  // Triggered by the "Load older periods" button (not auto-scroll) so the past
+  // stays bounded until the user asks for more. Scroll position is held so the
+  // view stays anchored on the same month after the prepend.
+  const loadOlder = () => {
     const el = scrollElRef.current
-    if (!el || extendingRef.current) return
-    const top = el.scrollTop
-    const bottomGap = el.scrollHeight - el.clientHeight - el.scrollTop
-    if (top < EXTEND_PX) {
-      extendingRef.current = true
-      const first = months[0]
-      const anchorEl = el.firstElementChild
-      const anchorTop = anchorEl
-        ? anchorEl.getBoundingClientRect().top - el.getBoundingClientRect().top
-        : 0
-      const added = monthList(addMonths(first.year, first.month, -GROW_STEP), addMonths(first.year, first.month, -1))
-      setMonths((m) => [...added, ...m])
-      requestAnimationFrame(() => {
-        // Keep the SAME month at the same viewport position after prepending.
-        const fc = el.firstElementChild
-        if (fc) el.scrollTop += fc.getBoundingClientRect().top - el.getBoundingClientRect().top - anchorTop
-        extendingRef.current = false
-      })
-    } else if (bottomGap < EXTEND_PX) {
-      extendingRef.current = true
-      const last = months[months.length - 1]
-      const added = monthsToGrowFuture(last, futureLimitMonth())
-      if (added.length === 0) {
-        extendingRef.current = false
-        return
-      }
-      setMonths((m) => [...m, ...added])
-      requestAnimationFrame(() => {
-        extendingRef.current = false
-      })
-    }
+    if (!el || months.length === 0) return
+    const prevHeight = el.scrollHeight
+    setMonths((m) => [...loadOlderMonths(m[0]), ...m])
+    requestAnimationFrame(() => {
+      const node = scrollElRef.current
+      if (node) node.scrollTop += node.scrollHeight - prevHeight
+    })
   }
 
   const updateAutoScroll = (clientY: number) => {
@@ -386,6 +358,14 @@ export default function Calendar({
           </div>
         </div>
       )}
+      <button
+        type="button"
+        onClick={loadOlder}
+        aria-label="Load older periods"
+        className="mb-3 w-full rounded-full bg-cream px-4 py-2 text-xs font-bold text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
+      >
+        Load older periods
+      </button>
       {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
       {/* Day cells are touch-pan-y: a REGULAR vertical swipe over the grid
           scrolls the calendar (BLOOM-0015). A quick swipe never arms — the
@@ -396,7 +376,6 @@ export default function Calendar({
       <div
         data-calendar-scroll
         ref={scrollElRef}
-        onScroll={onScroll}
         className="-mx-5 h-[21rem] overflow-y-auto overscroll-contain px-5 select-none"
         onPointerMove={(e) => {
           lastPointerRef.current = { x: e.clientX, y: e.clientY }

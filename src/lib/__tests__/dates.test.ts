@@ -8,10 +8,12 @@ import {
   futureLimitMonth,
   fromISODate,
   initialMonths,
+  loadOlderMonths,
+  FUTURE_MONTHS,
+  PAST_MONTHS,
+  LOAD_STEP,
   isValidISO,
-  MAX_FUTURE_MONTHS,
   monthList,
-  monthsToGrowFuture,
   toISODate,
   todayISO,
 } from '../dates'
@@ -145,67 +147,64 @@ describe('continuousGrid', () => {
   })
 })
 
-describe('future window cap (3 months ahead)', () => {
-  it('futureLimitMonth is exactly MAX_FUTURE_MONTHS ahead of today', () => {
+describe('future window cap (1 month ahead, no growth)', () => {
+  it('futureLimitMonth is exactly FUTURE_MONTHS ahead of today', () => {
     const now = new Date(2026, 7, 21) // Aug 21 2026
-    expect(futureLimitMonth(now)).toEqual(addMonths(2026, 7, MAX_FUTURE_MONTHS))
-    expect(futureLimitMonth(now)).toEqual({ year: 2026, month: 10 }) // Nov 2026
+    expect(futureLimitMonth(now)).toEqual(addMonths(2026, 7, FUTURE_MONTHS))
+    expect(futureLimitMonth(now)).toEqual({ year: 2026, month: 8 }) // Sep 2026
   })
 
-  it('initialMonths ends exactly at the 3-month cap', () => {
+  it('initialMonths forward edge is exactly the 1-month future cap', () => {
     // Same-clock check: relies on the test clock not flipping a month boundary
     // between the two new Date() calls in the same synchronous run.
-    const months = initialMonths([])
+    const months = initialMonths()
     expect(months[months.length - 1]).toEqual(futureLimitMonth())
   })
 
-  it('initialMonths extends back for the earliest entry but never past the forward cap', () => {
-    const months = initialMonths([{ date: '2024-01-15' }])
-    const last = months[months.length - 1]
-    const limit = futureLimitMonth()
-    expect(last.year < limit.year || (last.year === limit.year && last.month <= limit.month)).toBe(true)
-    expect(last).toEqual(limit)
+  it('initialMonths shows only the last PAST_MONTHS months of the past', () => {
+    const now = new Date(2026, 7, 21) // Aug 21 2026
+    const months = initialMonths(now)
+    // Oldest month is exactly PAST_MONTHS before the current month (Feb 2026).
+    expect(months[0]).toEqual(addMonths(2026, 7, -PAST_MONTHS))
+    expect(months[0]).toEqual({ year: 2026, month: 1 })
+    // 6 past + current + 1 future = 8 months.
+    expect(months.length).toBe(PAST_MONTHS + FUTURE_MONTHS + 1)
   })
 
-  it('monthsToGrowFuture returns nothing once at the cap', () => {
-    const limit = { year: 2026, month: 10 }
-    expect(monthsToGrowFuture({ year: 2026, month: 10 }, limit)).toEqual([])
-    expect(monthsToGrowFuture({ year: 2026, month: 11 }, limit)).toEqual([])
-    expect(monthsToGrowFuture({ year: 2027, month: 0 }, limit)).toEqual([])
-  })
-
-  it('monthsToGrowFuture grows by one step and never overshoots the cap', () => {
-    const limit = { year: 2026, month: 10 }
-    const grown = monthsToGrowFuture({ year: 2026, month: 0 }, limit)
-    expect(grown.length).toBe(6) // last+1 .. last+6, all within the cap
-    expect(grown[grown.length - 1]).toEqual({ year: 2026, month: 6 })
-    for (const mo of grown) {
-      expect(mo.year < limit.year || (mo.year === limit.year && mo.month <= limit.month)).toBe(true)
-    }
-  })
-
-  it('repeated future growth converges exactly at the cap and never exceeds it', () => {
-    const limit = { year: 2026, month: 10 }
-    let last = { year: 2026, month: 0 }
-    for (let i = 0; i < 100; i++) {
-      const grown = monthsToGrowFuture(last, limit)
-      if (grown.length === 0) break
-      for (const mo of grown) {
-        expect(mo.year < limit.year || (mo.year === limit.year && mo.month <= limit.month)).toBe(true)
-      }
-      last = grown[grown.length - 1]
-    }
-    expect(last).toEqual(limit)
-  })
-
-  it('every appended month is within MAX_FUTURE_MONTHS of today', () => {
+  it('initialMonths does NOT extend back to the earliest entry', () => {
+    // History older than PAST_MONTHS is hidden until the user loads it.
     const now = new Date(2026, 7, 21)
-    const limit = futureLimitMonth(now)
-    const grown = monthsToGrowFuture({ year: 2026, month: 7 }, limit)
-    for (const mo of grown) {
-      const ahead = (mo.year - now.getFullYear()) * 12 + (mo.month - now.getMonth())
-      expect(ahead).toBeGreaterThanOrEqual(0)
-      expect(ahead).toBeLessThanOrEqual(MAX_FUTURE_MONTHS)
+    const months = initialMonths(now)
+    expect(months[0]).toEqual({ year: 2026, month: 1 }) // Feb, not earlier
+  })
+})
+
+describe('load older periods (button-driven, 6 at a time)', () => {
+  it('loadOlderMonths prepends exactly LOAD_STEP months before the first', () => {
+    const added = loadOlderMonths({ year: 2026, month: 1 }) // Feb 2026
+    expect(added.length).toBe(LOAD_STEP)
+    expect(added[0]).toEqual({ year: 2025, month: 7 }) // Aug 2025
+    expect(added[added.length - 1]).toEqual({ year: 2026, month: 0 }) // Jan 2026 (one before first)
+  })
+
+  it('repeated loadOlderMonths steps back by LOAD_STEP with no overlap', () => {
+    let first = { year: 2026, month: 1 }
+    const seen: string[] = []
+    for (let i = 0; i < 3; i++) {
+      const added = loadOlderMonths(first)
+      for (const mo of added) seen.push(`${mo.year}-${mo.month}`)
+      first = added[0]
     }
+    // 3 batches × 6 = 18 distinct, non-overlapping months.
+    expect(seen).toHaveLength(18)
+    expect(new Set(seen).size).toBe(18)
+    expect(first).toEqual({ year: 2024, month: 7 }) // Aug 2024
+  })
+
+  it('loadOlderMonths honors an explicit step', () => {
+    const added = loadOlderMonths({ year: 2026, month: 5 }, 3)
+    expect(added.length).toBe(3)
+    expect(added[0]).toEqual({ year: 2026, month: 2 })
+    expect(added[added.length - 1]).toEqual({ year: 2026, month: 4 })
   })
 })
