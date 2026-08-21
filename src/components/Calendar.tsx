@@ -74,6 +74,10 @@ export default function Calendar({
   const [edit, setEdit] = useState<EditRange | null>(null)
   const [editAxis, setEditAxis] = useState<'start' | 'end' | null>(null)
   const [drag, setDrag] = useState<RangeDrag | null>(null)
+  // "Load older periods" floating button visibility: only shows while the
+  // scroll box is at (or near) the top. Once the user scrolls down to read
+  // the calendar, the button fades away so it doesn't cover content.
+  const [atTop, setAtTop] = useState(true)
   // Set when a drag commits on release; the trailing click (same element) is swallowed.
   const dragJustEnded = useRef(false)
   // Long-press gate: hold LONG_PRESS_MS without moving beyond SLOP_PX → arm
@@ -362,9 +366,9 @@ export default function Calendar({
         type="button"
         onClick={loadOlder}
         aria-label="Load older periods"
-        className="mb-3 w-full rounded-full bg-cream px-4 py-2 text-xs font-bold text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
+        className={`absolute left-1/2 top-2 z-20 -translate-x-1/2 rounded-full bg-white/95 px-4 py-1.5 text-xs font-bold text-ink-soft shadow-lg backdrop-blur-sm transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 ${atTop ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
       >
-        Load older periods
+        ↑ Load older
       </button>
       {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
       {/* Day cells are touch-pan-y: a REGULAR vertical swipe over the grid
@@ -376,6 +380,10 @@ export default function Calendar({
       <div
         data-calendar-scroll
         ref={scrollElRef}
+        onScroll={(e) => {
+          const t = e.currentTarget.scrollTop
+          setAtTop(t < 20)
+        }}
         className="-mx-5 h-[21rem] overflow-y-auto overscroll-contain px-5 select-none"
         onPointerMove={(e) => {
           lastPointerRef.current = { x: e.clientX, y: e.clientY }
