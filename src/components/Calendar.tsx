@@ -438,11 +438,15 @@ export default function Calendar({
         // Anchor for the month whose 1st falls in this row — App's Today pill
         // and the initial scroll bring the row containing the 1st to the top.
         const firstCell = week.find((c) => Number(c.iso.slice(8)) === 1)
+        // Determine month for alternating background: if week has a 1st, use that month; otherwise use first cell's month
+        const monthCell = firstCell || week[0]
+        const monthNum = Number(monthCell.iso.slice(5, 7))
+        const isEvenMonth = monthNum % 2 === 0
         const monthRef = firstCell
-          ? `${firstCell.iso.slice(0, 4)}-${Number(firstCell.iso.slice(5, 7)) - 1}`
+          ? `${firstCell.iso.slice(0, 4)}-${monthNum - 1}`
           : undefined
         return (
-          <div key={`w${wi}`} data-month={monthRef} className="grid grid-cols-7">
+          <div key={`w${wi}`} data-month={monthRef} className={`grid grid-cols-7 ${isEvenMonth ? 'bg-slate-50' : ''}`}>
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
