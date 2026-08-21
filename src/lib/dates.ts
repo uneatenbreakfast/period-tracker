@@ -87,42 +87,32 @@ export function monthList(from: MonthRef, to: MonthRef): MonthRef[] {
   return out
 }
 
-/** Hard cap: the calendar never renders more than this many months ahead of today. */
-export const MAX_FUTURE_MONTHS = 3
+/** Months shown ahead of the current month — the calendar never renders further into the future. */
+export const FUTURE_MONTHS = 1
 
-/** Months added per growth step at the future edge of the window. */
-const FUTURE_GROW_STEP = 6
+/** Months of history shown initially (the "last N months" of the past). */
+export const PAST_MONTHS = 6
 
-/** Month (0-based) at most MAX_FUTURE_MONTHS ahead of `now`. */
+/** Months added each time the user taps "Load older periods". */
+export const LOAD_STEP = 6
+
+/** Month (0-based) at most FUTURE_MONTHS ahead of `now` — the window's forward edge. */
 export function futureLimitMonth(now: Date = new Date()): MonthRef {
-  return addMonths(now.getFullYear(), now.getMonth(), MAX_FUTURE_MONTHS)
+  return addMonths(now.getFullYear(), now.getMonth(), FUTURE_MONTHS)
 }
 
-/** Months to append when scrolling toward the future, never past `limit`. */
-export function monthsToGrowFuture(last: MonthRef, limit: MonthRef): MonthRef[] {
-  if (last.year > limit.year || (last.year === limit.year && last.month >= limit.month)) return []
-  return monthList(addMonths(last.year, last.month, 1), addMonths(last.year, last.month, FUTURE_GROW_STEP))
-    .filter((mo) => mo.year < limit.year || (mo.year === limit.year && mo.month <= limit.month))
-}
-
-/** Initial month window: today −12 months (extended back to the earliest
- *  entry), forward capped at MAX_FUTURE_MONTHS ahead of today. */
-export function initialMonths(entries: { date: string }[]): MonthRef[] {
-  const now = new Date()
-  const start = addMonths(now.getFullYear(), now.getMonth(), -12)
-  const earliest = entries.reduce<string | null>(
-    (min, e) => (min === null || e.date < min ? e.date : min),
-    null,
-  )
-  if (earliest) {
-    const [y, m] = earliest.split('-').map(Number)
-    const em = addMonths(y, m - 1, -1)
-    if (em.year < start.year || (em.year === start.year && em.month < start.month)) {
-      start.year = em.year
-      start.month = em.month
-    }
-  }
+/** Initial month window: the last PAST_MONTHS months (ending one before the
+ *  current month), capped FUTURE_MONTHS ahead. Older history is revealed on
+ *  demand via loadOlderMonths — never by auto-scroll. */
+export function initialMonths(now: Date = new Date()): MonthRef[] {
+  const start = addMonths(now.getFullYear(), now.getMonth(), -PAST_MONTHS)
   return monthList(start, futureLimitMonth(now))
+}
+
+/** Months to prepend when the user taps "Load older periods" — LOAD_STEP more
+ *  months of history before the current oldest month. */
+export function loadOlderMonths(first: MonthRef, step: number = LOAD_STEP): MonthRef[] {
+  return monthList(addMonths(first.year, first.month, -step), addMonths(first.year, first.month, -1))
 }
 
 export const MONTH_NAMES = [
