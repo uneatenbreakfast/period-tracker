@@ -9,6 +9,9 @@ When sync feature is built: whole snapshot `serializeSnapshot()` uploads as blob
 
 ## Done
 
+### BLOOM-0016 — Cap period range drag to settings.periodLength
+Drag/commit range on the calendar is capped at `settings.periodLength` days. `extendDrag` accepts optional `maxDays`; `moveStart`/`moveEnd` in edit mode also clamp to `maxDays`. Calendar receives `maxPeriodDays` prop from App (`snap.settings.periodLength`). No visual overflow — the preview stops at the cap. 2026-08-21.
+
 ### BLOOM-0010 — Calendar tab holds only the calendar; cards move to Health tab
 MenstrualHealthCard (predicted period) + HistoryCard (cycle history) moved OFF the calendar tab onto a new HEALTH tab (CALENDAR | HEALTH | TRENDS). Calendar tab = calendar grid only; "Today" pill stays on calendar. Card/trends E2E updated (card E2E clicks Health after each reload; trends E2E asserts 3 tabs, health card absent on calendar, calendar absent on health). Completed 2026-08-19. Verified: 85 unit tests + tsc + full Playwright suite green on port 5181 — trends E2E (3-tab structure, STEP 6 calendar-only checks, STEP 7 health-tab checks), card E2E (all states via Health tab), calendar E2E, range E2E. Range E2E STEP 11 got layout-aware: calendar-only tab leaves the document unscrollable (docScrollH == viewport), so the headless doc-routed header swipe had nowhere to go — fallback asserts the container still scrolls via wheel (3661→3961) when the doc has zero scroll range. Root cause of a first-run failure was the shared-port trap on 5176 (foreign server, stale code) + predev hook bumped VERSION to 11.
 

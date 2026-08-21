@@ -9,7 +9,7 @@
  * Kept pure so the semantics are unit-testable; pointer wiring lives in
  * Calendar.tsx.
  */
-import { addDays } from './dates'
+import { addDays, diffDays } from './dates'
 
 export interface EditRange {
   /** Committed run bounds before editing (cancel restores these) */
@@ -48,14 +48,22 @@ export function beginEdit(
 }
 
 /** Drag the start handle; clamped so it can't cross the end (1-day minimum). */
-export function moveStart(edit: EditRange, iso: string): EditRange {
-  const start = iso <= edit.end ? iso : edit.end
+export function moveStart(edit: EditRange, iso: string, maxDays?: number): EditRange {
+  let start = iso <= edit.end ? iso : edit.end
+  if (maxDays != null) {
+    const dist = diffDays(edit.end, start)
+    if (dist > maxDays) start = addDays(edit.end, -maxDays)
+  }
   return edit.start === start ? edit : { ...edit, start }
 }
 
 /** Drag the end handle; clamped so it can't cross the start (1-day minimum). */
-export function moveEnd(edit: EditRange, iso: string): EditRange {
-  const end = iso >= edit.start ? iso : edit.start
+export function moveEnd(edit: EditRange, iso: string, maxDays?: number): EditRange {
+  let end = iso >= edit.start ? iso : edit.start
+  if (maxDays != null) {
+    const dist = diffDays(end, edit.start)
+    if (dist > maxDays) end = addDays(edit.start, maxDays)
+  }
   return edit.end === end ? edit : { ...edit, end }
 }
 

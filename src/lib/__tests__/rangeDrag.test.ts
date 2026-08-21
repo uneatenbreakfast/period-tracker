@@ -65,4 +65,24 @@ describe('rangeDrag', () => {
     const d = extendDrag(held, '2026-08-15')
     expect(commitDrag(d)).toEqual({ from: '2026-08-10', to: '2026-08-15' })
   })
+
+  it('extendDrag clamps forward drag to maxDays', () => {
+    const d = extendDrag(armDrag(beginDrag('2026-08-10')), '2026-08-20', 5)
+    expect(d.end).toBe('2026-08-15')
+  })
+
+  it('extendDrag clamps backward drag to maxDays', () => {
+    const d = extendDrag(armDrag(beginDrag('2026-08-10')), '2026-08-01', 5)
+    expect(d.end).toBe('2026-08-05')
+  })
+
+  it('extendDrag within maxDays is unchanged', () => {
+    const d = extendDrag(armDrag(beginDrag('2026-08-10')), '2026-08-13', 5)
+    expect(d.end).toBe('2026-08-13')
+  })
+
+  it('extendDrag with no maxDays param behaves as before', () => {
+    const d = extendDrag(armDrag(beginDrag('2026-08-10')), '2026-08-20')
+    expect(d.end).toBe('2026-08-20')
+  })
 })

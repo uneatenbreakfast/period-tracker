@@ -9,8 +9,9 @@
  * (unarmed, or armed but never moved → null, caller must not log a range).
  * Backward drags normalize to ascending bounds. Kept pure so the gesture
  * semantics are unit-testable; the pointer-event wiring (pointerdown/
- * pointermove/pointerup/pointercancel + the hold timer) lives in Calendar.tsx.
+ * pointermove/ pointerup/pointercancel + the hold timer) lives in Calendar.tsx.
  */
+import { addDays, diffDays } from './dates'
 export interface RangeDrag {
   /** ISO date of the cell where the drag started */
   start: string
@@ -39,8 +40,18 @@ export function armDrag(d: RangeDrag): RangeDrag {
  * until armed — a quick drag (finger moving before the long press) must not
  * start a selection.
  */
-export function extendDrag(d: RangeDrag, iso: string): RangeDrag {
+export function extendDrag(d: RangeDrag, iso: string, maxDays?: number): RangeDrag {
   if (!d.armed || d.end === iso) return d
+  if (maxDays != null) {
+    const diff = Math.abs(diffDays(iso, d.start))
+    if (diff > maxDays) {
+      // Clamp: keep the direction but stop at maxDays from the start
+      const clamped = diffDays(iso, d.start) > 0
+        ? addDays(d.start, maxDays)
+        : addDays(d.start, -maxDays)
+      return { ...d, end: clamped }
+    }
+  }
   return { ...d, end: iso }
 }
 

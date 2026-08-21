@@ -77,6 +77,17 @@ describe('editRange moveStart', () => {
   it('same cell is a no-op (same ref)', () => {
     expect(moveStart(base, '2026-08-11')).toBe(base)
   })
+
+  it('clamps start when maxDays would be exceeded', () => {
+    // end is 2026-08-12, maxDays=2 → start can go back to 2026-08-10 at most
+    const moved = moveStart(base, '2026-08-01', 2)
+    expect(moved.start).toBe('2026-08-10')
+  })
+
+  it('maxDays allows move within limit', () => {
+    const moved = moveStart(base, '2026-08-05', 10)
+    expect(moved.start).toBe('2026-08-05')
+  })
 })
 
 describe('editRange moveEnd', () => {
@@ -96,6 +107,17 @@ describe('editRange moveEnd', () => {
 
   it('same cell is a no-op (same ref)', () => {
     expect(moveEnd(base, '2026-08-12')).toBe(base)
+  })
+
+  it('clamps end when maxDays would be exceeded', () => {
+    // base.start is 2026-08-11 (pressed day), maxDays=2 → end clamps to 2026-08-13
+    const moved = moveEnd(base, '2026-08-20', 2)
+    expect(moved.end).toBe('2026-08-13')
+  })
+
+  it('maxDays allows move within limit', () => {
+    const moved = moveEnd(base, '2026-08-18', 10)
+    expect(moved.end).toBe('2026-08-18')
   })
 })
 

@@ -36,6 +36,8 @@ interface CalendarProps {
   onSelect: (date: string) => void
   /** Commit a range: creation drag (start → end) or an edited period save. */
   onRangeComplete: (start: string, end: string) => void
+  /** Max days a drag/edit range can span (from settings.periodLength). */
+  maxPeriodDays?: number
 }
 
 /** Initial month window: today ±12 months, extended back one month before the earliest entry. */
@@ -71,6 +73,7 @@ export default function Calendar({
   selectedDate,
   onSelect,
   onRangeComplete,
+  maxPeriodDays,
 }: CalendarProps) {
   const today = todayISO()
   // The calendar is continuous: the window starts at today ±12 (plus history)
@@ -178,9 +181,9 @@ export default function Calendar({
       if (iso) {
         if (editAxisRef.current) {
           const axis = editAxisRef.current
-          setEdit((prev) => (prev ? (axis === 'start' ? moveStart(prev, iso) : moveEnd(prev, iso)) : prev))
+          setEdit((prev) => (prev ? (axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)) : prev))
         } else if (dragRef.current?.armed) {
-          setDrag((prev) => (prev ? extendDrag(prev, iso) : prev))
+          setDrag((prev) => (prev ? extendDrag(prev, iso, maxPeriodDays) : prev))
         }
       }
       rafRef.current = requestAnimationFrame(tick)
@@ -276,7 +279,7 @@ export default function Calendar({
       const iso = isoAt(e.clientX, e.clientY)
       if (!iso) return
       const axis = editAxisRef.current
-      setEdit((prev) => (prev ? (axis === 'start' ? moveStart(prev, iso) : moveEnd(prev, iso)) : prev))
+      setEdit((prev) => (prev ? (axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)) : prev))
     }
     const end = () => {
       stopAutoScroll()
@@ -398,7 +401,7 @@ export default function Calendar({
           // extend the armed drag to whatever day cell is under the pointer
           const iso = isoAt(e.clientX, e.clientY)
           if (!iso) return
-          setDrag((prev) => (prev ? extendDrag(prev, iso) : prev))
+          setDrag((prev) => (prev ? extendDrag(prev, iso, maxPeriodDays) : prev))
         }}
       >
       {/* One sticky weekday strip stays at the box top while the continuous

@@ -223,6 +223,7 @@ export default function App() {
             selectedDate={selectedDate}
             onSelect={setSelectedDate}
             onRangeComplete={commitRange}
+            maxPeriodDays={snap.settings.periodLength}
           />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
