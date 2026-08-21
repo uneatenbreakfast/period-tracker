@@ -45,6 +45,34 @@ describe('snapshot lifecycle', () => {
     expect(loadSnapshot(memoryStorage())).toEqual(createEmptySnapshot())
   })
 
+  it('createEmptySnapshot carries default settings (BLOOM-0002)', () => {
+    expect(createEmptySnapshot().settings).toEqual({ cycleLength: 28, periodLength: 5 })
+  })
+
+  it('parseSnapshot defaults settings when missing (legacy blobs)', () => {
+    const raw = JSON.stringify({ version: 1, entries: [], updatedAt: '2026-01-01' })
+    const parsed = parseSnapshot(raw)
+    expect(parsed?.settings).toEqual({ cycleLength: 28, periodLength: 5 })
+  })
+
+  it('parseSnapshot keeps valid custom settings, clamps garbage', () => {
+    const good = parseSnapshot(
+      JSON.stringify({ version: 1, entries: [], settings: { cycleLength: 32, periodLength: 4 } }),
+    )
+    expect(good?.settings).toEqual({ cycleLength: 32, periodLength: 4 })
+    const bad = parseSnapshot(
+      JSON.stringify({ version: 1, entries: [], settings: { cycleLength: 999, periodLength: -2 } }),
+    )
+    expect(bad?.settings).toEqual({ cycleLength: 60, periodLength: 1 }) // clamped to limits
+  })
+
+  it('custom settings survive the save → load round-trip', () => {
+    const storage = memoryStorage()
+    const s = { ...createEmptySnapshot(), settings: { cycleLength: 34, periodLength: 6 } }
+    saveSnapshot(s, storage)
+    expect(loadSnapshot(storage).settings).toEqual({ cycleLength: 34, periodLength: 6 })
+  })
+
   it('load with corrupted JSON → empty snapshot', () => {
     const storage = memoryStorage()
     storage.setItem('bloom.snapshot.v1', 'not json {{{')

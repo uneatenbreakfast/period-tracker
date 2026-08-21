@@ -338,3 +338,54 @@ describe('cycleTrends', () => {
     expect(rows[0].start < rows[rows.length - 1].start).toBe(true)
   })
 })
+
+describe('custom settings defaults (BLOOM-0002)', () => {
+  it('averageCycleLength falls back to the user default when < 2 cycles', () => {
+    const one = detectCycles(['2026-01-03', '2026-01-04'].map((d) => day(d)))
+    expect(averageCycleLength(one, 32)).toBe(32)
+    expect(averageCycleLength(one)).toBe(DEFAULT_CYCLE_LENGTH) // untouched callers keep 28
+  })
+
+  it('averagePeriodLength falls back to the user default with no cycles', () => {
+    expect(averagePeriodLength([], 4)).toBe(4)
+    expect(averagePeriodLength([])).toBe(DEFAULT_PERIOD_LENGTH)
+  })
+
+  it('predictNext anchors on the custom default cycle length', () => {
+    const p = predictNext(['2026-01-03', '2026-01-04'].map((d) => day(d)), {
+      cycleLength: 32,
+      periodLength: 4,
+    })
+    expect(p.avgCycleLength).toBe(32)
+    expect(p.nextPeriodStart).toBe(addDays('2026-01-03', 32))
+  })
+
+  it('cycleTrends single-cycle row uses the custom default', () => {
+    const { rows, stats } = cycleTrends(['2026-01-03', '2026-01-04', '2026-01-05'].map((d) => day(d)), {
+      cycleLength: 30,
+      periodLength: 4,
+    })
+    expect(rows[0].cycleLength).toBe(30)
+    expect(rows[0].nextStart).toBe('2026-02-02') // 01-03 + 30
+    expect(stats.avgCycleLength).toBe(30)
+  })
+
+  it('cycleDayInfo ring length uses the custom default', () => {
+    const info = cycleDayInfo(['2026-01-03', '2026-01-04'].map((d) => day(d)), '2026-01-10', {
+      cycleLength: 30,
+      periodLength: 4,
+    })!
+    expect(info.cycleLength).toBe(30)
+    expect(info.dayInCycle).toBe(7)
+  })
+
+  it('real data always beats custom defaults once 2+ cycles are logged', () => {
+    const entries = [
+      '2026-01-03', '2026-01-05',
+      '2026-02-02', '2026-02-04', // +30
+    ].map((d) => day(d))
+    const p = predictNext(entries, { cycleLength: 40, periodLength: 4 })
+    expect(p.avgCycleLength).toBe(30)
+    expect(p.nextPeriodStart).toBe(addDays('2026-02-02', 30))
+  })
+})

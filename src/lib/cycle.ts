@@ -1,4 +1,4 @@
-import type { CycleEvent, DayEntry, Prediction } from '../types'
+import type { CycleEvent, DayEntry, Prediction, Settings } from '../types'
 import { addDays, diffDays, todayISO } from './dates'
 
 /**
@@ -67,13 +67,13 @@ export function cycleLengths(cycles: CycleEvent[]): number[] {
  * model: predictions "rely on recent data"; after a logging gap it takes a
  * few cycles to catch up). Linear weights — oldest cycle counts once, newest
  * counts n times. Fitbit's exact weights are proprietary; linear approximates
- * the documented recency emphasis. Falls back to DEFAULT_CYCLE_LENGTH (28)
- * when fewer than two cycles are logged — Fitbit's default starting point.
- * Never null.
+ * the documented recency emphasis. Falls back to the user's default cycle
+ * length (28 unless customized in Settings, BLOOM-0002) when fewer than two
+ * cycles are logged — Fitbit's default starting point. Never null.
  */
-export function averageCycleLength(cycles: CycleEvent[]): number {
+export function averageCycleLength(cycles: CycleEvent[], defaultCycleLength: number = DEFAULT_CYCLE_LENGTH): number {
   const lens = cycleLengths(cycles)
-  if (lens.length === 0) return DEFAULT_CYCLE_LENGTH
+  if (lens.length === 0) return defaultCycleLength
   let weightSum = 0
   let weightedSum = 0
   lens.forEach((len, i) => {
@@ -85,8 +85,8 @@ export function averageCycleLength(cycles: CycleEvent[]): number {
 }
 
 /** Average period span (days between first and last period day, inclusive). */
-export function averagePeriodLength(cycles: CycleEvent[]): number | null {
-  if (cycles.length === 0) return DEFAULT_PERIOD_LENGTH
+export function averagePeriodLength(cycles: CycleEvent[], defaultPeriodLength: number = DEFAULT_PERIOD_LENGTH): number | null {
+  if (cycles.length === 0) return defaultPeriodLength
   return Math.round(cycles.reduce((sum, c) => sum + c.length, 0) / cycles.length)
 }
 
@@ -119,13 +119,14 @@ export interface CycleTrendStats {
  * actual next start yet, so its length (and the row's span end + ovulation)
  * come from the average prediction — mirrors predictNext.
  */
-export function cycleTrends(entries: DayEntry[]): { rows: CycleTrendRow[]; stats: CycleTrendStats } {
+export function cycleTrends(entries: DayEntry[], settings?: Settings): { rows: CycleTrendRow[]; stats: CycleTrendStats } {
   const cycles = detectCycles(entries)
   const empty: CycleTrendStats = { avgPeriodLength: null, avgOvulationDay: null, avgCycleLength: null }
   if (cycles.length === 0) return { rows: [], stats: empty }
 
   const lens = cycleLengths(cycles)
-  const avg = averageCycleLength(cycles) // Fitbit default 28 until 2+ cycles
+  // Fitbit default 28 until 2+ cycles — user-settable since BLOOM-0002
+  const avg = averageCycleLength(cycles, settings?.cycleLength)
   const rows: CycleTrendRow[] = cycles.map((c, i) => {
     const cycleLength = i < lens.length ? lens[i] : avg
     const nextStart = cycleLength === null ? null : addDays(c.start, cycleLength)
@@ -148,7 +149,7 @@ export function cycleTrends(entries: DayEntry[]): { rows: CycleTrendRow[]; stats
   return {
     rows,
     stats: {
-      avgPeriodLength: averagePeriodLength(cycles),
+      avgPeriodLength: averagePeriodLength(cycles, settings?.periodLength),
       avgOvulationDay:
         ovulationDays.length === 0
           ? null
@@ -158,9 +159,9 @@ export function cycleTrends(entries: DayEntry[]): { rows: CycleTrendRow[]; stats
   }
 }
 
-export function predictNext(entries: DayEntry[]): Prediction {
+export function predictNext(entries: DayEntry[], settings?: Settings): Prediction {
   const cycles = detectCycles(entries)
-  const avg = averageCycleLength(cycles)
+  const avg = averageCycleLength(cycles, settings?.cycleLength)
   const last = cycles[cycles.length - 1] ?? null
   const empty: Prediction = {
     nextPeriodStart: null,
@@ -212,13 +213,13 @@ export interface CycleDayInfo {
  * returns to 0 — exactly where the ring's period segment begins. Null only
  * when no period has ever been logged (no anchor).
  */
-export function cycleDayInfo(entries: DayEntry[], today: string): CycleDayInfo | null {
+export function cycleDayInfo(entries: DayEntry[], today: string, settings?: Settings): CycleDayInfo | null {
   const cycles = detectCycles(entries)
   const last = cycles[cycles.length - 1] ?? null
-  const avg = averageCycleLength(cycles)
+  const avg = averageCycleLength(cycles, settings?.cycleLength)
   if (!last) return null
 
-  const pred = predictNext(entries)
+  const pred = predictNext(entries, settings)
   if (!pred.fertileWindow || pred.ovulationDay === null) return null
 
   const cycleLength = avg

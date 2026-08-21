@@ -1,5 +1,6 @@
 import type { DayEntry, FlowLevel, Snapshot } from '../types'
 import { addDays, isValidISO, todayISO } from './dates'
+import { DEFAULT_SETTINGS, sanitizeSettings } from './settings'
 
 export const SNAPSHOT_VERSION = 1 as const
 const STORAGE_KEY = 'bloom.snapshot.v1'
@@ -11,7 +12,7 @@ export interface StorageLike {
 }
 
 export function createEmptySnapshot(): Snapshot {
-  return { version: SNAPSHOT_VERSION, entries: [], updatedAt: todayISO() }
+  return { version: SNAPSHOT_VERSION, entries: [], settings: { ...DEFAULT_SETTINGS }, updatedAt: todayISO() }
 }
 
 export function serializeSnapshot(snap: Snapshot): string {
@@ -27,7 +28,13 @@ export function parseSnapshot(raw: string): Snapshot | null {
       (e) => e && typeof e.date === 'string' && isValidISO(e.date) && Array.isArray(e.symptoms),
     )
     entries.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-    return { version: SNAPSHOT_VERSION, entries, updatedAt: parsed.updatedAt ?? todayISO() }
+    return {
+      version: SNAPSHOT_VERSION,
+      entries,
+      // Legacy blobs (pre-BLOOM-0002) carry no settings → defaults.
+      settings: sanitizeSettings(parsed.settings),
+      updatedAt: parsed.updatedAt ?? todayISO(),
+    }
   } catch {
     return null
   }

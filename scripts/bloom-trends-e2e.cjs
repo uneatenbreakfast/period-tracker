@@ -48,7 +48,7 @@ const cycles = [
     const nav = document.querySelector('nav[aria-label="Views"]');
     return nav ? [...nav.querySelectorAll('button')].map((b) => b.textContent.trim()) : [];
   });
-  if (tabs.join(',') === 'Calendar,Health,Trends') ok('tabs CALENDAR | HEALTH | TRENDS present (uppercased by CSS)');
+  if (tabs.join(',') === 'Calendar,Health,Trends,Settings') ok('tabs CALENDAR | HEALTH | TRENDS | SETTINGS present (uppercased by CSS)');
   else fail('tabs wrong: ' + JSON.stringify(tabs));
 
   await page.click('nav[aria-label="Views"] button:has-text("Trends")');

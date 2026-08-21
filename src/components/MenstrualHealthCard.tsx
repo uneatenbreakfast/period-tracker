@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Prediction, Snapshot } from '../types'
+import type { Prediction, Settings, Snapshot } from '../types'
 import { cycleDayInfo, type CycleDayInfo, type CyclePhase } from '../lib/cycle'
 import { diffDays, todayISO } from '../lib/dates'
 import { getEntry } from '../lib/storage'
@@ -76,6 +76,8 @@ interface MenstrualHealthCardProps {
   prediction: Prediction
   entryCount: number
   snap: Snapshot
+  /** User prediction defaults — seed the ring when data is thin (BLOOM-0002). */
+  settings: Settings
   /** Open the day sheet for today so the user can log flow ("Log to confirm"). */
   onLogToConfirm: () => void
 }
@@ -84,10 +86,11 @@ export default function MenstrualHealthCard({
   prediction,
   entryCount,
   snap,
+  settings,
   onLogToConfirm,
 }: MenstrualHealthCardProps) {
   const today = todayISO()
-  const info = useMemo(() => cycleDayInfo(snap.entries, today), [snap.entries, today])
+  const info = useMemo(() => cycleDayInfo(snap.entries, today, settings), [snap.entries, today, settings])
   const loggedToday = getEntry(snap, today)?.flow !== undefined
   const next = prediction.nextPeriodStart
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { Snapshot } from '../types'
+import type { Settings, Snapshot } from '../types'
 import { FERTILE_RANGE, cycleTrends, type CycleTrendRow } from '../lib/cycle'
 import { formatDayShort, formatRange, ordinal } from '../lib/ui'
 
@@ -91,10 +91,12 @@ function CycleBar({ row }: { row: CycleTrendRow }) {
 
 interface TrendsCardProps {
   snap: Snapshot
+  /** User prediction defaults — seed the trends averages when data is thin (BLOOM-0002). */
+  settings: Settings
 }
 
-export default function TrendsCard({ snap }: TrendsCardProps) {
-  const { rows, stats } = useMemo(() => cycleTrends(snap.entries), [snap.entries])
+export default function TrendsCard({ snap, settings }: TrendsCardProps) {
+  const { rows, stats } = useMemo(() => cycleTrends(snap.entries, settings), [snap.entries, settings])
   const [openStart, setOpenStart] = useState<string | null>(null)
 
   if (rows.length === 0) {

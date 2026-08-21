@@ -4,6 +4,7 @@ import Calendar from './components/Calendar'
 import DaySheet from './components/DaySheet'
 import HistoryCard from './components/HistoryCard'
 import MenstrualHealthCard from './components/MenstrualHealthCard'
+import SettingsCard from './components/SettingsCard'
 import TrendsCard from './components/TrendsCard'
 import { addDays, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
@@ -26,12 +27,12 @@ declare const __APP_VERSION__: number
 export default function App() {
   const [snap, setSnap] = useState<Snapshot>(() => loadSnapshot(storage))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [tab, setTab] = useState<'calendar' | 'health' | 'trends'>('calendar')
+  const [tab, setTab] = useState<'calendar' | 'health' | 'trends' | 'settings'>('calendar')
   const now = new Date()
 
   useEffect(() => saveSnapshot(snap, storage), [snap])
 
-  const prediction = useMemo(() => predictNext(snap.entries), [snap.entries])
+  const prediction = useMemo(() => predictNext(snap.entries, snap.settings), [snap.entries, snap.settings])
 
   const predictedDays = useMemo(() => {
     const last = detectCycles(snap.entries).at(-1)
@@ -170,11 +171,30 @@ export default function App() {
         >
           Trends
         </button>
+        <button
+          type="button"
+          onClick={() => setTab('settings')}
+          className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
+            tab === 'settings' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
+          }`}
+        >
+          Settings
+        </button>
       </nav>
 
       {tab === 'trends' ? (
         <main className="flex flex-col gap-4">
-          <TrendsCard snap={snap} />
+          <TrendsCard snap={snap} settings={snap.settings} />
+          <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
+            Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
+          </footer>
+        </main>
+      ) : tab === 'settings' ? (
+        <main className="flex flex-col gap-4">
+          <SettingsCard
+            settings={snap.settings}
+            onChange={(settings) => setSnap((s) => ({ ...s, settings }))}
+          />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
           </footer>
@@ -185,6 +205,7 @@ export default function App() {
             prediction={prediction}
             entryCount={snap.entries.length}
             snap={snap}
+            settings={snap.settings}
             onLogToConfirm={() => setSelectedDate(todayISO())}
           />
           <HistoryCard snap={snap} />

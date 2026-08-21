@@ -8,11 +8,21 @@ export interface DayEntry {
   notes?: string
 }
 
+/** User-customizable prediction defaults (BLOOM-0002). */
+export interface Settings {
+  /** Fallback cycle length (days): seeds predictions until 2+ completed cycles are logged. */
+  cycleLength: number
+  /** Fallback period length (days): used when no cycle data exists. */
+  periodLength: number
+}
+
 /** Versioned blob — the whole app state. Serializes to one JSON string (sync-ready). */
 export interface Snapshot {
   version: 1
   /** Sorted ascending by date */
   entries: DayEntry[]
+  /** Prediction defaults — user-settable on the Settings tab. */
+  settings: Settings
   updatedAt: string
 }
 
