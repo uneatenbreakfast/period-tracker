@@ -106,6 +106,24 @@ export function replaceRangeFlow(snap: Snapshot, start: string, end: string, flo
   return setRangeFlow(next, from, to, flow)
 }
 
+/** Clear flow from every day in the range. Pure flow days (no symptoms/notes)
+ *  are removed entirely; days with other data keep their entry minus the flow. */
+export function deleteRangeFlow(snap: Snapshot, start: string, end: string): Snapshot {
+  const [from, to] = start <= end ? [start, end] : [end, start]
+  let next = snap
+  for (const e of snap.entries) {
+    if (e.flow === undefined) continue
+    if (e.date < from || e.date > to) continue
+    if (e.symptoms.length === 0 && !e.notes) {
+      next = removeEntry(next, e.date)
+    } else {
+      const { flow: _flow, ...rest } = e
+      next = upsertEntry(next, rest)
+    }
+  }
+  return next
+}
+
 export function getEntry(snap: Snapshot, date: string): DayEntry | undefined {
   return snap.entries.find((e) => e.date === date)
 }

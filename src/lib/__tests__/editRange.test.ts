@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { beginEdit, commitEdit, moveEnd, moveStart, runBoundsAt } from '../editRange'
+import { beginEdit, commitEdit, deleteRange, moveEnd, moveStart, runBoundsAt } from '../editRange'
 
 describe('editRange runBoundsAt', () => {
   // Fresh fixture per test — runBoundsAt reads the predicate, never mutates.
@@ -127,5 +127,28 @@ describe('editRange commitEdit', () => {
     expect(commitEdit(edit)).toEqual({ from: '2026-08-10', to: '2026-08-12' })
     expect(commitEdit(moveEnd(edit, '2026-08-09'))).toEqual({ from: '2026-08-10', to: '2026-08-10' })
     expect(commitEdit(moveStart(edit, '2026-08-09'))).toEqual({ from: '2026-08-09', to: '2026-08-12' })
+  })
+})
+
+describe('editRange deleteRange', () => {
+  it('returns original bounds even after handle moves', () => {
+    const edit = beginEdit({ start: '2026-08-10', end: '2026-08-12' }, '2026-08-11')
+    expect(deleteRange(edit)).toEqual({ from: '2026-08-10', to: '2026-08-12' })
+  })
+
+  it('returns original bounds after start move', () => {
+    const edit = moveStart(
+      beginEdit({ start: '2026-08-10', end: '2026-08-12' }, '2026-08-11'),
+      '2026-08-05',
+    )
+    expect(deleteRange(edit)).toEqual({ from: '2026-08-10', to: '2026-08-12' })
+  })
+
+  it('returns original bounds after end move', () => {
+    const edit = moveEnd(
+      beginEdit({ start: '2026-08-10', end: '2026-08-12' }, '2026-08-11'),
+      '2026-08-20',
+    )
+    expect(deleteRange(edit)).toEqual({ from: '2026-08-10', to: '2026-08-12' })
   })
 })

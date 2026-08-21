@@ -11,6 +11,7 @@ import { detectCycles, predictNext } from './lib/cycle'
 import { DEFAULT_FLOW } from './lib/symptoms'
 import {
   createLocalStorageAdapter,
+  deleteRangeFlow,
   getEntry,
   loadSnapshot,
   removeEntry,
@@ -100,6 +101,11 @@ export default function App() {
   // it touches — any previously marked period days in those months are cleared.
   const commitRange = (start: string, end: string) => {
     setSnap((s) => replaceRangeFlow(s, start, end, DEFAULT_FLOW))
+  }
+
+  // Delete button in edit mode: clears the committed range entirely.
+  const deleteRange = (start: string, end: string) => {
+    setSnap((s) => deleteRangeFlow(s, start, end))
   }
 
   const scrollToMonth = (year: number, month: number) => {
@@ -223,6 +229,7 @@ export default function App() {
             selectedDate={selectedDate}
             onSelect={setSelectedDate}
             onRangeComplete={commitRange}
+            onRangeDelete={deleteRange}
             maxPeriodDays={snap.settings.periodLength}
           />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">

@@ -14,7 +14,7 @@ import {
 import type { RangeDrag } from '../lib/rangeDrag'
 import { dragShape, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
-import { beginEdit, commitEdit, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
+import { beginEdit, commitEdit, deleteRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
 /** Scroll a month section within this many px of an edge → grow the window. */
@@ -36,6 +36,8 @@ interface CalendarProps {
   onSelect: (date: string) => void
   /** Commit a range: creation drag (start → end) or an edited period save. */
   onRangeComplete: (start: string, end: string) => void
+  /** Delete a committed period range (from edit mode). */
+  onRangeDelete: (start: string, end: string) => void
   /** Max days a drag/edit range can span (from settings.periodLength). */
   maxPeriodDays?: number
 }
@@ -73,6 +75,7 @@ export default function Calendar({
   selectedDate,
   onSelect,
   onRangeComplete,
+  onRangeDelete,
   maxPeriodDays,
 }: CalendarProps) {
   const today = todayISO()
@@ -108,6 +111,10 @@ export default function Calendar({
   const rangeCompleteRef = useRef(onRangeComplete)
   useEffect(() => {
     rangeCompleteRef.current = onRangeComplete
+  })
+  const rangeDeleteRef = useRef(onRangeDelete)
+  useEffect(() => {
+    rangeDeleteRef.current = onRangeDelete
   })
   // Mirror for the window listener — the effect below only re-subscribes when
   // a drag starts/ends, so it must read the CURRENT drag, not a stale one.
@@ -329,6 +336,14 @@ export default function Calendar({
     setEdit(null)
     setEditAxis(null)
   }
+  const deleteEdit = () => {
+    const ed = editRef.current
+    if (!ed) return
+    const range = deleteRange(ed)
+    rangeDeleteRef.current(range.from, range.to)
+    setEdit(null)
+    setEditAxis(null)
+  }
   const cancelEdit = () => {
     setEdit(null)
     setEditAxis(null)
@@ -349,6 +364,14 @@ export default function Calendar({
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                aria-label="Delete period"
+                onClick={deleteEdit}
+                className="rounded-full bg-rose-100 px-3 py-1.5 text-xs font-bold text-rose-500 transition-colors hover:bg-rose-200"
+              >
+                Delete
+              </button>
               <button
                 type="button"
                 aria-label="Cancel edit"

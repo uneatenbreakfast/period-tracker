@@ -71,3 +71,11 @@ export function moveEnd(edit: EditRange, iso: string, maxDays?: number): EditRan
 export function commitEdit(edit: EditRange): { from: string; to: string } {
   return edit.start <= edit.end ? { from: edit.start, to: edit.end } : { from: edit.end, to: edit.start }
 }
+
+/** Return the ORIGINAL run bounds — used by the delete button to know which
+ *  days to clear (the user may have dragged handles before deciding to delete). */
+export function deleteRange(edit: EditRange): { from: string; to: string } {
+  return edit.originalStart <= edit.originalEnd
+    ? { from: edit.originalStart, to: edit.originalEnd }
+    : { from: edit.originalEnd, to: edit.originalStart }
+}
