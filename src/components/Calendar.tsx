@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Prediction, Snapshot } from '../types'
-import { addMonths, continuousGrid, MONTH_NAMES, monthList, todayISO, WEEKDAY_LABELS } from '../lib/dates'
+import {
+  addMonths,
+  continuousGrid,
+  futureLimitMonth,
+  initialMonths,
+  monthsToGrowFuture,
+  MONTH_NAMES,
+  monthList,
+  todayISO,
+  WEEKDAY_LABELS,
+} from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
 import { hapticPulse } from '../lib/haptics'
 import {
@@ -42,26 +52,6 @@ interface CalendarProps {
   maxPeriodDays?: number
 }
 
-/** Initial month window: today ±12 months, extended back one month before the earliest entry. */
-function initialMonths(snap: Snapshot): MonthRef[] {
-  const now = new Date()
-  const start = addMonths(now.getFullYear(), now.getMonth(), -12)
-  const end = addMonths(now.getFullYear(), now.getMonth(), 12)
-  const earliest = snap.entries.reduce<string | null>(
-    (min, e) => (min === null || e.date < min ? e.date : min),
-    null,
-  )
-  if (earliest) {
-    const [y, m] = earliest.split('-').map(Number)
-    const em = addMonths(y, m - 1, -1)
-    if (em.year < start.year || (em.year === start.year && em.month < start.month)) {
-      start.year = em.year
-      start.month = em.month
-    }
-  }
-  return monthList(start, end)
-}
-
 const fmtDay = (iso: string) => {
   const [, m, d] = iso.split('-').map(Number)
   return `${MONTH_NAMES[m - 1].slice(0, 3)} ${d}`
@@ -81,7 +71,7 @@ export default function Calendar({
   const today = todayISO()
   // The calendar is continuous: the window starts at today ±12 (plus history)
   // and GROWS in both directions as the user scrolls near either edge.
-  const [months, setMonths] = useState<MonthRef[]>(() => initialMonths(snap))
+  const [months, setMonths] = useState<MonthRef[]>(() => initialMonths(snap.entries))
   // ONE flowing week strip across the whole month window — weeks span month
   // boundaries (a month ending Tue 31 continues same-row into Wed 1).
   const weeks = useMemo(() => continuousGrid(months), [months])
@@ -222,7 +212,11 @@ export default function Calendar({
     } else if (bottomGap < EXTEND_PX) {
       extendingRef.current = true
       const last = months[months.length - 1]
-      const added = monthList(addMonths(last.year, last.month, 1), addMonths(last.year, last.month, GROW_STEP))
+      const added = monthsToGrowFuture(last, futureLimitMonth())
+      if (added.length === 0) {
+        extendingRef.current = false
+        return
+      }
       setMonths((m) => [...m, ...added])
       requestAnimationFrame(() => {
         extendingRef.current = false

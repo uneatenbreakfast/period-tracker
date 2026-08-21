@@ -5,9 +5,13 @@ import {
   continuousGrid,
   dateRange,
   diffDays,
+  futureLimitMonth,
   fromISODate,
+  initialMonths,
   isValidISO,
+  MAX_FUTURE_MONTHS,
   monthList,
+  monthsToGrowFuture,
   toISODate,
   todayISO,
 } from '../dates'
@@ -138,5 +142,70 @@ describe('continuousGrid', () => {
 
   it('empty window → empty grid', () => {
     expect(continuousGrid([])).toEqual([])
+  })
+})
+
+describe('future window cap (3 months ahead)', () => {
+  it('futureLimitMonth is exactly MAX_FUTURE_MONTHS ahead of today', () => {
+    const now = new Date(2026, 7, 21) // Aug 21 2026
+    expect(futureLimitMonth(now)).toEqual(addMonths(2026, 7, MAX_FUTURE_MONTHS))
+    expect(futureLimitMonth(now)).toEqual({ year: 2026, month: 10 }) // Nov 2026
+  })
+
+  it('initialMonths ends exactly at the 3-month cap', () => {
+    // Same-clock check: relies on the test clock not flipping a month boundary
+    // between the two new Date() calls in the same synchronous run.
+    const months = initialMonths([])
+    expect(months[months.length - 1]).toEqual(futureLimitMonth())
+  })
+
+  it('initialMonths extends back for the earliest entry but never past the forward cap', () => {
+    const months = initialMonths([{ date: '2024-01-15' }])
+    const last = months[months.length - 1]
+    const limit = futureLimitMonth()
+    expect(last.year < limit.year || (last.year === limit.year && last.month <= limit.month)).toBe(true)
+    expect(last).toEqual(limit)
+  })
+
+  it('monthsToGrowFuture returns nothing once at the cap', () => {
+    const limit = { year: 2026, month: 10 }
+    expect(monthsToGrowFuture({ year: 2026, month: 10 }, limit)).toEqual([])
+    expect(monthsToGrowFuture({ year: 2026, month: 11 }, limit)).toEqual([])
+    expect(monthsToGrowFuture({ year: 2027, month: 0 }, limit)).toEqual([])
+  })
+
+  it('monthsToGrowFuture grows by one step and never overshoots the cap', () => {
+    const limit = { year: 2026, month: 10 }
+    const grown = monthsToGrowFuture({ year: 2026, month: 0 }, limit)
+    expect(grown.length).toBe(6) // last+1 .. last+6, all within the cap
+    expect(grown[grown.length - 1]).toEqual({ year: 2026, month: 6 })
+    for (const mo of grown) {
+      expect(mo.year < limit.year || (mo.year === limit.year && mo.month <= limit.month)).toBe(true)
+    }
+  })
+
+  it('repeated future growth converges exactly at the cap and never exceeds it', () => {
+    const limit = { year: 2026, month: 10 }
+    let last = { year: 2026, month: 0 }
+    for (let i = 0; i < 100; i++) {
+      const grown = monthsToGrowFuture(last, limit)
+      if (grown.length === 0) break
+      for (const mo of grown) {
+        expect(mo.year < limit.year || (mo.year === limit.year && mo.month <= limit.month)).toBe(true)
+      }
+      last = grown[grown.length - 1]
+    }
+    expect(last).toEqual(limit)
+  })
+
+  it('every appended month is within MAX_FUTURE_MONTHS of today', () => {
+    const now = new Date(2026, 7, 21)
+    const limit = futureLimitMonth(now)
+    const grown = monthsToGrowFuture({ year: 2026, month: 7 }, limit)
+    for (const mo of grown) {
+      const ahead = (mo.year - now.getFullYear()) * 12 + (mo.month - now.getMonth())
+      expect(ahead).toBeGreaterThanOrEqual(0)
+      expect(ahead).toBeLessThanOrEqual(MAX_FUTURE_MONTHS)
+    }
   })
 })
