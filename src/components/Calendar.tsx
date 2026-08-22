@@ -467,13 +467,15 @@ export default function Calendar({
                   // boundary falls on the 1st, not on the week row edge.
                   const cellMonthEven = Number(cell.iso.slice(5, 7)) % 2 === 0
                   let cls = cellMonthEven
-                    ? 'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y bg-slate-50'
+                    ? 'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y bg-slate-100'
                     : 'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
                   if (isStrip) {
                     cls += ' w-full'
                     if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
                     else if (shape === 'end') cls += ' rounded-r-full rounded-l-none'
                     else cls += ' rounded-none'
+                  } else if (cellMonthEven) {
+                    cls += ' w-full'
                   } else {
                     cls += ' mx-auto w-full max-w-11 rounded-full'
                   }
