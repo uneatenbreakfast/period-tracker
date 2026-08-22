@@ -433,7 +433,7 @@ export default function Calendar({
           ? `${firstCell.iso.slice(0, 4)}-${monthNum - 1}`
           : undefined
         return (
-          <div key={`w${wi}`} data-month={monthRef} className={`grid grid-cols-7 ${isEvenMonth ? 'bg-slate-50' : ''}`}>
+          <div key={`w${wi}`} data-month={monthRef} className={`grid grid-cols-7 ${isEvenMonth ? 'bg-slate-100' : ''}`}>
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
