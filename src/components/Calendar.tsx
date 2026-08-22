@@ -442,7 +442,6 @@ export default function Calendar({
                     : isPeriod
                       ? committedShape(cell.iso)
                       : dragShapeFor(cell.iso)
-                  const isStrip = shape === 'start' || shape === 'middle' || shape === 'end'
                   const isPredicted = predictedDays.includes(cell.iso)
                   const isFertile = fertileDays.includes(cell.iso)
                   const isToday = cell.iso === today
@@ -469,16 +468,9 @@ export default function Calendar({
                   let cls = cellMonthEven
                     ? 'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y bg-slate-100'
                     : 'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
-                  if (isStrip) {
-                    cls += ' w-full'
-                    if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
-                    else if (shape === 'end') cls += ' rounded-r-full rounded-l-none'
-                    else cls += ' rounded-none'
-                  } else if (cellMonthEven) {
-                    cls += ' w-full'
-                  } else {
-                    cls += ' mx-auto w-full max-w-11 rounded-full'
-                  }
+                  // All cells (period ranges included) use centered circles
+                  // so they respect the alternating month backgrounds.
+                  cls += ' mx-auto w-full max-w-11 rounded-full'
                   if (!cell.inMonth) cls += ' opacity-25'
                   if (shape) {
                     cls += ' bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
@@ -488,11 +480,10 @@ export default function Calendar({
                     cls += ' border-2 border-dashed border-rose-300 text-rose-400'
                   }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
-                  // The today ring and the selected outline would cut through
-                  // the strip (ring-offset seam) — drop them on strip cells so
-                  // the period bar stays visually continuous.
-                  if (isToday && !isStrip) cls += ' ring-2 ring-rose-400 ring-offset-1 ring-offset-white'
-                  if (isSelected && !isStrip) cls += ' outline-2 outline-offset-2 outline-rose-300'
+                  // Today: simple border circle (no ring-offset that gets cut off).
+                  // Selected: outline for non-period cells only.
+                  if (isToday) cls += ' border-2 border-rose-400'
+                  if (isSelected && !shape) cls += ' outline-2 outline-offset-2 outline-rose-300'
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
 
                   const grip = <span aria-hidden className="h-4 w-1 rounded-full bg-white/80" />
