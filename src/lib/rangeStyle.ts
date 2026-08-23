@@ -38,3 +38,21 @@ export function dragShape(iso: string, from: string, to: string): DayShape | nul
   if (iso === b) return 'end'
   return 'middle'
 }
+
+/**
+ * Concave "scoop" corner for an untinted cell that sits in the inner corner
+ * of an even-month tint block (e.g. Sep 1 directly right+below Aug 31 in the
+ * same grid row-pair). The cell paints the tint as its own background and a
+ * white overlay with the rounded corner on top — the tint shows through only
+ * in the scooped corner, so the block's convex rounding gets a matching
+ * concave counterpart. Returns '' when no scoop applies (needs BOTH a tinted
+ * left and a tinted top neighbor, and the cell itself untinted).
+ */
+export function monthScoopClass(
+  selfTinted: boolean,
+  leftTinted: boolean,
+  topTinted: boolean,
+): string {
+  if (selfTinted || !leftTinted || !topTinted) return ''
+  return 'rounded-tl-xl'
+}

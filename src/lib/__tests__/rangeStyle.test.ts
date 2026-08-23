@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dragShape, runShape, type DayShape } from '../rangeStyle'
+import { dragShape, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
 
 const member = (set: Set<string>) => (iso: string) => set.has(iso)
 
@@ -104,5 +104,27 @@ describe('shape vocabulary', () => {
   it('every shape is a member of DayShape', () => {
     const shapes: DayShape[] = ['single', 'start', 'middle', 'end']
     expect(shapes).toHaveLength(4)
+  })
+})
+
+describe('monthScoopClass', () => {
+  it('returns rounded-tl-xl when left and top are tinted and self is not', () => {
+    expect(monthScoopClass(false, true, true)).toBe('rounded-tl-xl')
+  })
+
+  it('returns empty string when self is tinted (even month)', () => {
+    expect(monthScoopClass(true, true, true)).toBe('')
+  })
+
+  it('returns empty string when only left is tinted', () => {
+    expect(monthScoopClass(false, true, false)).toBe('')
+  })
+
+  it('returns empty string when only top is tinted', () => {
+    expect(monthScoopClass(false, false, true)).toBe('')
+  })
+
+  it('returns empty string when neither neighbor is tinted', () => {
+    expect(monthScoopClass(false, false, false)).toBe('')
   })
 })

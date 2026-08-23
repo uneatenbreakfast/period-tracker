@@ -19,7 +19,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { dragShape, runShape } from '../lib/rangeStyle'
+import { dragShape, runShape, monthScoopClass } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -148,6 +148,10 @@ export default function Calendar({
     }
     return edgeMap
   }, [weeks])
+  // Even-month tint predicate — shared by monthEdges, the cell bg assembly
+  // and the concave scoop check so all three stay in sync.
+  const cellTinted = (c: { iso: string; inMonth: boolean }) =>
+    c.inMonth && Number(c.iso.slice(5, 7)) % 2 === 0
   const entriesRef = useRef(entriesByDate)
   useEffect(() => {
     entriesRef.current = entriesByDate
@@ -466,7 +470,7 @@ export default function Calendar({
           : undefined
         return (
           <div key={`w${wi}`} data-month={monthRef} className="grid grid-cols-7">
-            {week.map((cell) => {
+            {week.map((cell, di) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
                   // Committed period run wins over the live drag preview when
@@ -527,6 +531,21 @@ export default function Calendar({
                   // Rounded corners on month-block outer edges.
                   const edgeCls = monthEdges.get(cell.iso)
                   if (edgeCls) cls += ' ' + edgeCls
+                  // Concave scoop: an untinted cell tucked into the inner
+                  // corner of an even-month block (tinted left AND top
+                  // neighbors) paints the tint itself and covers it with a
+                  // white rounded-tl overlay — tint outside, white inside.
+                  let scoop = ''
+                  if (!monthTint && cell.inMonth) {
+                    const leftTinted =
+                      di > 0 && cellTinted(weeks[wi][di - 1])
+                    const topTinted =
+                      wi > 0 && cellTinted(weeks[wi - 1][di])
+                    scoop = monthScoopClass(monthTint, leftTinted, topTinted)
+                  }
+                  if (scoop) {
+                    cls += ' bg-slate-100 w-full rounded-none'
+                  }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: simple border circle (no ring-offset that gets cut off).
                   // Selected: outline for non-period cells only.
@@ -623,11 +642,14 @@ export default function Calendar({
                         if (editRef.current || editAxisRef.current) return
                         onSelect(cell.iso)
                       }}
-                      className={cls}
+                      className={`${cls}${scoop ? ' relative' : ''}`}
                       aria-label={cell.iso}
                     >
+                      {scoop ? (
+                        <span aria-hidden className={`pointer-events-none absolute inset-0 -z-10 bg-white ${scoop}`} />
+                      ) : null}
                       {editHandle === 'start' ? grip : null}
-                      <span>
+                      <span className="relative z-10">
                         {isMonthStart && (
                           <sup className="text-[8px] font-bold uppercase leading-none tracking-wide">
                             {MONTH_NAMES[Number(cell.iso.slice(5, 7)) - 1].slice(0, 3)}
