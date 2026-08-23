@@ -25,8 +25,30 @@ export const HAPTIC_DOUBLE_PULSE_PATTERN: number[] = [
  * Fire a vibration pattern (default: short double pulse). Returns whether
  * the platform honored it (false on devices without a vibrator — callers
  * use it as a pure side effect and must not depend on the return value).
+ *
+ * IMPORTANT: navigator.vibrate() must be called from a direct user-gesture
+ * handler (pointerdown, click, etc.) to work on modern Chrome Android.
+ * Calling it from a setTimeout callback loses "transient activation" and
+ * silently no-ops.  Use `hapticLongPress()` from pointerdown when you need
+ * a delayed pulse — it embeds the delay in the pattern itself.
  */
 export function hapticPulse(pattern: number | number[] = HAPTIC_DOUBLE_PULSE_PATTERN): boolean {
   if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false
   return navigator.vibrate(pattern)
+}
+
+/**
+ * Vibrate after a delay, fired from a user-gesture handler so the call
+ * retains transient-activation context.  The delay is encoded as the first
+ * element of the vibration pattern (odd indices = pause in ms).
+ *
+ * @param delayMs  How long to wait before the pulse (default: LONG_PRESS_MS)
+ * @param pattern  Vibration pattern after the initial pause
+ */
+export function hapticLongPress(
+  delayMs: number,
+  pattern: number[] = HAPTIC_DOUBLE_PULSE_PATTERN,
+): boolean {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false
+  return navigator.vibrate([delayMs, ...pattern])
 }

@@ -9,7 +9,7 @@ import {
   WEEKDAY_LABELS,
 } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
-import { hapticPulse } from '../lib/haptics'
+import { hapticLongPress } from '../lib/haptics'
 import {
   armDrag,
   beginDrag,
@@ -541,6 +541,12 @@ export default function Calendar({
                         dragRef.current = d
                         setDrag(d)
                         pressOrigin.current = { x: e.clientX, y: e.clientY }
+                        // Fire the long-press vibration from the user-gesture
+                        // handler so navigator.vibrate retains transient-
+                        // activation context (setTimeout callbacks lose it on
+                        // modern Chrome Android).  The delay is embedded in
+                        // the pattern itself: [LONG_PRESS_MS, 30, 30, 30].
+                        hapticLongPress(LONG_PRESS_MS)
                         clearHold()
                         // Selection starts only after a long press: hold
                         // LONG_PRESS_MS without moving → arm the drag.
@@ -550,11 +556,6 @@ export default function Calendar({
                           const armed = armDrag(cur)
                           dragRef.current = armed
                           setDrag(armed)
-                          // Tactile confirmation that the long press registered
-                          // (no-op on platforms without a vibrator). Fires at
-                          // ARM — the same moment edit mode (below) or the
-                          // selection highlight appears.
-                          hapticPulse()
                           // BLOOM-0015: long press REGISTERED = edit mode NOW,
                           // not on finger release. An armed press on a day with
                           // committed flow becomes the run's new START (the END
