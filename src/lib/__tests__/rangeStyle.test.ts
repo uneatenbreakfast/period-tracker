@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dragShape, runShape, type DayShape } from '../rangeStyle'
+import { dragShape, runShape, stripCorners, type DayShape } from '../rangeStyle'
 
 const member = (set: Set<string>) => (iso: string) => set.has(iso)
 
@@ -104,5 +104,32 @@ describe('shape vocabulary', () => {
   it('every shape is a member of DayShape', () => {
     const shapes: DayShape[] = ['single', 'start', 'middle', 'end']
     expect(shapes).toHaveLength(4)
+  })
+})
+
+describe('stripCorners', () => {
+  it('start cap: only bottom-left is convex, all other corners zeroed', () => {
+    const cls = stripCorners('start')
+    expect(cls).toContain('rounded-bl-full')
+    expect(cls).toContain('rounded-tl-none')
+    expect(cls).toContain('rounded-tr-none')
+    expect(cls).toContain('rounded-br-none')
+  })
+
+  it('end cap: right corners convex, left corners zeroed', () => {
+    const cls = stripCorners('end')
+    expect(cls).toContain('rounded-r-full')
+    expect(cls).toContain('rounded-l-none')
+  })
+
+  it('middle: all corners zeroed (flush square)', () => {
+    const cls = stripCorners('middle')
+    expect(cls).toContain('rounded-none')
+    expect(cls).not.toContain('rounded-bl-full')
+  })
+
+  it('single: all corners fully rounded', () => {
+    const cls = stripCorners('single')
+    expect(cls).toContain('rounded-full')
   })
 })

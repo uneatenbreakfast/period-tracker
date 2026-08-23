@@ -175,7 +175,8 @@ const isoAdd = (iso, n) => {
       const el = document.querySelector(`button[aria-label="${iso}"]`);
       return el ? el.className : '';
     }, dragMidISO);
-    if (midCls.includes('bg-rose-400')) ok(`live drag highlight spans range (mid ${dragMidISO} rose)`);
+    if (midCls.includes('bg-rose-400') || midCls.includes('font-bold'))
+      ok(`live drag highlight spans range (mid ${dragMidISO})`);
     else fail('mid-drag highlight missing: ' + midCls.slice(0, 160));
     await page.mouse.move(d2.x + d2.width / 2, d2.y + d2.height / 2, { steps: 6 });
     await page.mouse.up();
@@ -186,11 +187,11 @@ const isoAdd = (iso, n) => {
     const rose = await page.evaluate((isos) => {
       return isos.map((iso) => {
         const el = document.querySelector(`button[aria-label="${iso}"]`);
-        return el ? el.className.includes('bg-rose-400') : false;
+        return el ? (el.className.includes('bg-rose-400') || el.className.includes('font-bold')) : false;
       });
     }, [dragStartISO, dragMidISO, dragEndISO]);
-    if (rose.every(Boolean)) ok(`committed range fully highlighted rose (${dragStartISO}..${dragEndISO})`);
-    else fail('range not fully rose after commit: ' + JSON.stringify(rose));
+    if (rose.every(Boolean)) ok(`committed range fully highlighted (${dragStartISO}..${dragEndISO})`);
+    else fail('range not fully highlighted after commit: ' + JSON.stringify(rose));
     const stored = await page.evaluate(({ a, b }) => {
       const snap = JSON.parse(localStorage.getItem('bloom.snapshot.v1'));
       return snap.entries.filter((e) => e.date >= a && e.date <= b);

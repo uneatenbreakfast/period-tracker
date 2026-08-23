@@ -2,7 +2,7 @@
 // another day: live rose highlight (bg-rose-400, same style as committed
 // period days) spans covered cells while dragging, whole inclusive span
 // logged as period flow on release. Ranges render as a CONTINUOUS STRIP:
-// start day = left semicircle cap (rounded-l-full), end day = right cap,
+// start day = asymmetric cap (convex BL, concave TL), end day = right cap,
 // interior days = flush squares (rounded-none) filling the column edge-to-
 // edge; a lone day stays a circle. Quick drags (movement before the hold
 // fires) select nothing; a long press WITHOUT a drag is still a plain tap
@@ -21,6 +21,12 @@ const isoAdd = (iso, n) => {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 };
+
+// A cell is "highlighted" when it is part of a strip: start/end/single caps
+// have bg-rose-400 + font-bold, middle cells have font-bold text-rose-500.
+// Plain non-period cells never get font-bold, so it reliably distinguishes.
+const isHighlightedClass = async (iso, hasClassFn) =>
+  (await hasClassFn(iso, 'bg-rose-400')) || (await hasClassFn(iso, 'font-bold'));
 
 (async () => {
   const browser = await chromium.launch({
@@ -138,15 +144,16 @@ const isoAdd = (iso, n) => {
   await page.waitForTimeout(150);
   await page.mouse.move(e3.x, e3.y, { steps: 12 });
   await page.waitForTimeout(150);
-  if (await hasClass(d10, 'bg-rose-400') && await hasClass(d12, 'bg-rose-400'))
-    ok('long-press drag highlights start + passed-over cells (rose-400)');
+  if (await hasClass(d10, 'bg-rose-400') && (await hasClass(d12, 'bg-slate-100') || await hasClass(d12, 'font-bold')))
+    ok('long-press drag highlights start (rose) + passed-over cells (month bg)');
   else fail('live highlight missing on passed-over cells');
-  if (await hasClass(d11, 'bg-rose-400')) ok('intermediate day highlighted');
-  else fail('intermediate day not highlighted');
-  // Continuous-strip preview: drag start = left semicircle cap, interior =
-  // flush square, drag end = right semicircle cap.
-  if (await hasClass(d10, 'rounded-l-full')) ok('preview: start day has left semicircle cap (rounded-l-full)');
-  else fail('preview: start day missing left cap');
+  if (!(await hasClass(d11, 'bg-rose-400'))) ok('intermediate day has no rose fill');
+  else fail('intermediate day still has rose fill');
+  // Continuous-strip preview: drag start = asymmetric cap (convex BL, concave
+  // TL via gradient), interior = flush square, drag end = right semicircle cap.
+  if (await hasClass(d10, 'rounded-bl-full'))
+    ok('preview: start day has convex bottom-left cap (rounded-bl-full)');
+  else fail('preview: start day missing convex bottom-left');
   if (await hasClass(d12, 'rounded-none')) ok('preview: interior day is a flush square (rounded-none)');
   else fail('preview: interior day not a square');
   if (await hasClass(d13, 'rounded-r-full')) ok('preview: end day has right semicircle cap (rounded-r-full)');
@@ -156,16 +163,17 @@ const isoAdd = (iso, n) => {
   if ((await vibrateCalls()).length === 2) ok('long-press drag armed with a second pulse');
   else fail('arm pulse count wrong after STEP 3');
 
-  // STEP 4 — committed range: all 4 days styled as period, DaySheet NOT opened
+  // STEP 4 — committed range: start/end have rose, middles have month bg,
+  // DaySheet NOT opened.
   for (const d of [d10, d11, d12, d13]) {
-    if (await hasClass(d, 'bg-rose-400')) ok(`${d} committed as period day`);
+    if (await isHighlightedClass(d, hasClass)) ok(`${d} committed as period day`);
     else fail(`${d} not styled as period after drag`);
   }
   if (!(await sheetOpen())) ok('drag did NOT open DaySheet');
   else fail('DaySheet opened after drag commit');
-  // Committed strip shape: 10 = left cap, 11/12 = squares, 13 = right cap.
-  if (await hasClass(d10, 'rounded-l-full') && await hasClass(d10, 'rounded-r-none'))
-    ok('committed: run start keeps the left semicircle cap');
+  // Committed strip shape: 10 = asymmetric start cap, 11/12 = squares, 13 = right cap.
+  if (await hasClass(d10, 'rounded-bl-full') && await hasClass(d10, 'rounded-br-none'))
+    ok('committed: run start has convex bottom-left cap (rounded-bl-full)');
   else fail('committed: run start cap wrong: ' + await page.evaluate((i) => document.querySelector(`button[aria-label="${i}"]`)?.className, d10));
   if (await hasClass(d11, 'rounded-none') && await hasClass(d12, 'rounded-none'))
     ok('committed: interior days are flush squares');
@@ -207,7 +215,7 @@ const isoAdd = (iso, n) => {
   else fail('backward drag wrong: ' + JSON.stringify(stored.map((x) => [x.date, x.flow])));
   let staleCleared = true;
   for (const d of [d10, d11, d12, d13]) {
-    if (await hasClass(d, 'bg-rose-400')) staleCleared = false;
+    if (await isHighlightedClass(d, hasClass)) staleCleared = false;
   }
   if (staleCleared) ok('previously marked days 10..13 no longer styled as period');
   else fail('old range still styled as period after new drag');
@@ -244,7 +252,7 @@ const isoAdd = (iso, n) => {
   if (stored.length === 4)
     ok('quick touch swipe (no hold) logged nothing');
   else fail('quick touch swipe committed: ' + stored.length);
-  if (!(await hasClass(d22, 'bg-rose-400')) && !(await hasClass(d23, 'bg-rose-400')))
+  if (!(await isHighlightedClass(d22, hasClass)) && !(await isHighlightedClass(d23, hasClass)))
     ok('quick touch swipe left no highlight');
   else fail('quick touch swipe highlighted cells');
   // 3 pulses by now: STEP2 arm, STEP3 arm, backward-drag arm.
@@ -260,7 +268,7 @@ const isoAdd = (iso, n) => {
   await page.waitForTimeout(HOLD_MS); // long press arms the selection
   await touchMove(t1.x, t1.y);
   await page.waitForTimeout(60);
-  if (await hasClass(d23, 'bg-rose-400')) ok('touch drag previews passed-over cells');
+  if (await isHighlightedClass(d23, hasClass)) ok('touch drag previews passed-over cells');
   else fail('touch drag preview missing mid-drag');
   const mid = await scrollTop();
   if (mid.cal === before.cal && mid.doc === before.doc)
@@ -271,8 +279,8 @@ const isoAdd = (iso, n) => {
   if (await hasClass(d22, 'bg-rose-400') && await hasClass(d25, 'bg-rose-400'))
     ok('touch drag highlights start + end cells');
   else fail('touch drag end highlight missing');
-  if (await hasClass(d22, 'rounded-l-full') && await hasClass(d25, 'rounded-r-full'))
-    ok('touch drag preview shows strip caps (start left, end right)');
+  if (await hasClass(d22, 'rounded-bl-full') && await hasClass(d25, 'rounded-r-full'))
+    ok('touch drag preview shows strip caps (start asymmetric, end right)');
   else fail('touch drag strip caps missing');
   await touchEnd();
   await page.waitForTimeout(300);
@@ -285,7 +293,7 @@ const isoAdd = (iso, n) => {
   else fail('touch drag not committed: ' + stored.length + ' entries');
   let touchCleared = true;
   for (const d of [d17, d18, d19, d20]) {
-    if (await hasClass(d, 'bg-rose-400')) touchCleared = false;
+    if (await isHighlightedClass(d, hasClass)) touchCleared = false;
   }
   if (touchCleared) ok('touch drag cleared the previous 17..20 marking');
   else fail('previous range still styled after touch drag');
@@ -423,8 +431,8 @@ const isoAdd = (iso, n) => {
   if ((await editHandleIso('start')) === d23 && (await editHandleIso('end')) === d25)
     ok('pressed day became the new START handle, run END stays (23 start / 25 end)');
   else fail(`handles wrong: start=${await editHandleIso('start')} end=${await editHandleIso('end')}`);
-  if (!(await hasClass(d22, 'bg-rose-400')) && (await hasClass(d23, 'bg-rose-400')) && (await hasClass(d24, 'bg-rose-400')) && (await hasClass(d25, 'bg-rose-400')))
-    ok('edited preview: 22 dropped out of the range, 23..25 stay rose');
+  if (!(await hasClass(d22, 'bg-rose-400')) && (await isHighlightedClass(d23, hasClass)) && (await isHighlightedClass(d24, hasClass)) && (await hasClass(d25, 'bg-rose-400')))
+    ok('edited preview: 22 dropped out of the range, 23..25 highlighted');
   else fail('edited preview range wrong');
   if (await hasClass(d24, 'rounded-none')) ok('edited preview keeps the continuous strip (interior square)');
   else fail('edited strip interior missing');
@@ -452,8 +460,8 @@ const isoAdd = (iso, n) => {
   if ((await editHandleIso('start')) === d21 && (await editHandleIso('end')) === d25)
     ok('start handle dragged 23 → 21 (21 start / 25 end)');
   else fail(`start drag wrong: start=${await editHandleIso('start')} end=${await editHandleIso('end')}`);
-  if ((await hasClass(d21, 'bg-rose-400')) && (await hasClass(d21, 'rounded-l-full')) && (await hasClass(d25, 'bg-rose-400')) && (await hasClass(d25, 'rounded-r-full')))
-    ok('start drag preview: 21..25 roses with correct strip caps');
+  if ((await hasClass(d21, 'bg-rose-400')) && (await hasClass(d21, 'rounded-bl-full')) && (await hasClass(d25, 'bg-rose-400')) && (await hasClass(d25, 'rounded-r-full')))
+    ok('start drag preview: 21..25 highlighted with correct strip caps');
   else fail('start drag preview shape wrong');
   const rt15 = await editRangeText();
   if (rt15.includes('21') && rt15.includes('25')) ok(`edit modal range updated live (${rt15})`);
@@ -507,7 +515,7 @@ const isoAdd = (iso, n) => {
   const savedOk = stored.filter((x) => x.date >= d21 && x.date <= endIso).length === countInclusive(d21, endIso) && stored.every((x) => x.flow === 'medium');
   if (savedOk) ok('saved range fully persisted with medium flow');
   else fail('saved entries wrong: ' + JSON.stringify(stored.map((x) => [x.date, x.flow])));
-  if ((await hasClass(d21, 'rounded-l-full')) && (await hasClass(endIso, 'rounded-r-full')))
+  if ((await hasClass(d21, 'rounded-bl-full')) && (await hasClass(endIso, 'rounded-r-full')))
     ok('committed edited range forms the continuous strip (caps on both ends)');
   else fail('edited range caps missing after save');
   if (!(await page.evaluate(() => !!document.querySelector('[data-edit-handle]')))) ok('no leftover edit handles after save');
