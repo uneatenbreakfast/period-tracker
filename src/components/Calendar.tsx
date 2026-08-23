@@ -19,7 +19,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { dragShape, runShape, START_CAP_STYLE, stripCorners } from '../lib/rangeStyle'
+import { dragShape, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -476,24 +476,22 @@ export default function Calendar({
                   let cls =
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
                   if (isStrip) {
-                    cls += ` w-full ${stripCorners(shape)}`
-                  } else if (shape === 'single') {
-                    cls += ' mx-auto w-full max-w-11 rounded-full'
-                    if (isMonthStart) cls += ' rounded-tl-[1.6rem] rounded-tr-none rounded-br-full'
+                    cls += ' w-full'
+                    if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
+                    else if (shape === 'end') cls += ' rounded-r-full rounded-l-none'
+                    else cls += ' rounded-none'
                   } else {
                     cls += ' mx-auto w-full max-w-11 rounded-full'
                   }
                   if (!cell.inMonth) cls += ' opacity-25'
-                  // Alternating month bg: even months get slate tint, odd
-                  // transparent. Period caps (start/end) always use rose;
-                  // middles and plain cells share the same month fill.
                   const monthTint = Number(cell.iso.slice(5, 7)) % 2 === 0
-                  if (shape === 'start' || shape === 'end' || shape === 'single') {
-                    cls += ' bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
-                  } else if (shape === 'middle') {
-                    // Middle strip cells: month background fill, no rose.
+                  if (shape === 'middle') {
+                    // In-between days: filled with the alternating month
+                    // background, no rose fill.
                     cls += ' font-bold text-rose-500'
                     if (monthTint) cls += ' bg-slate-100'
+                  } else if (shape) {
+                    cls += ' bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
                   } else if (isFertile) {
                     cls += ' bg-lavender-100 font-semibold text-lavender-700'
                   } else if (isPredicted) {
@@ -599,7 +597,6 @@ export default function Calendar({
                         onSelect(cell.iso)
                       }}
                       className={cls}
-                      style={shape === 'start' ? START_CAP_STYLE : undefined}
                       aria-label={cell.iso}
                     >
                       {editHandle === 'start' ? grip : null}
