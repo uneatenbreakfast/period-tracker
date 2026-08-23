@@ -130,7 +130,7 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   // [30, 30, 30] = HAPTIC_DOUBLE_PULSE_PATTERN in src/lib/haptics.ts — two
   // bursts, one arm tick (even indices vibrate, odd indices pause).
   const v2 = await vibrateCalls();
-  if (v2.length === 1 && JSON.stringify(v2[0]) === '[30,30,30]') {
+  if (v2.length === 1 && JSON.stringify(v2[0]) === '[15,15,15]') {
     ok('long press fired the double pulse (selection armed)');
   } else fail('long press vibrate wrong: ' + JSON.stringify(v2));
 

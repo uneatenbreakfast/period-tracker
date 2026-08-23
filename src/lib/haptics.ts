@@ -8,7 +8,7 @@
  * time, which keeps the helper unit-testable via a stubbed global.
  */
 /** Single vibration burst length (ms) — short enough to read as a tick. */
-export const HAPTIC_PULSE_MS = 30
+export const HAPTIC_PULSE_MS = 15
 
 /**
  * Default feedback: a double pulse — two 30ms bursts separated by a 30ms

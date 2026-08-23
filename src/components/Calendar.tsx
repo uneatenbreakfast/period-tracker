@@ -122,6 +122,32 @@ export default function Calendar({
     for (const e of snap.entries) m.set(e.date, e)
     return m
   }, [snap.entries])
+  // Precompute month-block edge corners so even-month blocks get rounded
+  // outer edges (e.g. rounded-tl-xl on the top-left cell of a month).
+  const monthEdges = useMemo(() => {
+    const edgeMap = new Map<string, string>()
+    for (let wi = 0; wi < weeks.length; wi++) {
+      for (let di = 0; di < 7; di++) {
+        const c = weeks[wi][di]
+        if (!c.inMonth) continue
+        const monthNum = Number(c.iso.slice(5, 7))
+        if (monthNum % 2 !== 0) continue // only even months get blocks
+        const same = (o: { iso: string; inMonth: boolean }) =>
+          o && o.inMonth && o.iso.slice(5, 7) === c.iso.slice(5, 7)
+        const left = di > 0 && same(weeks[wi][di - 1])
+        const right = di < 6 && same(weeks[wi][di + 1])
+        const top = wi > 0 && same(weeks[wi - 1][di])
+        const bottom = wi < weeks.length - 1 && same(weeks[wi + 1][di])
+        const corners: string[] = []
+        if (!top && !left) corners.push('rounded-tl-xl')
+        if (!top && !right) corners.push('rounded-tr-xl')
+        if (!bottom && !left) corners.push('rounded-bl-xl')
+        if (!bottom && !right) corners.push('rounded-br-xl')
+        if (corners.length) edgeMap.set(c.iso, corners.join(' '))
+      }
+    }
+    return edgeMap
+  }, [weeks])
   const entriesRef = useRef(entriesByDate)
   useEffect(() => {
     entriesRef.current = entriesByDate
@@ -475,32 +501,32 @@ export default function Calendar({
                   // stays the small centered circle.
                   let cls =
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
+                  const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 === 0
                   if (isStrip) {
                     cls += ' w-full'
                     if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
                     else if (shape === 'end') cls += ' rounded-r-full rounded-l-none'
                     else cls += ' rounded-none'
+                  } else if (monthTint) {
+                    // Full-width month block cell (not a centered circle).
+                    cls += ' w-full rounded-none'
                   } else {
                     cls += ' mx-auto w-full max-w-11 rounded-full'
                   }
                   if (!cell.inMonth) cls += ' opacity-25'
-                  const monthTint = Number(cell.iso.slice(5, 7)) % 2 === 0
-                  if (shape === 'middle') {
-                    // In-between days: filled with the alternating month
-                    // background, no rose fill.
-                    cls += ' font-bold text-rose-500'
-                    if (monthTint) cls += ' bg-slate-100'
-                  } else if (shape) {
+                  // Month block bg: every inMonth cell of an even month gets
+                  // the tint as a base — specific cell types override below.
+                  if (monthTint) cls += ' bg-slate-100'
+                  if (shape) {
                     cls += ' bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
                   } else if (isFertile) {
                     cls += ' bg-lavender-100 font-semibold text-lavender-700'
                   } else if (isPredicted) {
                     cls += ' border-2 border-dashed border-rose-300 text-rose-400'
-                    if (Number(cell.iso.slice(5, 7)) % 2 === 0) cls += ' bg-slate-100'
-                  } else {
-                    // Alternating month bg on empty cells only — period fill wins above.
-                    if (Number(cell.iso.slice(5, 7)) % 2 === 0) cls += ' bg-slate-100'
                   }
+                  // Rounded corners on month-block outer edges.
+                  const edgeCls = monthEdges.get(cell.iso)
+                  if (edgeCls) cls += ' ' + edgeCls
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: simple border circle (no ring-offset that gets cut off).
                   // Selected: outline for non-period cells only.
@@ -545,7 +571,7 @@ export default function Calendar({
                         // handler so navigator.vibrate retains transient-
                         // activation context (setTimeout callbacks lose it on
                         // modern Chrome Android).  The delay is embedded in
-                        // the pattern itself: [LONG_PRESS_MS, 30, 30, 30].
+                        // the pattern itself: [LONG_PRESS_MS, 15, 15, 15].
                         hapticLongPress(LONG_PRESS_MS)
                         clearHold()
                         // Selection starts only after a long press: hold
