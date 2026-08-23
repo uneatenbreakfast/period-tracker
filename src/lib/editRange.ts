@@ -18,6 +18,14 @@ export interface EditRange {
   /** Current edited bounds — maintained ascending (start <= end) */
   start: string
   end: string
+  /** How the edit was initiated:
+   *  - 'range': long-press on a flow day entered edit mode with a continued
+   *    drag — the drag span (pressOrigin → current cell) replaces BOTH bounds.
+   *  - 'handle': the user tapped a start/end cap handle — only that axis moves.
+   */
+  dragMode: 'range' | 'handle'
+  /** Cell where the initiating long-press happened (range mode only). */
+  pressOriginISO?: string
 }
 
 /**
@@ -37,18 +45,73 @@ export function runBoundsAt(
 }
 
 /**
- * Enter edit mode on a run: the pressed day becomes the new start, the run's
- * end remains. `pressed` must be inside the run (it has flow).
+ * Enter edit mode on a run from a long-press: dates stay at the original
+ * committed bounds (no shift on enter). If the finger continues to drag,
+ * `extendEditRange` replaces both bounds from the press origin.
  */
 export function beginEdit(
   run: { start: string; end: string },
   pressed: string,
 ): EditRange {
-  return { originalStart: run.start, originalEnd: run.end, start: pressed, end: run.end }
+  return {
+    originalStart: run.start,
+    originalEnd: run.end,
+    start: run.start,
+    end: run.end,
+    dragMode: 'range',
+    pressOriginISO: pressed,
+  }
 }
 
-/** Drag the start handle; clamped so it can't cross the end (1-day minimum). */
+/**
+ * Enter edit mode from a handle tap: only the tapped axis will move on
+ * drag. Bounds start at the committed run.
+ */
+export function beginEditHandle(
+  run: { start: string; end: string },
+  axis: 'start' | 'end',
+): EditRange {
+  return {
+    originalStart: run.start,
+    originalEnd: run.end,
+    start: run.start,
+    end: run.end,
+    dragMode: 'handle',
+    // pressOriginISO unused for handle mode but keep the shape consistent.
+    pressOriginISO: axis === 'start' ? run.start : run.end,
+  }
+}
+
+/**
+ * Range-mode drag extension: the long-press cell is one bound, the cell now
+ * under the pointer is the other. The edited range is the ascending span.
+ * Respects maxPeriodDays by clamping the far end toward the press origin.
+ */
+export function extendEditRange(edit: EditRange, iso: string, maxDays?: number): EditRange {
+  if (edit.dragMode !== 'range' || !edit.pressOriginISO) return edit
+  // No movement from press origin — keep original committed bounds.
+  if (iso === edit.pressOriginISO) return edit
+  const a = edit.pressOriginISO
+  const b = iso
+  let start = a <= b ? a : b
+  let end = a <= b ? b : a
+  if (maxDays != null) {
+    const dist = diffDays(end, start)
+    if (dist > maxDays) {
+      // Clamp the far end toward the press origin, preserving direction.
+      if (a <= b) end = addDays(start, maxDays)
+      else start = addDays(end, -maxDays)
+    }
+  }
+  return edit.start === start && edit.end === end ? edit : { ...edit, start, end }
+}
+
+/**
+ * Drag the start handle (handle mode only); clamped so it can't cross the
+ * end (1-day minimum). Range-mode edits use `extendEditRange` instead.
+ */
 export function moveStart(edit: EditRange, iso: string, maxDays?: number): EditRange {
+  if (edit.dragMode !== 'handle') return edit
   let start = iso <= edit.end ? iso : edit.end
   if (maxDays != null) {
     const dist = diffDays(edit.end, start)
@@ -57,8 +120,12 @@ export function moveStart(edit: EditRange, iso: string, maxDays?: number): EditR
   return edit.start === start ? edit : { ...edit, start }
 }
 
-/** Drag the end handle; clamped so it can't cross the start (1-day minimum). */
+/**
+ * Drag the end handle (handle mode only); clamped so it can't cross the
+ * start (1-day minimum). Range-mode edits use `extendEditRange` instead.
+ */
 export function moveEnd(edit: EditRange, iso: string, maxDays?: number): EditRange {
+  if (edit.dragMode !== 'handle') return edit
   let end = iso >= edit.start ? iso : edit.start
   if (maxDays != null) {
     const dist = diffDays(end, edit.start)

@@ -21,7 +21,7 @@ import {
 import type { RangeDrag } from '../lib/rangeDrag'
 import { dragShape, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
-import { beginEdit, commitEdit, deleteRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
+import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
 /** Pointer within this many px of the scroll-box edge → auto-scroll while dragging. */
@@ -174,8 +174,12 @@ export default function Calendar({
       const iso = isoAt(p.x, p.y)
       if (iso) {
         if (editAxisRef.current) {
-          const axis = editAxisRef.current
-          setEdit((prev) => (prev ? (axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)) : prev))
+          setEdit((prev) => {
+            if (!prev) return prev
+            if (prev.dragMode === 'range') return extendEditRange(prev, iso, maxPeriodDays)
+            const axis = editAxisRef.current
+            return axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)
+          })
         } else if (dragRef.current?.armed) {
           setDrag((prev) => (prev ? extendDrag(prev, iso, maxPeriodDays) : prev))
         }
@@ -255,8 +259,14 @@ export default function Calendar({
       updateAutoScroll(e.clientY)
       const iso = isoAt(e.clientX, e.clientY)
       if (!iso) return
-      const axis = editAxisRef.current
-      setEdit((prev) => (prev ? (axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)) : prev))
+      setEdit((prev) => {
+        if (!prev) return prev
+        // Range mode: long-press drag sets BOTH bounds from the press origin
+        // to the cell under the pointer. Handle mode: only the tapped axis.
+        if (prev.dragMode === 'range') return extendEditRange(prev, iso, maxPeriodDays)
+        const axis = editAxisRef.current
+        return axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)
+      })
     }
     const end = () => {
       stopAutoScroll()
@@ -506,8 +516,19 @@ export default function Calendar({
                         // Edit mode: only the cap handles start a gesture; any
                         // other press is ignored until Save/Cancel.
                         if (editRef.current) {
-                          if (cell.iso === editRef.current.start) setEditAxis('start')
-                          else if (cell.iso === editRef.current.end) setEditAxis('end')
+                          // Handle taps switch to handle-mode so only that axis
+                          // moves on drag (range-mode drags set BOTH bounds).
+                          if (cell.iso === editRef.current.start) {
+                            setEdit((prev) =>
+                              prev ? { ...prev, dragMode: 'handle', pressOriginISO: prev.start } : prev,
+                            )
+                            setEditAxis('start')
+                          } else if (cell.iso === editRef.current.end) {
+                            setEdit((prev) =>
+                              prev ? { ...prev, dragMode: 'handle', pressOriginISO: prev.end } : prev,
+                            )
+                            setEditAxis('end')
+                          }
                           return
                         }
                         dragJustEnded.current = false
