@@ -52,3 +52,14 @@ export function hapticLongPress(
   if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false
   return navigator.vibrate([delayMs, ...pattern])
 }
+
+/**
+ * Cancel any pending/in-progress vibration (navigator.vibrate(0)). Call when
+ * a gesture that scheduled a delayed pulse is aborted before the delay
+ * elapses — otherwise the queued pattern still fires (a scroll or quick tap
+ * would buzz LONG_PRESS_MS later).
+ */
+export function cancelHaptic(): boolean {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false
+  return navigator.vibrate(0)
+}
