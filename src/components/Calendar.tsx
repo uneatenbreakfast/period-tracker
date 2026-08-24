@@ -646,7 +646,7 @@ export default function Calendar({
                       aria-label={cell.iso}
                     >
                       {scoop ? (
-                        <span aria-hidden className={`pointer-events-none absolute inset-0 bg-white ${scoop}`} />
+                        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 bg-white rounded-tl-[12px]" style={{ left: '12px' }} />
                       ) : null}
                       {editHandle === 'start' ? grip : null}
                       <span className="relative z-10">
