@@ -498,19 +498,35 @@ export default function Calendar({
                     : null
 
                   const isStrip = shape === 'start' || shape === 'middle' || shape === 'end'
+                  const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 === 0
+                  // Concave scoop: an untinted cell tucked into the inner
+                  // corner of an even-month block (tinted left AND top
+                  // neighbors) paints the tint itself and covers it with a
+                  // white rounded-tl overlay — tint outside, white inside.
+                  let scoop = ''
+                  if (!monthTint && cell.inMonth) {
+                    const leftTinted =
+                      di > 0 && cellTinted(weeks[wi][di - 1])
+                    const topTinted =
+                      wi > 0 && cellTinted(weeks[wi - 1][di])
+                    scoop = monthScoopClass(monthTint, leftTinted, topTinted)
+                  }
                   // Strip cells (start cap / square / end cap) fill their grid
                   // column edge-to-edge so adjacent days read as ONE continuous
                   // period bar; the run ends are semicircle caps, the middle a
-                  // flush square. A lone day keeps the circle. Everything else
-                  // stays the small centered circle.
+                  // flush square. A lone day keeps the circle. Scoop cells
+                  // also fill the column so the tint connects flush with the
+                  // adjacent even-month block. Everything else stays the small
+                  // centered circle.
                   let cls =
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
-                  const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 === 0
                   if (isStrip) {
                     cls += ' w-full'
                     if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
                     else if (shape === 'end') cls += ' rounded-r-full rounded-l-none'
                     else cls += ' rounded-none'
+                  } else if (scoop) {
+                    cls += ' w-full rounded-none bg-slate-100'
                   } else if (monthTint) {
                     // Full-width month block cell (not a centered circle).
                     cls += ' w-full rounded-none'
@@ -531,21 +547,6 @@ export default function Calendar({
                   // Rounded corners on month-block outer edges.
                   const edgeCls = monthEdges.get(cell.iso)
                   if (edgeCls) cls += ' ' + edgeCls
-                  // Concave scoop: an untinted cell tucked into the inner
-                  // corner of an even-month block (tinted left AND top
-                  // neighbors) paints the tint itself and covers it with a
-                  // white rounded-tl overlay — tint outside, white inside.
-                  let scoop = ''
-                  if (!monthTint && cell.inMonth) {
-                    const leftTinted =
-                      di > 0 && cellTinted(weeks[wi][di - 1])
-                    const topTinted =
-                      wi > 0 && cellTinted(weeks[wi - 1][di])
-                    scoop = monthScoopClass(monthTint, leftTinted, topTinted)
-                  }
-                  if (scoop) {
-                    cls += ' bg-slate-100 w-full rounded-none'
-                  }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: simple border circle (no ring-offset that gets cut off).
                   // Selected: outline for non-period cells only.
