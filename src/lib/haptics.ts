@@ -8,7 +8,7 @@
  * time, which keeps the helper unit-testable via a stubbed global.
  */
 /** Single vibration burst length (ms) — short enough to read as a tick. */
-export const HAPTIC_PULSE_MS = 30
+export const HAPTIC_PULSE_MS = 15
 
 /**
  * Default feedback: a double pulse — two 30ms bursts separated by a 30ms
@@ -51,15 +51,4 @@ export function hapticLongPress(
 ): boolean {
   if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false
   return navigator.vibrate([delayMs, ...pattern])
-}
-
-/**
- * Cancel any pending/in-progress vibration (navigator.vibrate(0)). Call when
- * a gesture that scheduled a delayed pulse is aborted before the delay
- * elapses — otherwise the queued pattern still fires (a scroll or quick tap
- * would buzz LONG_PRESS_MS later).
- */
-export function cancelHaptic(): boolean {
-  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false
-  return navigator.vibrate(0)
 }

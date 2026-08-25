@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cancelHaptic, HAPTIC_DOUBLE_PULSE_PATTERN, HAPTIC_PULSE_MS, hapticLongPress, hapticPulse } from '../haptics'
+import { HAPTIC_DOUBLE_PULSE_PATTERN, HAPTIC_PULSE_MS, hapticLongPress, hapticPulse } from '../haptics'
 
 describe('hapticPulse', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -53,18 +53,5 @@ describe('hapticLongPress', () => {
   it('no-ops when navigator.vibrate is absent', () => {
     vi.stubGlobal('navigator', {})
     expect(hapticLongPress(400)).toBe(false)
-  })
-})
-describe('cancelHaptic', () => {
-  it('calls navigator.vibrate(0) to clear a pending pattern', () => {
-    const vibrate = vi.fn(() => true)
-    vi.stubGlobal('navigator', { vibrate })
-    expect(cancelHaptic()).toBe(true)
-    expect(vibrate).toHaveBeenCalledWith(0)
-  })
-
-  it('no-ops when navigator.vibrate is absent', () => {
-    vi.stubGlobal('navigator', {})
-    expect(cancelHaptic()).toBe(false)
   })
 })
