@@ -122,22 +122,38 @@ export default function Calendar({
     for (const e of snap.entries) m.set(e.date, e)
     return m
   }, [snap.entries])
+  // Even-month tint predicate — shared by monthEdges, the cell bg assembly
+  // and the concave scoop check so all three stay in sync.
+  const cellTinted = (c: { iso: string; inMonth: boolean }) =>
+    c.inMonth && Number(c.iso.slice(5, 7)) % 2 === 0
   // Precompute month-block edge corners so even-month blocks get rounded
   // outer edges (e.g. rounded-tl-xl on the top-left cell of a month).
+  // A neighbor counts as "connected" if it's the same month OR if it's a
+  // scoop cell (odd-month, inMonth, tinted left+top) — the gray continues
+  // into scoop cells, so we must not round the shared edge.
   const monthEdges = useMemo(() => {
     const edgeMap = new Map<string, string>()
+    const isScoop = (o: { iso: string; inMonth: boolean }, oi: number, row: { iso: string; inMonth: boolean }[], ri: number) => {
+      if (!o || !o.inMonth) return false
+      const m = Number(o.iso.slice(5, 7))
+      if (m % 2 !== 0 && oi > 0 && ri > 0) {
+        // Odd month — check if scoop (tinted left AND top)
+        return cellTinted(row[oi - 1]) && cellTinted(weeks[ri - 1][oi])
+      }
+      return false
+    }
     for (let wi = 0; wi < weeks.length; wi++) {
       for (let di = 0; di < 7; di++) {
         const c = weeks[wi][di]
         if (!c.inMonth) continue
         const monthNum = Number(c.iso.slice(5, 7))
         if (monthNum % 2 !== 0) continue // only even months get blocks
-        const same = (o: { iso: string; inMonth: boolean }) =>
+        const sameMonth = (o: { iso: string; inMonth: boolean }) =>
           o && o.inMonth && o.iso.slice(5, 7) === c.iso.slice(5, 7)
-        const left = di > 0 && same(weeks[wi][di - 1])
-        const right = di < 6 && same(weeks[wi][di + 1])
-        const top = wi > 0 && same(weeks[wi - 1][di])
-        const bottom = wi < weeks.length - 1 && same(weeks[wi + 1][di])
+        const left = di > 0 && (sameMonth(weeks[wi][di - 1]) || isScoop(weeks[wi][di - 1], di - 1, weeks[wi], wi))
+        const right = di < 6 && (sameMonth(weeks[wi][di + 1]) || isScoop(weeks[wi][di + 1], di + 1, weeks[wi], wi))
+        const top = wi > 0 && (sameMonth(weeks[wi - 1][di]) || isScoop(weeks[wi - 1][di], di, weeks[wi - 1], wi - 1))
+        const bottom = wi < weeks.length - 1 && (sameMonth(weeks[wi + 1][di]) || isScoop(weeks[wi + 1][di], di, weeks[wi + 1], wi + 1))
         const corners: string[] = []
         if (!top && !left) corners.push('rounded-tl-xl')
         if (!top && !right) corners.push('rounded-tr-xl')
@@ -148,10 +164,6 @@ export default function Calendar({
     }
     return edgeMap
   }, [weeks])
-  // Even-month tint predicate — shared by monthEdges, the cell bg assembly
-  // and the concave scoop check so all three stay in sync.
-  const cellTinted = (c: { iso: string; inMonth: boolean }) =>
-    c.inMonth && Number(c.iso.slice(5, 7)) % 2 === 0
   const entriesRef = useRef(entriesByDate)
   useEffect(() => {
     entriesRef.current = entriesByDate
