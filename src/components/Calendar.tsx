@@ -410,6 +410,18 @@ export default function Calendar({
       >
         ↑ Load older
       </button>
+      {/* Weekday labels sit ABOVE the scroll box — always fully visible,
+          never overlapped by scrolling day rows. */}
+      <div
+        data-calendar-weekdays
+        className="-mx-5 mb-1 bg-white px-5 pb-1.5 pt-3"
+      >
+        <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+          {WEEKDAY_LABELS.map((w) => (
+            <div key={w}>{w}</div>
+          ))}
+        </div>
+      </div>
       {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
       {/* Day cells are touch-pan-y: a REGULAR vertical swipe over the grid
           scrolls the calendar (BLOOM-0015). A quick swipe never arms — the
@@ -448,19 +460,6 @@ export default function Calendar({
           setDrag((prev) => (prev ? extendDrag(prev, iso, maxPeriodDays) : prev))
         }}
       >
-      {/* One sticky weekday strip stays at the box top while the continuous
-          week rows scroll under it; month boundaries are marked by the
-          superscript month label on each 1st. */}
-      <div
-        data-calendar-weekdays
-        className="sticky top-0 z-10 -mx-5 mb-1 bg-white/95 px-5 pb-1.5 pt-3 backdrop-blur-sm"
-      >
-        <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-ink-soft">
-          {WEEKDAY_LABELS.map((w) => (
-            <div key={w}>{w}</div>
-          ))}
-        </div>
-      </div>
       {weeks.map((week, wi) => {
         // Anchor for the month whose 1st falls in this row — App's Today pill
         // and the initial scroll bring the row containing the 1st to the top.
