@@ -9,7 +9,7 @@ import {
   WEEKDAY_LABELS,
 } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
-import { hapticLongPress } from '../lib/haptics'
+import { cancelHaptic, hapticLongPress } from '../lib/haptics'
 import {
   armDrag,
   beginDrag,
@@ -92,6 +92,10 @@ export default function Calendar({
     if (holdTimer.current !== null) {
       window.clearTimeout(holdTimer.current)
       holdTimer.current = null
+      // The pointerdown scheduled a delayed pulse ([LONG_PRESS_MS, ...]) in
+      // the vibration pattern. If the hold is aborted (tap, scroll, drag),
+      // the queued pattern must be cancelled or it buzzes anyway.
+      cancelHaptic()
     }
   }
   useEffect(() => () => clearHold(), [])
@@ -602,7 +606,7 @@ export default function Calendar({
                         // handler so navigator.vibrate retains transient-
                         // activation context (setTimeout callbacks lose it on
                         // modern Chrome Android).  The delay is embedded in
-                        // the pattern itself: [LONG_PRESS_MS, 15, 15, 15].
+                        // the pattern itself: [LONG_PRESS_MS, 30, 30, 30].
                         hapticLongPress(LONG_PRESS_MS)
                         clearHold()
                         // Selection starts only after a long press: hold
