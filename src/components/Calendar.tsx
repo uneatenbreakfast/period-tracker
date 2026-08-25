@@ -594,7 +594,7 @@ export default function Calendar({
                         // handler so navigator.vibrate retains transient-
                         // activation context (setTimeout callbacks lose it on
                         // modern Chrome Android).  The delay is embedded in
-                        // the pattern itself: [LONG_PRESS_MS, 15, 15, 15].
+                        // the pattern itself: [LONG_PRESS_MS, 30, 30, 30].
                         hapticLongPress(LONG_PRESS_MS)
                         clearHold()
                         // Selection starts only after a long press: hold
