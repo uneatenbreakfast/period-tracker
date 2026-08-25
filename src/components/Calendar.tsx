@@ -9,7 +9,7 @@ import {
   WEEKDAY_LABELS,
 } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
-import { hapticLongPress } from '../lib/haptics'
+import { cancelHaptic, hapticLongPress } from '../lib/haptics'
 import {
   armDrag,
   beginDrag,
@@ -92,6 +92,10 @@ export default function Calendar({
     if (holdTimer.current !== null) {
       window.clearTimeout(holdTimer.current)
       holdTimer.current = null
+      // The pointerdown scheduled a delayed pulse ([LONG_PRESS_MS, ...]) in
+      // the vibration pattern. If the hold is aborted (tap, scroll, drag),
+      // the queued pattern must be cancelled or it buzzes anyway.
+      cancelHaptic()
     }
   }
   useEffect(() => () => clearHold(), [])
@@ -410,18 +414,6 @@ export default function Calendar({
       >
         ↑ Load older
       </button>
-      {/* Weekday labels sit ABOVE the scroll box — always fully visible,
-          never overlapped by scrolling day rows. */}
-      <div
-        data-calendar-weekdays
-        className="-mx-5 mb-1 bg-white px-5 pb-1.5 pt-3"
-      >
-        <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-ink-soft">
-          {WEEKDAY_LABELS.map((w) => (
-            <div key={w}>{w}</div>
-          ))}
-        </div>
-      </div>
       {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
       {/* Day cells are touch-pan-y: a REGULAR vertical swipe over the grid
           scrolls the calendar (BLOOM-0015). A quick swipe never arms — the
@@ -460,6 +452,19 @@ export default function Calendar({
           setDrag((prev) => (prev ? extendDrag(prev, iso, maxPeriodDays) : prev))
         }}
       >
+      {/* One sticky weekday strip stays at the box top while the continuous
+          week rows scroll under it; month boundaries are marked by the
+          superscript month label on each 1st. */}
+      <div
+        data-calendar-weekdays
+        className="sticky top-0 z-10 -mx-5 mb-1 bg-white/95 px-5 pb-1.5 pt-3 backdrop-blur-sm"
+      >
+        <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-ink-soft">
+          {WEEKDAY_LABELS.map((w) => (
+            <div key={w}>{w}</div>
+          ))}
+        </div>
+      </div>
       {weeks.map((week, wi) => {
         // Anchor for the month whose 1st falls in this row — App's Today pill
         // and the initial scroll bring the row containing the 1st to the top.
@@ -497,35 +502,19 @@ export default function Calendar({
                     : null
 
                   const isStrip = shape === 'start' || shape === 'middle' || shape === 'end'
-                  const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 === 0
-                  // Concave scoop: an untinted cell tucked into the inner
-                  // corner of an even-month block (tinted left AND top
-                  // neighbors) paints the tint itself and covers it with a
-                  // white rounded-tl overlay — tint outside, white inside.
-                  let scoop = ''
-                  if (!monthTint && cell.inMonth) {
-                    const leftTinted =
-                      di > 0 && cellTinted(weeks[wi][di - 1])
-                    const topTinted =
-                      wi > 0 && cellTinted(weeks[wi - 1][di])
-                    scoop = monthScoopClass(monthTint, leftTinted, topTinted)
-                  }
                   // Strip cells (start cap / square / end cap) fill their grid
                   // column edge-to-edge so adjacent days read as ONE continuous
                   // period bar; the run ends are semicircle caps, the middle a
-                  // flush square. A lone day keeps the circle. Scoop cells
-                  // also fill the column so the tint connects flush with the
-                  // adjacent even-month block. Everything else stays the small
-                  // centered circle.
+                  // flush square. A lone day keeps the circle. Everything else
+                  // stays the small centered circle.
                   let cls =
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
+                  const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 === 0
                   if (isStrip) {
                     cls += ' w-full'
                     if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
                     else if (shape === 'end') cls += ' rounded-r-full rounded-l-none'
                     else cls += ' rounded-none'
-                  } else if (scoop) {
-                    cls += ' w-full rounded-none bg-slate-100'
                   } else if (monthTint) {
                     // Full-width month block cell (not a centered circle).
                     cls += ' w-full rounded-none'
@@ -546,6 +535,21 @@ export default function Calendar({
                   // Rounded corners on month-block outer edges.
                   const edgeCls = monthEdges.get(cell.iso)
                   if (edgeCls) cls += ' ' + edgeCls
+                  // Concave scoop: an untinted cell tucked into the inner
+                  // corner of an even-month block (tinted left AND top
+                  // neighbors) paints the tint itself and covers it with a
+                  // white rounded-tl overlay — tint outside, white inside.
+                  let scoop = ''
+                  if (!monthTint && cell.inMonth) {
+                    const leftTinted =
+                      di > 0 && cellTinted(weeks[wi][di - 1])
+                    const topTinted =
+                      wi > 0 && cellTinted(weeks[wi - 1][di])
+                    scoop = monthScoopClass(monthTint, leftTinted, topTinted)
+                  }
+                  if (scoop) {
+                    cls += ' bg-slate-100 w-full rounded-none'
+                  }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: simple border circle (no ring-offset that gets cut off).
                   // Selected: outline for non-period cells only.
@@ -590,7 +594,7 @@ export default function Calendar({
                         // handler so navigator.vibrate retains transient-
                         // activation context (setTimeout callbacks lose it on
                         // modern Chrome Android).  The delay is embedded in
-                        // the pattern itself: [LONG_PRESS_MS, 15, 15, 15].
+                        // the pattern itself: [LONG_PRESS_MS, 30, 30, 30].
                         hapticLongPress(LONG_PRESS_MS)
                         clearHold()
                         // Selection starts only after a long press: hold
