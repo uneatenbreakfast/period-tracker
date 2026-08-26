@@ -2,8 +2,9 @@
  * Range-run cell shapes — the "continuous strip" look for period runs and
  * drag previews. A run's first day gets a left semicircle cap, its last day
  * a right cap, interior days are flush squares, and a one-day run keeps the
- * full circle. Pure so the shape rules are unit-testable; the class assembly
- * lives in Calendar.tsx.
+ * full circle. Pure so the shape rules are unit-testable; the Tailwind
+ * layout/fill helpers (`cellLayoutClass`, `cellFillClass`) are defined here
+ * and consumed by Calendar.tsx.
  */
 import { addDays } from './dates'
 
@@ -55,4 +56,49 @@ export function monthScoopClass(
 ): string {
   if (selfTinted || !leftTinted || !topTinted) return ''
   return 'rounded-tl-xl'
+}
+
+/**
+ * Layout (width + corner rounding) for a calendar day cell. Period-shaped
+ * cells keep their capsule-strip / lone-circle geometry on EVERY month —
+ * including even-month tint-block months, where unshaped cells render as
+ * full-width flush squares instead of centered circles.
+ */
+export function cellLayoutClass(
+  shape: DayShape | null,
+  scoop: boolean,
+  monthTint: boolean,
+): string {
+  if (shape === 'single') return 'mx-auto w-full max-w-11 rounded-full'
+  if (shape === 'start') return 'w-full rounded-l-full rounded-r-none'
+  if (shape === 'end') return 'w-full rounded-r-full rounded-l-none'
+  if (shape) return 'w-full rounded-none'
+  if (scoop) return 'w-full rounded-none'
+  if (monthTint) return 'w-full rounded-none'
+  return 'mx-auto w-full max-w-11 rounded-full'
+}
+
+/**
+ * Fill/text classes for a day cell — emits EXACTLY ONE background utility.
+ * Stacking the month tint under a specific fill lets Tailwind's stylesheet
+ * emission order pick the winner (it picked slate over rose, painting period
+ * strips gray on tinted months), so precedence is decided here instead.
+ * A shaped period cell always paints rose; the scoop cell carries the tint
+ * itself (its white overlay reveals it in the scooped corner).
+ */
+export function cellFillClass(
+  shape: DayShape | null,
+  scoop: boolean,
+  fertile: boolean,
+  predicted: boolean,
+  monthTint: boolean,
+): string {
+  if (shape) return 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
+  if (scoop) return 'bg-slate-100'
+  if (fertile) return 'bg-lavender-100 font-semibold text-lavender-700'
+  if (predicted) {
+    return `${monthTint ? 'bg-slate-100 ' : ''}border-2 border-dashed border-rose-300 text-rose-400`
+  }
+  if (monthTint) return 'bg-slate-100'
+  return ''
 }

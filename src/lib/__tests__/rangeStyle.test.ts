@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dragShape, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
 
 const member = (set: Set<string>) => (iso: string) => set.has(iso)
 
@@ -126,5 +126,80 @@ describe('monthScoopClass', () => {
 
   it('returns empty string when neither neighbor is tinted', () => {
     expect(monthScoopClass(false, false, false)).toBe('')
+  })
+})
+
+// BLOOM-0017 — period selection styling must be identical on tinted (even)
+// and untinted months. Regression: the tint was stacked as a second bg class
+// under bg-rose-400 and Tailwind's emission order made slate win.
+describe('cellLayoutClass', () => {
+  it('capsule strip geometry identical on tinted and untinted months', () => {
+    for (const shape of ['start', 'middle', 'end'] as const) {
+      expect(cellLayoutClass(shape, false, true)).toBe(cellLayoutClass(shape, false, false))
+    }
+    expect(cellLayoutClass('start', false, true)).toBe('w-full rounded-l-full rounded-r-none')
+    expect(cellLayoutClass('middle', false, true)).toBe('w-full rounded-none')
+    expect(cellLayoutClass('end', false, true)).toBe('w-full rounded-r-full rounded-l-none')
+  })
+
+  it('a lone day keeps its circle even on a tinted month (was a square)', () => {
+    expect(cellLayoutClass('single', false, true)).toBe('mx-auto w-full max-w-11 rounded-full')
+    expect(cellLayoutClass('single', false, true)).toBe(cellLayoutClass('single', false, false))
+  })
+
+  it('unshaped cells: full-width square on tint months, centered circle otherwise', () => {
+    expect(cellLayoutClass(null, false, true)).toBe('w-full rounded-none')
+    expect(cellLayoutClass(null, false, false)).toBe('mx-auto w-full max-w-11 rounded-full')
+  })
+
+  it('scoop cells fill the column flush with the adjacent block', () => {
+    expect(cellLayoutClass(null, true, false)).toBe('w-full rounded-none')
+  })
+
+  it('shape wins over scoop layout', () => {
+    expect(cellLayoutClass('single', true, true)).toBe('mx-auto w-full max-w-11 rounded-full')
+  })
+})
+
+describe('cellFillClass', () => {
+  it('period shape paints rose on BOTH tinted and untinted months (identical)', () => {
+    for (const shape of ['single', 'start', 'middle', 'end'] as const) {
+      expect(cellFillClass(shape, false, false, false, true)).toBe(
+        cellFillClass(shape, false, false, false, false),
+      )
+    }
+    expect(cellFillClass('start', false, false, false, true)).toContain('bg-rose-400')
+    // exactly ONE background utility — no stacked tint under the fill
+    expect((cellFillClass('start', false, false, false, true).match(/bg-\S+/g) ?? []).length).toBe(1)
+  })
+
+  it('scoop cell carries the tint itself (overlay reveals the corner)', () => {
+    expect(cellFillClass(null, true, false, false, false)).toBe('bg-slate-100')
+  })
+
+  it('fertile window unchanged by tint', () => {
+    expect(cellFillClass(null, false, true, false, true)).toBe(
+      cellFillClass(null, false, true, false, false),
+    )
+    expect(cellFillClass(null, false, true, false, false)).toContain('bg-lavender-100')
+  })
+
+  it('predicted days keep tint under the dashed border on tinted months only', () => {
+    expect(cellFillClass(null, false, false, true, true)).toBe(
+      'bg-slate-100 border-2 border-dashed border-rose-300 text-rose-400',
+    )
+    expect(cellFillClass(null, false, false, true, false)).toBe(
+      'border-2 border-dashed border-rose-300 text-rose-400',
+    )
+  })
+
+  it('plain tint-month cells get the block background; untinted stay clear', () => {
+    expect(cellFillClass(null, false, false, false, true)).toBe('bg-slate-100')
+    expect(cellFillClass(null, false, false, false, false)).toBe('')
+  })
+
+  it('period fill wins over fertile/predicted markers', () => {
+    expect(cellFillClass('middle', false, true, true, true)).toContain('bg-rose-400')
+    expect(cellFillClass('middle', false, true, true, true)).not.toContain('lavender')
   })
 })

@@ -19,7 +19,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { dragShape, runShape, monthScoopClass } from '../lib/rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, monthScoopClass, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -512,8 +512,10 @@ export default function Calendar({
                         : null
                     : null
 
-                  const isStrip = shape === 'start' || shape === 'middle' || shape === 'end'
                   const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 === 0
+                  // Capsule strip membership (start/middle/end); a lone day
+                  // keeps its circle. Scoop cells also fill the column so the
+                  // tint connects flush with the adjacent even-month block.
                   // Concave scoop: an untinted cell tucked into the inner
                   // corner of an even-month block (tinted left AND top
                   // neighbors) paints the tint itself and covers it with a
@@ -535,32 +537,21 @@ export default function Calendar({
                   // centered circle.
                   let cls =
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
-                  if (isStrip) {
-                    cls += ' w-full'
-                    if (shape === 'start') cls += ' rounded-l-full rounded-r-none'
-                    else if (shape === 'end') cls += ' rounded-r-full rounded-l-none'
-                    else cls += ' rounded-none'
-                  } else if (scoop) {
-                    cls += ' w-full rounded-none bg-slate-100'
-                  } else if (monthTint) {
-                    // Full-width month block cell (not a centered circle).
-                    cls += ' w-full rounded-none'
-                  } else {
-                    cls += ' mx-auto w-full max-w-11 rounded-full'
-                  }
+                  // Layout: period-shaped cells keep their capsule/circle
+                  // geometry on every month (tinted or not); unshaped cells
+                  // are full-width squares on tint months, circles elsewhere.
+                  cls += ' ' + cellLayoutClass(shape, !!scoop, monthTint)
                   if (!cell.inMonth) cls += ' opacity-25'
-                  // Month block bg: every inMonth cell of an even month gets
-                  // the tint as a base — specific cell types override below.
-                  if (monthTint) cls += ' bg-slate-100'
-                  if (shape) {
-                    cls += ' bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
-                  } else if (isFertile) {
-                    cls += ' bg-lavender-100 font-semibold text-lavender-700'
-                  } else if (isPredicted) {
-                    cls += ' border-2 border-dashed border-rose-300 text-rose-400'
-                  }
-                  // Rounded corners on month-block outer edges.
-                  const edgeCls = monthEdges.get(cell.iso)
+                  // Fill: exactly ONE bg utility per cell — stacking the tint
+                  // under a specific fill let stylesheet emission order pick
+                  // slate over rose, painting strips gray on tinted months.
+                  cls += ' ' + cellFillClass(shape, !!scoop, isFertile, isPredicted, monthTint)
+                  if (!cell.inMonth) cls += ' hover:bg-rose-50'
+                  // Rounded corners on month-block outer edges — only on
+                  // unshaped cells; a period capsule/circle keeps its own
+                  // rounding (a block corner over a rose cap painted a
+                  // squared-off notch on tinted months).
+                  const edgeCls = shape ? undefined : monthEdges.get(cell.iso)
                   if (edgeCls) cls += ' ' + edgeCls
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: simple border circle (no ring-offset that gets cut off).
@@ -661,7 +652,7 @@ export default function Calendar({
                       className={`${cls}${scoop ? ' relative' : ''}`}
                       aria-label={cell.iso}
                     >
-                      {scoop ? (
+                      {scoop && !shape ? (
                         <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 bg-white rounded-tl-[12px]" style={{ left: '12px' }} />
                       ) : null}
                       {editHandle === 'start' ? grip : null}
