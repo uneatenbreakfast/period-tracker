@@ -162,15 +162,17 @@ describe('cellLayoutClass', () => {
 })
 
 describe('cellFillClass', () => {
-  it('period shape paints rose on BOTH tinted and untinted months (identical)', () => {
-    for (const shape of ['single', 'start', 'middle', 'end'] as const) {
-      expect(cellFillClass(shape, false, false, false, true)).toBe(
-        cellFillClass(shape, false, false, false, false),
-      )
-    }
-    expect(cellFillClass('start', false, false, false, true)).toContain('bg-rose-400')
-    // exactly ONE background utility — no stacked tint under the fill
-    expect((cellFillClass('start', false, false, false, true).match(/bg-\S+/g) ?? []).length).toBe(1)
+  it('caps on tinted months use gradient (transparent bg lets tint show); untinted stay solid rose', () => {
+    expect(cellFillClass('start', false, false, false, true)).toContain('linear-gradient')
+    expect(cellFillClass('start', false, false, false, true)).toContain('transparent')
+    expect(cellFillClass('end', false, false, false, true)).toContain('linear-gradient')
+    expect(cellFillClass('end', false, false, false, true)).toContain('transparent')
+    // Untinted caps unchanged — solid rose
+    expect(cellFillClass('start', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('end', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    // Middle + single still solid rose on tinted months (no cap transparency)
+    expect(cellFillClass('middle', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('single', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
   })
 
   it('scoop cell carries the tint itself (overlay reveals the corner)', () => {
