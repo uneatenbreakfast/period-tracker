@@ -92,11 +92,13 @@ export default function Calendar({
     if (holdTimer.current !== null) {
       window.clearTimeout(holdTimer.current)
       holdTimer.current = null
-      // The pointerdown scheduled a delayed pulse ([LONG_PRESS_MS, ...]) in
-      // the vibration pattern. If the hold is aborted (tap, scroll, drag),
-      // the queued pattern must be cancelled or it buzzes anyway.
-      cancelHaptic()
     }
+    // Always cancel haptic — the pointerdown scheduled a delayed pulse
+    // ([LONG_PRESS_MS, ...]) in the vibration pattern. If the hold is
+    // aborted (tap, scroll, drag) OR the timer already fired (leaving
+    // holdTimer null but a stale vibration pending from a previous
+    // gesture), the queued pattern must be cancelled or it buzzes anyway.
+    cancelHaptic()
   }
   useEffect(() => () => clearHold(), [])
   const rangeCompleteRef = useRef(onRangeComplete)
@@ -593,16 +595,28 @@ export default function Calendar({
                         dragRef.current = d
                         setDrag(d)
                         pressOrigin.current = { x: e.clientX, y: e.clientY }
+                        // Cancel any pending vibration from a previous press
+                        // BEFORE scheduling a new one — otherwise the new
+                        // hapticLongPress() schedules a vibration that
+                        // clearHold() won't cancel (it only cancels when
+                        // holdTimer.current !== null, which is false after
+                        // a release).
+                        clearHold()
                         // Fire the long-press vibration from the user-gesture
                         // handler so navigator.vibrate retains transient-
                         // activation context (setTimeout callbacks lose it on
                         // modern Chrome Android).  The delay is embedded in
                         // the pattern itself: [LONG_PRESS_MS, 30, 30, 30].
                         hapticLongPress(LONG_PRESS_MS)
-                        clearHold()
                         // Selection starts only after a long press: hold
                         // LONG_PRESS_MS without moving → arm the drag.
                         holdTimer.current = window.setTimeout(() => {
+                          // Timer fired — clear the ref so subsequent taps
+                          // don't see a stale ID (which would make clearHold
+                          // call cancelHaptic on the NEXT tap's freshly
+                          // scheduled vibration, or skip it on the tap after
+                          // that, causing the every-other-tap vibration bug).
+                          holdTimer.current = null
                           const cur = dragRef.current
                           if (!cur) return
                           const armed = armDrag(cur)
