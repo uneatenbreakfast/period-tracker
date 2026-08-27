@@ -618,10 +618,7 @@ export default function Calendar({
                         // LONG_PRESS_MS without moving → arm the drag.
                         holdTimer.current = window.setTimeout(() => {
                           // Timer fired — clear the ref so subsequent taps
-                          // don't see a stale ID (which would make clearHold
-                          // call cancelHaptic on the NEXT tap's freshly
-                          // scheduled vibration, or skip it on the tap after
-                          // that, causing the every-other-tap vibration bug).
+                          // don't see a stale ID.
                           holdTimer.current = null
                           const cur = dragRef.current
                           if (!cur) return
