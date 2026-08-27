@@ -92,13 +92,13 @@ export default function Calendar({
     if (holdTimer.current !== null) {
       window.clearTimeout(holdTimer.current)
       holdTimer.current = null
+      // Cancel haptic only when aborting BEFORE the timer fired — the
+      // pointerdown scheduled a delayed pulse ([LONG_PRESS_MS, ...]) that
+      // must be killed on tap/scroll/drag abort. After the timer fires
+      // naturally (holdTimer null), the vibration is intentional feedback
+      // and must NOT be cancelled by the subsequent pointerup clearHold.
+      cancelHaptic()
     }
-    // Always cancel haptic — the pointerdown scheduled a delayed pulse
-    // ([LONG_PRESS_MS, ...]) in the vibration pattern. If the hold is
-    // aborted (tap, scroll, drag) OR the timer already fired (leaving
-    // holdTimer null but a stale vibration pending from a previous
-    // gesture), the queued pattern must be cancelled or it buzzes anyway.
-    cancelHaptic()
   }
   useEffect(() => () => clearHold(), [])
   const rangeCompleteRef = useRef(onRangeComplete)
