@@ -266,15 +266,21 @@ export default function Calendar({
   // committed period day already owns the gesture, so release only commits
   // creation drags. A long-press tap on a non-flow day stays a plain tap
   // (DaySheet via the trailing click).
+  //
+  // Listener is ALWAYS attached — not gated on drag state. A conditional
+  // useEffect([drag !== null]) left gaps between taps where no pointerup
+  // listener existed; a quick tap's pointerup would fire before React
+  // re-rendered to attach the listener, so clearHold() never ran and the
+  // scheduled haptic buzzed 400ms later (every-other-tap vibration bug).
   useEffect(() => {
-    if (!drag) return
     const up = () => {
+      const d = dragRef.current
+      if (!d) return
       clearHold()
       stopAutoScroll()
-      const d = dragRef.current
       dragRef.current = null
       setDrag(null)
-      if (!d?.armed) return
+      if (!d.armed) return
       const range = commitDrag(d)
       if (range) {
         dragJustEnded.current = true
@@ -284,6 +290,7 @@ export default function Calendar({
     // Pointer cancel = the browser reclaimed the gesture (system gesture,
     // palm, interruption) — abort without committing.
     const cancel = () => {
+      if (!dragRef.current) return
       clearHold()
       dragRef.current = null
       setDrag(null)
@@ -295,8 +302,7 @@ export default function Calendar({
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', cancel)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drag !== null])
+  }, [])
 
   // Edit-handle drag: pointer down on a cap starts it; window moves extend
   // the bound to the cell under the pointer (with edge auto-scroll).
