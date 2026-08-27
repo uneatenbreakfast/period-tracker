@@ -36,18 +36,18 @@ describe('hapticPulse', () => {
 describe('hapticLongPress', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('embeds the delay as the first element of the vibration pattern', () => {
+  it('embeds the delay after a 0ms vibrate (pattern starts with pause)', () => {
     const vibrate = vi.fn(() => true)
     vi.stubGlobal('navigator', { vibrate })
     expect(hapticLongPress(400)).toBe(true)
-    expect(vibrate).toHaveBeenCalledWith([400, ...HAPTIC_DOUBLE_PULSE_PATTERN])
+    expect(vibrate).toHaveBeenCalledWith([0, 400, ...HAPTIC_DOUBLE_PULSE_PATTERN])
   })
 
   it('accepts a custom pattern after the delay', () => {
     const vibrate = vi.fn(() => true)
     vi.stubGlobal('navigator', { vibrate })
     hapticLongPress(300, [10, 40, 10])
-    expect(vibrate).toHaveBeenCalledWith([300, 10, 40, 10])
+    expect(vibrate).toHaveBeenCalledWith([0, 300, 10, 40, 10])
   })
 
   it('no-ops when navigator.vibrate is absent', () => {

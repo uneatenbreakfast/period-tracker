@@ -611,8 +611,8 @@ export default function Calendar({
                         // Fire the long-press vibration from the user-gesture
                         // handler so navigator.vibrate retains transient-
                         // activation context (setTimeout callbacks lose it on
-                        // modern Chrome Android).  The delay is embedded in
-                        // the pattern itself: [LONG_PRESS_MS, 30, 30, 30].
+                        // modern Chrome Android).  Pattern: [0, LONG_PRESS_MS, 30, 30, 30]
+                        // — 0ms vibrate, delay pause, then double pulse.
                         hapticLongPress(LONG_PRESS_MS)
                         // Selection starts only after a long press: hold
                         // LONG_PRESS_MS without moving → arm the drag.

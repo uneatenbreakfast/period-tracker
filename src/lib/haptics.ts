@@ -50,7 +50,9 @@ export function hapticLongPress(
   pattern: number[] = HAPTIC_DOUBLE_PULSE_PATTERN,
 ): boolean {
   if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false
-  return navigator.vibrate([delayMs, ...pattern])
+  // Pattern semantics: even indices = vibrate, odd indices = pause.
+  // To delay the pattern, start with 0ms vibrate, then delayMs pause.
+  return navigator.vibrate([0, delayMs, ...pattern])
 }
 
 /**

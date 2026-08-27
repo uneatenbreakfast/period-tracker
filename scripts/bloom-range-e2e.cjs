@@ -127,11 +127,11 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   stored = await storedEntries();
   if (stored.length === 0) ok('long press alone logged nothing (0 entries)');
   else fail('long press alone logged entries: ' + stored.length);
-  // [30, 30, 30] = HAPTIC_DOUBLE_PULSE_PATTERN in src/lib/haptics.ts — two
-  // bursts, one arm tick (even indices vibrate, odd indices pause).
+  // [0, 400, 30, 30, 30] = hapticLongPress pattern: 0ms vibrate, 400ms pause
+  // (the hold delay), then two 30ms bursts (HAPTIC_DOUBLE_PULSE_PATTERN).
   const v2 = await vibrateCalls();
-  if (v2.length === 1 && JSON.stringify(v2[0]) === '[15,15,15]') {
-    ok('long press fired the double pulse (selection armed)');
+  if (v2.length === 1 && JSON.stringify(v2[0]) === '[0,400,30,30,30]') {
+    ok('long press fired the delayed double pulse (selection armed)');
   } else fail('long press vibrate wrong: ' + JSON.stringify(v2));
 
   // STEP 3 — LONG-PRESS drag 10 → 13 (forward, same row): hold, then drag;
