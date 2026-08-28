@@ -119,7 +119,7 @@ describe('hapticTick', () => {
   it('tick pattern is a plain number, not an array (distinct from arm double-pulse)', () => {
     // E2E spies distinguish ticks from arm pulses by argument shape:
     // tick = single number (20), arm = array ([0, 400, 30, 30, 30]).
-    const vibrate = vi.fn(() => true)
+    const vibrate = vi.fn<(...args: number[][]) => true>(() => true)
     vi.stubGlobal('navigator', { vibrate })
     hapticTick()
     const arg = vibrate.mock.calls[0][0]
