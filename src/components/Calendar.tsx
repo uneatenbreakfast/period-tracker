@@ -9,7 +9,7 @@ import {
   WEEKDAY_LABELS,
 } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
-import { cancelHaptic, hapticLongPress } from '../lib/haptics'
+import { cancelHaptic, hapticLongPress, hapticTick } from '../lib/haptics'
 import {
   armDrag,
   beginDrag,
@@ -84,6 +84,9 @@ export default function Calendar({
   // the drag. Pre-arm movement aborts; quick taps never arm.
   const holdTimer = useRef<number | null>(null)
   const pressOrigin = useRef<{ x: number; y: number } | null>(null)
+  // Last ISO we fired a per-cell haptic tick for — prevents re-ticking while
+  // the pointer jitters within the same day cell during a drag.
+  const lastTickISORef = useRef<string | null>(null)
   const scrollElRef = useRef<HTMLDivElement | null>(null)
   const lastPointerRef = useRef({ x: 0, y: 0 })
   const autoScrollDirRef = useRef(0)
@@ -280,6 +283,7 @@ export default function Calendar({
       stopAutoScroll()
       dragRef.current = null
       setDrag(null)
+      lastTickISORef.current = null
       if (!d.armed) return
       const range = commitDrag(d)
       if (range) {
@@ -294,6 +298,7 @@ export default function Calendar({
       clearHold()
       dragRef.current = null
       setDrag(null)
+      lastTickISORef.current = null
       stopAutoScroll()
     }
     window.addEventListener('pointerup', up)
@@ -317,9 +322,21 @@ export default function Calendar({
         if (!prev) return prev
         // Range mode: long-press drag sets BOTH bounds from the press origin
         // to the cell under the pointer. Handle mode: only the tapped axis.
-        if (prev.dragMode === 'range') return extendEditRange(prev, iso, maxPeriodDays)
-        const axis = editAxisRef.current
-        return axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)
+        let next: EditRange | null = null
+        if (prev.dragMode === 'range') next = extendEditRange(prev, iso, maxPeriodDays)
+        else {
+          const axis = editAxisRef.current
+          next = axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)
+        }
+        // Per-cell tick on edit bound change (same transient-activation rule).
+        if (next) {
+          const bound = next.dragMode === 'range' ? next.end : editAxisRef.current === 'start' ? next.start : next.end
+          if (bound !== lastTickISORef.current) {
+            lastTickISORef.current = bound
+            hapticTick()
+          }
+        }
+        return next
       })
     }
     const end = () => {
@@ -481,7 +498,18 @@ export default function Calendar({
           // extend the armed drag to whatever day cell is under the pointer
           const iso = isoAt(e.clientX, e.clientY)
           if (!iso) return
-          setDrag((prev) => (prev ? extendDrag(prev, iso, maxPeriodDays) : prev))
+          setDrag((prev) => {
+            if (!prev) return prev
+            const next = extendDrag(prev, iso, maxPeriodDays)
+            // Per-cell haptic tick: fire when the drag end crosses into a new
+            // day. Called from pointermove (user gesture) so navigator.vibrate
+            // retains transient-activation context.
+            if (next && next.end !== lastTickISORef.current) {
+              lastTickISORef.current = next.end
+              hapticTick()
+            }
+            return next
+          })
         }}
       >
       {weeks.map((week, wi) => {
@@ -588,15 +616,18 @@ export default function Calendar({
                               prev ? { ...prev, dragMode: 'handle', pressOriginISO: prev.start } : prev,
                             )
                             setEditAxis('start')
+                            lastTickISORef.current = cell.iso
                           } else if (cell.iso === editRef.current.end) {
                             setEdit((prev) =>
                               prev ? { ...prev, dragMode: 'handle', pressOriginISO: prev.end } : prev,
                             )
                             setEditAxis('end')
+                            lastTickISORef.current = cell.iso
                           }
                           return
                         }
                         dragJustEnded.current = false
+                        lastTickISORef.current = cell.iso
                         const d = beginDrag(cell.iso)
                         dragRef.current = d
                         setDrag(d)

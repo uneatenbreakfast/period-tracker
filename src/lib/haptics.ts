@@ -11,6 +11,14 @@
 export const HAPTIC_PULSE_MS = 30
 
 /**
+ * Per-cell tick length (ms) — the shortest burst a phone vibration motor
+ * reliably renders. Sub-20ms pulses are below the motor's response time
+ * and read as nothing. Used as a subtle "new day selected" cue during
+ * a drag-to-range gesture.
+ */
+export const HAPTIC_TICK_MS = 20
+
+/**
  * Default feedback: a double pulse — two 30ms bursts separated by a 30ms
  * pause — so it reads as one distinct confirmation, not a UI tap.
  * Pattern semantics: even indices vibrate, odd indices pause.
@@ -64,4 +72,16 @@ export function hapticLongPress(
 export function cancelHaptic(): boolean {
   if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false
   return navigator.vibrate(0)
+}
+
+/**
+ * Single short pulse for discrete state changes (e.g. crossing into a new
+ * day cell mid-drag). Distinct from the arm double-pulse so E2E spies can
+ * tell them apart by pattern shape.
+ */
+export function hapticTick(): boolean {
+  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    return navigator.vibrate(HAPTIC_TICK_MS)
+  }
+  return false
 }

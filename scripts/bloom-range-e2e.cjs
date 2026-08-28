@@ -88,6 +88,16 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   // "PERIOD FLOW" is VACUOUS — the menstrual card's placeholder text also
   // contains "period flow" and is always rendered.)
   const sheetOpen = () => page.evaluate(() => !!document.querySelector('button[aria-label="Close"]'));
+  // Filter arm pulses (arrays) from ticks (plain numbers) and cancels (0).
+  // Every pointerdown queues a pattern; aborts (fast drag, quick tap) cancel
+  // it with vibrate(0). Net arm pulses = arrays - cancels.
+  const armPulseCount = async () =>
+    page.evaluate(() => {
+      const calls = window.__vibrate.calls;
+      const arrays = calls.filter((c) => Array.isArray(c)).length;
+      const cancels = calls.filter((c) => c === 0).length;
+      return arrays - cancels;
+    });
   const vibrateCalls = () => page.evaluate(() => window.__vibrate.calls);
 
   // STEP 1 — FAST mouse drag 15 → 16 (no hold): the long-press gate must
@@ -109,8 +119,8 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   if (!(await hasClass(d15, 'bg-rose-400')) && !(await hasClass(d16, 'bg-rose-400')))
     ok('cells 15/16 unstyled after fast drag');
   else fail('fast drag left cells styled');
-  if ((await vibrateCalls()).length === 0) ok('fast drag (no hold) fired no vibration');
-  else fail('fast drag vibrated: ' + JSON.stringify(await vibrateCalls()));
+  if ((await armPulseCount()) === 0) ok('fast drag (no hold) fired no arm pulse');
+  else fail('fast drag vibrated: arm count ' + (await armPulseCount()));
 
   // STEP 2 — long press WITHOUT a drag on 21: still a plain tap — DaySheet
   // opens, nothing logged.
@@ -129,10 +139,9 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   else fail('long press alone logged entries: ' + stored.length);
   // [0, 400, 30, 30, 30] = hapticLongPress pattern: 0ms vibrate, 400ms pause
   // (the hold delay), then two 30ms bursts (HAPTIC_DOUBLE_PULSE_PATTERN).
-  const v2 = await vibrateCalls();
-  if (v2.length === 1 && JSON.stringify(v2[0]) === '[0,400,30,30,30]') {
-    ok('long press fired the delayed double pulse (selection armed)');
-  } else fail('long press vibrate wrong: ' + JSON.stringify(v2));
+  // Net arm count = 1 (STEP 1's queued pattern was cancelled).
+  if ((await armPulseCount()) === 1) ok('long press fired the delayed double pulse (selection armed)');
+  else fail('long press vibrate wrong: arm count ' + (await armPulseCount()) + ' calls ' + JSON.stringify(await vibrateCalls()));
 
   // STEP 3 — LONG-PRESS drag 10 → 13 (forward, same row): hold, then drag;
   // live preview as we pass over cells, commit on release.
@@ -160,8 +169,14 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   else fail('preview: end day missing right cap');
   await page.mouse.up();
   await page.waitForTimeout(300);
-  if ((await vibrateCalls()).length === 2) ok('long-press drag armed with a second pulse');
-  else fail('arm pulse count wrong after STEP 3');
+  if ((await armPulseCount()) === 2) ok('long-press drag armed with a second pulse');
+  else fail('arm pulse count wrong after STEP 3: ' + (await armPulseCount()));
+  // Per-cell haptic ticks: drag crossed 10→13 (3 new cells), so at least 3
+  // tick calls (plain number 20) should be present alongside the arm pulses.
+  const v3 = await vibrateCalls();
+  const ticks3 = v3.filter((c) => typeof c === 'number' && c === 20);
+  if (ticks3.length >= 3) ok('drag fired per-cell haptic ticks (' + ticks3.length + ' ticks for 3 cell crossings)');
+  else fail('per-cell ticks missing or too few: ' + ticks3.length + ' (expected >=3)');
 
   // STEP 4 — committed range: start/end have rose, middles have month bg,
   // DaySheet NOT opened.
@@ -255,9 +270,10 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   if (!(await isHighlightedClass(d22, hasClass)) && !(await isHighlightedClass(d23, hasClass)))
     ok('quick touch swipe left no highlight');
   else fail('quick touch swipe highlighted cells');
-  // 3 pulses by now: STEP2 arm, STEP3 arm, backward-drag arm.
-  if ((await vibrateCalls()).length === 3) ok('quick touch swipe fired no vibration');
-  else fail('quick touch swipe vibrated');
+  // 3 arm pulses by now: STEP2 arm, STEP3 arm, backward-drag arm.
+  // (Per-cell ticks also fired during the drags but are filtered out.)
+  if ((await armPulseCount()) === 3) ok('quick touch swipe fired no extra arm pulse');
+  else fail('quick touch swipe vibrated: arm count ' + (await armPulseCount()));
 
   // STEP 10 — LONG-PRESS touch drag 22 → 25 must select a range, NOT scroll
   // the calendar. On a phone this was the reported bug: the browser grabbed
@@ -284,8 +300,8 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   else fail('touch drag strip caps missing');
   await touchEnd();
   await page.waitForTimeout(300);
-  if ((await vibrateCalls()).length === 4) ok('touch long-press armed with a pulse');
-  else fail('touch arm pulse missing: ' + JSON.stringify(await vibrateCalls()));
+  if ((await armPulseCount()) === 4) ok('touch long-press armed with a pulse');
+  else fail('touch arm pulse missing: arm count ' + (await armPulseCount()));
   stored = await storedEntries();
   const r4 = stored.filter((x) => x.date >= d22 && x.date <= d25);
   if (r4.length === 4 && stored.length === 4)
@@ -419,8 +435,8 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   );
   if (modalWhileHeld) ok('edit mode opened AT ARM (modal visible while still holding)');
   else fail('edit mode did not open until finger release');
-  if ((await vibrateCalls()).length === 5) ok('haptic pulse fired AT ARM (5 calls while still holding)');
-  else fail('pulse not fired at arm: ' + JSON.stringify(await vibrateCalls()));
+  if ((await armPulseCount()) === 5) ok('haptic pulse fired AT ARM (5 arm pulses while still holding)');
+  else fail('pulse not fired at arm: arm count ' + (await armPulseCount()));
   await page.mouse.up();
   await page.waitForTimeout(400);
   const modalShown = await page.evaluate(
@@ -444,8 +460,8 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   stored = await storedEntries();
   if (stored.length === 5) ok('edit entry committed nothing yet (5 entries still)');
   else fail('edit entry mutated storage: ' + stored.length);
-  if ((await vibrateCalls()).length === 5) ok('edit entry armed with the pulse (5 calls total)');
-  else fail('edit entry pulse count wrong: ' + JSON.stringify(await vibrateCalls()));
+  if ((await armPulseCount()) === 5) ok('edit entry armed with the pulse (5 arm pulses total)');
+  else fail('edit entry pulse count wrong: arm count ' + (await armPulseCount()));
 
   // STEP 15 — drag the START handle 23 → 21: the bound follows the pointer,
   // preview widens, nothing commits on release.
@@ -495,8 +511,8 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   else fail(`end handle did not advance: ${end16}`);
   await page.mouse.up();
   await page.waitForTimeout(300);
-  if ((await vibrateCalls()).length === 5) ok('handle drags fired no extra pulses (5 calls total)');
-  else fail('handle drag vibrated: ' + JSON.stringify(await vibrateCalls()));
+  if ((await armPulseCount()) === 5) ok('handle drags fired no extra arm pulses (5 arm pulses total)');
+  else fail('handle drag vibrated: arm count ' + (await armPulseCount()));
 
   // STEP 17 — SAVE commits the edited range (replaceRangeFlow semantics):
   // modal closes, storage covers 21..end16 + the lone day 14, strip re-forms.
@@ -533,8 +549,8 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   if (await page.evaluate(() => !!document.querySelector('[data-edit-modal]')))
     ok('re-entered edit mode AT ARM (modal visible while holding)');
   else fail('re-entry did not happen at arm');
-  if ((await vibrateCalls()).length === 6) ok('re-entry pulse fired at arm (6 calls)');
-  else fail('re-entry pulse wrong: ' + JSON.stringify(await vibrateCalls()));
+  if ((await armPulseCount()) === 6) ok('re-entry pulse fired at arm (6 arm pulses)');
+  else fail('re-entry pulse wrong: arm count ' + (await armPulseCount()));
   await page.mouse.up();
   await page.waitForTimeout(350);
   if ((await editHandleIso('start')) === d23 && (await editHandleIso('end')) === endIso)

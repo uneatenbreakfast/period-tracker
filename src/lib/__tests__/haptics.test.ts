@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cancelHaptic, HAPTIC_DOUBLE_PULSE_PATTERN, HAPTIC_PULSE_MS, hapticLongPress, hapticPulse } from '../haptics'
+import { cancelHaptic, HAPTIC_DOUBLE_PULSE_PATTERN, HAPTIC_PULSE_MS, HAPTIC_TICK_MS, hapticLongPress, hapticPulse, hapticTick } from '../haptics'
 
 describe('hapticPulse', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -97,5 +97,38 @@ describe('cancelHaptic', () => {
   it('no-ops when navigator.vibrate is absent', () => {
     vi.stubGlobal('navigator', {})
     expect(cancelHaptic()).toBe(false)
+  })
+})
+
+describe('hapticTick', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('fires a single short pulse (HAPTIC_TICK_MS) for per-cell feedback', () => {
+    const vibrate = vi.fn(() => true)
+    vi.stubGlobal('navigator', { vibrate })
+    expect(hapticTick()).toBe(true)
+    expect(vibrate).toHaveBeenCalledWith(HAPTIC_TICK_MS)
+  })
+
+  it('tick width is 20ms — minimum perceptible on phone vibration motors', () => {
+    // Sub-20ms pulses are below motor response time and read as nothing.
+    // This guards against accidental reduction that would silence the tick.
+    expect(HAPTIC_TICK_MS).toBe(20)
+  })
+
+  it('tick pattern is a plain number, not an array (distinct from arm double-pulse)', () => {
+    // E2E spies distinguish ticks from arm pulses by argument shape:
+    // tick = single number (20), arm = array ([0, 400, 30, 30, 30]).
+    const vibrate = vi.fn(() => true)
+    vi.stubGlobal('navigator', { vibrate })
+    hapticTick()
+    const arg = vibrate.mock.calls[0][0]
+    expect(typeof arg).toBe('number')
+    expect(Array.isArray(arg)).toBe(false)
+  })
+
+  it('no-ops when navigator.vibrate is absent', () => {
+    vi.stubGlobal('navigator', {})
+    expect(hapticTick()).toBe(false)
   })
 })
