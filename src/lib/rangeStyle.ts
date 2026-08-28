@@ -94,17 +94,9 @@ export function cellFillClass(
   monthTint: boolean,
 ): string {
   if (shape === 'start') {
-    if (monthTint) {
-      // Left half rose; rounded-l-full clips it to a semicircle cap
-      return 'bg-[linear-gradient(to_right,#fb7185_50%,transparent_50%)] font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
-    }
     return 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
   }
   if (shape === 'end') {
-    if (monthTint) {
-      // Right half rose; rounded-r-full clips it to a semicircle cap
-      return 'bg-[linear-gradient(to_left,#fb7185_50%,transparent_50%)] font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
-    }
     return 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
   }
   if (shape) return 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
