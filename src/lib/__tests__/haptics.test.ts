@@ -62,7 +62,7 @@ describe('hapticLongPress', () => {
   // This also preserves transient-activation context since the call happens
   // synchronously in the pointerdown handler, not in a setTimeout callback.
   it('REGRESSION: pattern starts with 0ms vibrate then delay pause (not immediate vibration)', () => {
-    const vibrate = vi.fn(() => true)
+    const vibrate = vi.fn<(...args: number[][]) => true>(() => true)
     vi.stubGlobal('navigator', { vibrate })
     hapticLongPress(400)
     const pattern = vibrate.mock.calls[0][0] as number[]
@@ -74,7 +74,7 @@ describe('hapticLongPress', () => {
   it('REGRESSION: must use hapticLongPress not hapticPulse for delayed feedback', () => {
     // hapticPulse fires immediately — wrong for long-press arm feedback.
     // hapticLongPress embeds delay in pattern for transient-activation safety.
-    const vibrate = vi.fn(() => true)
+    const vibrate = vi.fn<(...args: number[][]) => true>(() => true)
     vi.stubGlobal('navigator', { vibrate })
     hapticLongPress(400)
     const pattern = vibrate.mock.calls[0][0] as number[]
