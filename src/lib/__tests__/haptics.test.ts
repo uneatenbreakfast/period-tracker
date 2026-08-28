@@ -54,6 +54,37 @@ describe('hapticLongPress', () => {
     vi.stubGlobal('navigator', {})
     expect(hapticLongPress(400)).toBe(false)
   })
+
+  // REGRESSION: pattern MUST start with [0, delayMs, ...] not [delayMs, ...].
+  // Vibration pattern semantics: even indices = vibrate, odd indices = pause.
+  // [400, 30, 30, 30] vibrates 400ms IMMEDIATELY on pointerdown (unwanted buzz).
+  // [0, 400, 30, 30, 30] = 0ms vibrate (no-op) + 400ms pause + double pulse.
+  // This also preserves transient-activation context since the call happens
+  // synchronously in the pointerdown handler, not in a setTimeout callback.
+  it('REGRESSION: pattern starts with 0ms vibrate then delay pause (not immediate vibration)', () => {
+    const vibrate = vi.fn(() => true)
+    vi.stubGlobal('navigator', { vibrate })
+    hapticLongPress(400)
+    const pattern = vibrate.mock.calls[0][0] as number[]
+    expect(pattern[0]).toBe(0) // 0ms vibrate (no-op), NOT delayMs
+    expect(pattern[1]).toBe(400) // delay as pause (odd index)
+    expect(pattern.length).toBe(2 + HAPTIC_DOUBLE_PULSE_PATTERN.length)
+  })
+
+  it('REGRESSION: must use hapticLongPress not hapticPulse for delayed feedback', () => {
+    // hapticPulse fires immediately — wrong for long-press arm feedback.
+    // hapticLongPress embeds delay in pattern for transient-activation safety.
+    const vibrate = vi.fn(() => true)
+    vi.stubGlobal('navigator', { vibrate })
+    hapticLongPress(400)
+    const pattern = vibrate.mock.calls[0][0] as number[]
+    // Pattern length > default double-pulse proves delay prefix is present
+    expect(pattern.length).toBeGreaterThan(HAPTIC_DOUBLE_PULSE_PATTERN.length)
+    // First two elements are the delay prefix [0, delayMs]
+    expect(pattern.slice(0, 2)).toEqual([0, 400])
+    // Remaining elements are the actual vibration pattern
+    expect(pattern.slice(2)).toEqual(HAPTIC_DOUBLE_PULSE_PATTERN)
+  })
 })
 describe('cancelHaptic', () => {
   it('calls navigator.vibrate(0) to clear a pending pattern', () => {
