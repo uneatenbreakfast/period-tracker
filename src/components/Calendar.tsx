@@ -202,8 +202,17 @@ export default function Calendar({
     const onTouchMove = (e: TouchEvent) => {
       if (dragRef.current?.armed || editAxisRef.current) e.preventDefault()
     }
+    // Wheel veto: mouse wheel must not scroll the calendar while a drag
+    // is armed — the gesture owns vertical movement until release.
+    const onWheel = (e: WheelEvent) => {
+      if (dragRef.current?.armed || editAxisRef.current) e.preventDefault()
+    }
     el.addEventListener('touchmove', onTouchMove, { passive: false })
-    return () => el.removeEventListener('touchmove', onTouchMove)
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('wheel', onWheel)
+    }
   }, [])
 
   // While a drag is armed (or an edit handle is being dragged), hovering at
