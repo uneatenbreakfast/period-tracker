@@ -162,15 +162,13 @@ describe('cellLayoutClass', () => {
 })
 
 describe('cellFillClass', () => {
-  it('caps on tinted months use gradient (transparent bg lets tint show); untinted stay solid rose', () => {
-    expect(cellFillClass('start', false, false, false, true)).toContain('linear-gradient')
-    expect(cellFillClass('start', false, false, false, true)).toContain('transparent')
-    expect(cellFillClass('end', false, false, false, true)).toContain('linear-gradient')
-    expect(cellFillClass('end', false, false, false, true)).toContain('transparent')
+  it('caps solid rose on tinted months (single colour across range)', () => {
+    expect(cellFillClass('start', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('end', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
     // Untinted caps unchanged — solid rose
     expect(cellFillClass('start', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
     expect(cellFillClass('end', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    // Middle + single still solid rose on tinted months (no cap transparency)
+    // Middle + single still solid rose on tinted months
     expect(cellFillClass('middle', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
     expect(cellFillClass('single', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
   })
