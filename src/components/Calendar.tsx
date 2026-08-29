@@ -187,31 +187,47 @@ export default function Calendar({
     }
   }
 
-  // Touch veto: day cells are touch-pan-y so a REGULAR vertical swipe scrolls
-  // the calendar (BLOOM-0015 — touch-none made the whole day grid dead to
-  // scrolling). A swipe that the user never intends is a browser pan, so it
-  // must stay a scroll UNLESS a gesture is armed: once the long-press timer
-  // fired (or an edit handle is being dragged) the gesture belongs to the
-  // calendar, and the first touchmove is prevented from becoming a pan.
+  // Touch handling: day cells are touch-none so ALL touch events stay on the
+  // main thread (BLOOM-0015 — touch-pan-y let the compositor steal gestures
+  // before our veto could fire). Two modes:
+  //   1. Drag armed OR edit active → preventDefault blocks scroll, gesture
+  //      owns vertical movement.
+  //   2. Neither → JS-driven scroll: track last touch Y, apply delta to
+  //      scrollTop. Native scroll impossible because touch-none kills it.
   // Non-passive NATIVE listener — React's onTouchMove is passive and cannot
-  // preventDefault. touch-action is consulted at gesture start, so this veto
-  // is the only way to hand a cell touch to the selection after arming.
+  // preventDefault. Capture phase ensures we run before any bubble handler.
   useEffect(() => {
     const el = scrollElRef.current
     if (!el) return
+    let lastTouchY = 0
+    const onTouchStart = (e: TouchEvent) => {
+      lastTouchY = e.touches[0].clientY
+    }
     const onTouchMove = (e: TouchEvent) => {
-      if (dragRef.current?.armed || editAxisRef.current) e.preventDefault()
+      if (dragRef.current?.armed || editAxisRef.current) {
+        e.preventDefault()
+        return
+      }
+      // JS scroll fallback: no native scroll with touch-none cells.
+      const y = e.touches[0].clientY
+      const delta = lastTouchY - y
+      lastTouchY = y
+      el.scrollTop += delta
     }
     // Wheel veto: mouse wheel must not scroll the calendar while a drag
     // is armed — the gesture owns vertical movement until release.
     const onWheel = (e: WheelEvent) => {
       if (dragRef.current?.armed || editAxisRef.current) e.preventDefault()
     }
-    el.addEventListener('touchmove', onTouchMove, { passive: false })
-    el.addEventListener('wheel', onWheel, { passive: false })
+    // Capture phase: veto runs BEFORE browser processes scroll. Bubble phase
+    // is too late — the browser has already committed to the pan gesture.
+    el.addEventListener('touchstart', onTouchStart, { passive: true, capture: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
+    el.addEventListener('wheel', onWheel, { passive: false, capture: true })
     return () => {
-      el.removeEventListener('touchmove', onTouchMove)
-      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchstart', onTouchStart, { capture: true })
+      el.removeEventListener('touchmove', onTouchMove, { capture: true })
+      el.removeEventListener('wheel', onWheel, { capture: true })
     }
   }, [])
 
@@ -581,7 +597,7 @@ export default function Calendar({
                   // adjacent even-month block. Everything else stays the small
                   // centered circle.
                   let cls =
-                    'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-pan-y'
+                    'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-none'
                   // Layout: period-shaped cells keep their capsule/circle
                   // geometry on every month (tinted or not); unshaped cells
                   // are full-width squares on tint months, circles elsewhere.
