@@ -106,15 +106,15 @@ describe('editRange extendEditRange (range mode)', () => {
     expect(extendEditRange(base, '2026-08-11')).toBe(base)
   })
 
-  it('clamps to maxDays preserving direction (forward)', () => {
+  it('ignores maxDays — edit mode allows exceeding configured max (forward)', () => {
     const moved = extendEditRange(base, '2026-08-20', 3)
     expect(moved.start).toBe('2026-08-11')
-    expect(moved.end).toBe('2026-08-14')
+    expect(moved.end).toBe('2026-08-20')
   })
 
-  it('clamps to maxDays preserving direction (backward)', () => {
+  it('ignores maxDays — edit mode allows exceeding configured max (backward)', () => {
     const moved = extendEditRange(base, '2026-08-01', 3)
-    expect(moved.start).toBe('2026-08-08')
+    expect(moved.start).toBe('2026-08-01')
     expect(moved.end).toBe('2026-08-11')
   })
 
@@ -143,12 +143,12 @@ describe('editRange moveStart (handle mode only)', () => {
     expect(moveStart(base, '2026-08-10')).toBe(base)
   })
 
-  it('clamps start when maxDays would be exceeded', () => {
+  it('ignores maxDays — edit mode allows exceeding configured max', () => {
     const moved = moveStart(base, '2026-08-01', 2)
-    expect(moved.start).toBe('2026-08-10')
+    expect(moved.start).toBe('2026-08-01')
   })
 
-  it('maxDays allows move within limit', () => {
+  it('allows move beyond previous maxDays limit', () => {
     const moved = moveStart(base, '2026-08-05', 10)
     expect(moved.start).toBe('2026-08-05')
   })
@@ -179,12 +179,12 @@ describe('editRange moveEnd (handle mode only)', () => {
     expect(moveEnd(base, '2026-08-12')).toBe(base)
   })
 
-  it('clamps end when maxDays would be exceeded', () => {
+  it('ignores maxDays — edit mode allows exceeding configured max', () => {
     const moved = moveEnd(base, '2026-08-20', 2)
-    expect(moved.end).toBe('2026-08-12')
+    expect(moved.end).toBe('2026-08-20')
   })
 
-  it('maxDays allows move within limit', () => {
+  it('allows move beyond previous maxDays limit', () => {
     const moved = moveEnd(base, '2026-08-18', 10)
     expect(moved.end).toBe('2026-08-18')
   })

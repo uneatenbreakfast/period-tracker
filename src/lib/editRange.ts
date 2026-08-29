@@ -9,7 +9,7 @@
  * Kept pure so the semantics are unit-testable; pointer wiring lives in
  * Calendar.tsx.
  */
-import { addDays, diffDays } from './dates'
+import { addDays } from './dates'
 
 export interface EditRange {
   /** Committed run bounds before editing (cancel restores these) */
@@ -85,52 +85,44 @@ export function beginEditHandle(
 /**
  * Range-mode drag extension: the long-press cell is one bound, the cell now
  * under the pointer is the other. The edited range is the ascending span.
- * Respects maxPeriodDays by clamping the far end toward the press origin.
+ * Max period length is NOT enforced — editing an existing run is allowed to
+ * exceed the configured maximum so users can correct runs that were
+ * originally longer than the current setting.
  */
-export function extendEditRange(edit: EditRange, iso: string, maxDays?: number): EditRange {
+export function extendEditRange(edit: EditRange, iso: string, _maxDays?: number): EditRange {
   if (edit.dragMode !== 'range' || !edit.pressOriginISO) return edit
   // No movement from press origin — keep original committed bounds.
   if (iso === edit.pressOriginISO) return edit
   const a = edit.pressOriginISO
   const b = iso
-  let start = a <= b ? a : b
-  let end = a <= b ? b : a
-  if (maxDays != null) {
-    const dist = diffDays(end, start)
-    if (dist > maxDays) {
-      // Clamp the far end toward the press origin, preserving direction.
-      if (a <= b) end = addDays(start, maxDays)
-      else start = addDays(end, -maxDays)
-    }
-  }
+  const start = a <= b ? a : b
+  const end = a <= b ? b : a
   return edit.start === start && edit.end === end ? edit : { ...edit, start, end }
 }
 
 /**
  * Drag the start handle (handle mode only); clamped so it can't cross the
- * end (1-day minimum). Range-mode edits use `extendEditRange` instead.
+ * end (1-day minimum). Max period length is NOT enforced here — editing
+ * an existing run is allowed to exceed the configured maximum so users can
+ * correct runs that were originally longer than the current setting.
+ * Range-mode edits use `extendEditRange` instead.
  */
-export function moveStart(edit: EditRange, iso: string, maxDays?: number): EditRange {
+export function moveStart(edit: EditRange, iso: string, _maxDays?: number): EditRange {
   if (edit.dragMode !== 'handle') return edit
-  let start = iso <= edit.end ? iso : edit.end
-  if (maxDays != null) {
-    const dist = diffDays(edit.end, start)
-    if (dist > maxDays) start = addDays(edit.end, -maxDays)
-  }
+  const start = iso <= edit.end ? iso : edit.end
   return edit.start === start ? edit : { ...edit, start }
 }
 
 /**
  * Drag the end handle (handle mode only); clamped so it can't cross the
- * start (1-day minimum). Range-mode edits use `extendEditRange` instead.
+ * start (1-day minimum). Max period length is NOT enforced here — editing
+ * an existing run is allowed to exceed the configured maximum so users can
+ * correct runs that were originally longer than the current setting.
+ * Range-mode edits use `extendEditRange` instead.
  */
-export function moveEnd(edit: EditRange, iso: string, maxDays?: number): EditRange {
+export function moveEnd(edit: EditRange, iso: string, _maxDays?: number): EditRange {
   if (edit.dragMode !== 'handle') return edit
-  let end = iso >= edit.start ? iso : edit.start
-  if (maxDays != null) {
-    const dist = diffDays(end, edit.start)
-    if (dist > maxDays) end = addDays(edit.start, maxDays)
-  }
+  const end = iso >= edit.start ? iso : edit.start
   return edit.end === end ? edit : { ...edit, end }
 }
 
