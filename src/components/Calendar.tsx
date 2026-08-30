@@ -84,8 +84,6 @@ export default function Calendar({
   const lastTickISORef = useRef<string | null>(null)
   const scrollElRef = useRef<HTMLDivElement | null>(null)
   const lastPointerRef = useRef({ x: 0, y: 0 })
-  const autoScrollDirRef = useRef(0)
-  const rafRef = useRef(0)
   const clearHold = () => {
     if (holdTimer.current !== null) {
       window.clearTimeout(holdTimer.current)
