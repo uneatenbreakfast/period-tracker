@@ -517,11 +517,16 @@ export default function Calendar({
           const t = e.currentTarget.scrollTop
           setAtTop(t < 20)
         }}
-        className="-mx-5 h-[21rem] overflow-y-auto overscroll-contain px-5 select-none touch-none"
+        className={`-mx-5 h-[21rem] overscroll-contain px-5 select-none ${
+          drag || editAxis || edit ? 'overflow-hidden touch-none' : 'overflow-y-auto'
+        }`}
         onPointerMove={(e) => {
           lastPointerRef.current = { x: e.clientX, y: e.clientY }
-          updateAutoScroll(e.clientY)
+          // Auto-scroll only when gesture is active — not during hold phase.
           const d = dragRef.current
+          if (d?.armed || editAxisRef.current || editRef.current) {
+            updateAutoScroll(e.clientY)
+          }
           if (!d || editAxisRef.current) return
           if (!d.armed) {
             // Pre-arm movement beyond the slop aborts the long press — a fast
