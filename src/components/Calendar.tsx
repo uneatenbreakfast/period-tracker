@@ -204,7 +204,7 @@ export default function Calendar({
       lastTouchY = e.touches[0].clientY
     }
     const onTouchMove = (e: TouchEvent) => {
-      if (dragRef.current?.armed || editAxisRef.current) {
+      if (dragRef.current || editAxisRef.current || editRef.current) {
         e.preventDefault()
         return
       }
@@ -217,7 +217,7 @@ export default function Calendar({
     // Wheel veto: mouse wheel must not scroll the calendar while a drag
     // is armed — the gesture owns vertical movement until release.
     const onWheel = (e: WheelEvent) => {
-      if (dragRef.current?.armed || editAxisRef.current) e.preventDefault()
+      if (dragRef.current || editAxisRef.current || editRef.current) e.preventDefault()
     }
     // Capture phase: veto runs BEFORE browser processes scroll. Bubble phase
     // is too late — the browser has already committed to the pan gesture.
@@ -230,6 +230,21 @@ export default function Calendar({
       el.removeEventListener('wheel', onWheel, { capture: true })
     }
   }, [])
+
+  // Window-level scroll lock: when drag/edit active, prevent ANY page scroll.
+  // Calendar scroll box is locked via CSS + capture listeners, but touches on
+  // weekday strip, header, or body padding can still scroll the page itself.
+  useEffect(() => {
+    if (!drag && !editAxis && !edit) return
+    const veto = (e: TouchEvent) => e.preventDefault()
+    const wheelVeto = (e: WheelEvent) => e.preventDefault()
+    document.addEventListener('touchmove', veto, { passive: false, capture: true })
+    document.addEventListener('wheel', wheelVeto, { passive: false, capture: true })
+    return () => {
+      document.removeEventListener('touchmove', veto, { capture: true })
+      document.removeEventListener('wheel', wheelVeto, { capture: true })
+    }
+  }, [drag, editAxis, edit])
 
   // While a drag is armed (or an edit handle is being dragged), hovering at
   // the top/bottom edge of the scroll box keeps it scrolling — the range can
@@ -503,7 +518,7 @@ export default function Calendar({
           setAtTop(t < 20)
         }}
         className={`-mx-5 h-[21rem] overscroll-contain px-5 select-none ${
-          drag?.armed || editAxis ? 'overflow-hidden' : 'overflow-y-auto'
+          drag || editAxis || edit ? 'overflow-hidden touch-none' : 'overflow-y-auto'
         }`}
         onPointerMove={(e) => {
           lastPointerRef.current = { x: e.clientX, y: e.clientY }
