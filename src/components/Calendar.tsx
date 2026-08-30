@@ -24,11 +24,6 @@ import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
-/** Pointer within this many px of the scroll-box edge → auto-scroll while dragging. */
-const EDGE_PX = 64
-/** Auto-scroll speed while dragging at an edge (px per animation frame). */
-const AUTO_SCROLL_PX = 14
-
 interface CalendarProps {
   snap: Snapshot
   prediction: Prediction
@@ -179,14 +174,6 @@ export default function Calendar({
   })
   const hasFlowAt = (iso: string) => !!entriesRef.current.get(iso)?.flow
 
-  const stopAutoScroll = () => {
-    autoScrollDirRef.current = 0
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = 0
-    }
-  }
-
   // Touch handling: day cells are touch-none so ALL touch events stay on the
   // main thread (BLOOM-0015 — touch-pan-y let the compositor steal gestures
   // before our veto could fire). Two modes:
@@ -204,7 +191,7 @@ export default function Calendar({
       lastTouchY = e.touches[0].clientY
     }
     const onTouchMove = (e: TouchEvent) => {
-      if (dragRef.current?.armed || editAxisRef.current || editRef.current) {
+      if (dragRef.current || editAxisRef.current || editRef.current) {
         e.preventDefault()
         return
       }
@@ -219,9 +206,10 @@ export default function Calendar({
       el.scrollTop += delta
     }
     // Wheel veto: mouse wheel must not scroll the calendar while a drag
-    // is armed — the gesture owns vertical movement until release.
+    // is pending (hold timer running) or armed — the gesture owns vertical
+    // movement from press until release.
     const onWheel = (e: WheelEvent) => {
-      if (dragRef.current?.armed || editAxisRef.current || editRef.current) e.preventDefault()
+      if (dragRef.current || editAxisRef.current || editRef.current) e.preventDefault()
     }
     // Capture phase: veto runs BEFORE browser processes scroll. Bubble phase
     // is too late — the browser has already committed to the pan gesture.
@@ -249,7 +237,7 @@ export default function Calendar({
       if (dragRef.current || editAxisRef.current || editRef.current) e.preventDefault()
     }
     const wheelVeto = (e: WheelEvent) => {
-      if (dragRef.current?.armed || editAxisRef.current || editRef.current) e.preventDefault()
+      if (dragRef.current || editAxisRef.current || editRef.current) e.preventDefault()
     }
     document.addEventListener('touchmove', veto, { passive: false, capture: true })
     document.addEventListener('wheel', wheelVeto, { passive: false, capture: true })
@@ -265,7 +253,7 @@ export default function Calendar({
   // touchstart time, before our JS can react. Setting CSS touch-action: none
   // tells the browser upfront that NO element on the page should scroll via
   // touch. overflow: hidden is the belt to that suspenders.
-  const pageScrollLocked = (drag?.armed ?? false) || !!editAxis || !!edit
+  const pageScrollLocked = !!drag || !!editAxis || !!edit
   useEffect(() => {
     if (!pageScrollLocked) return
     const html = document.documentElement
@@ -286,40 +274,6 @@ export default function Calendar({
     }
   }, [pageScrollLocked])
 
-  // While a drag is armed (or an edit handle is being dragged), hovering at
-  // the top/bottom edge of the scroll box keeps it scrolling — the range can
-  // cross month after month in ONE gesture. The pointer itself never moves,
-  // so each frame re-hits the cell now under the stationary pointer.
-  const startAutoScroll = (dir: -1 | 1) => {
-    autoScrollDirRef.current = dir
-    if (rafRef.current) return
-    const tick = () => {
-      const dirNow = autoScrollDirRef.current
-      const el = scrollElRef.current
-      if (!el || dirNow === 0) {
-        rafRef.current = 0
-        return
-      }
-      el.scrollTop += dirNow * AUTO_SCROLL_PX
-      const p = lastPointerRef.current
-      const iso = isoAt(p.x, p.y)
-      if (iso) {
-        if (editAxisRef.current) {
-          setEdit((prev) => {
-            if (!prev) return prev
-            if (prev.dragMode === 'range') return extendEditRange(prev, iso, maxPeriodDays)
-            const axis = editAxisRef.current
-            return axis === 'start' ? moveStart(prev, iso, maxPeriodDays) : moveEnd(prev, iso, maxPeriodDays)
-          })
-        } else if (dragRef.current?.armed) {
-          setDrag((prev) => (prev ? extendDrag(prev, iso, maxPeriodDays) : prev))
-        }
-      }
-      rafRef.current = requestAnimationFrame(tick)
-    }
-    rafRef.current = requestAnimationFrame(tick)
-  }
-
   // Reveal another LOAD_STEP months of history behind the oldest loaded month.
   // Triggered by the "Load older periods" button (not auto-scroll) so the past
   // stays bounded until the user asks for more. Scroll position is held so the
@@ -333,15 +287,6 @@ export default function Calendar({
       const node = scrollElRef.current
       if (node) node.scrollTop += node.scrollHeight - prevHeight
     })
-  }
-
-  const updateAutoScroll = (clientY: number) => {
-    const el = scrollElRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const dir = clientY < rect.top + EDGE_PX ? -1 : clientY > rect.bottom - EDGE_PX ? 1 : 0
-    if (dir) startAutoScroll(dir)
-    else stopAutoScroll()
   }
 
   // Release (or cancel) anywhere ends the drag. Edit mode is entered AT ARM
@@ -360,7 +305,6 @@ export default function Calendar({
       const d = dragRef.current
       if (!d) return
       clearHold()
-      stopAutoScroll()
       dragRef.current = null
       setDrag(null)
       lastTickISORef.current = null
@@ -379,7 +323,6 @@ export default function Calendar({
       dragRef.current = null
       setDrag(null)
       lastTickISORef.current = null
-      stopAutoScroll()
     }
     window.addEventListener('pointerup', up)
     window.addEventListener('pointercancel', cancel)
@@ -390,12 +333,11 @@ export default function Calendar({
   }, [])
 
   // Edit-handle drag: pointer down on a cap starts it; window moves extend
-  // the bound to the cell under the pointer (with edge auto-scroll).
+  // the bound to the cell under the pointer.
   useEffect(() => {
     if (!editAxis) return
     const move = (e: PointerEvent) => {
       lastPointerRef.current = { x: e.clientX, y: e.clientY }
-      updateAutoScroll(e.clientY)
       const iso = isoAt(e.clientX, e.clientY)
       if (!iso) return
       setEdit((prev) => {
@@ -420,7 +362,6 @@ export default function Calendar({
       })
     }
     const end = () => {
-      stopAutoScroll()
       setEditAxis(null)
     }
     window.addEventListener('pointermove', move)
@@ -558,15 +499,11 @@ export default function Calendar({
           setAtTop(t < 20)
         }}
         className={`-mx-5 h-[21rem] overscroll-contain px-5 select-none touch-none ${
-          drag?.armed || editAxis || edit ? 'overflow-hidden' : 'overflow-y-auto'
+          drag || editAxis || edit ? 'overflow-hidden' : 'overflow-y-auto'
         }`}
         onPointerMove={(e) => {
           lastPointerRef.current = { x: e.clientX, y: e.clientY }
-          // Auto-scroll only when gesture is active — not during hold phase.
           const d = dragRef.current
-          if (d?.armed || editAxisRef.current || editRef.current) {
-            updateAutoScroll(e.clientY)
-          }
           if (!d || editAxisRef.current) return
           if (!d.armed) {
             // Pre-arm movement beyond the slop aborts the long press — a fast
@@ -769,7 +706,6 @@ export default function Calendar({
                         clearHold()
                         dragRef.current = null
                         setDrag(null)
-                        stopAutoScroll()
                       }}
                       onClick={() => {
                         // A drag commits on release; swallow the trailing click.
