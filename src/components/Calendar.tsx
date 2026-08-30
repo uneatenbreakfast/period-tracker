@@ -208,6 +208,10 @@ export default function Calendar({
         e.preventDefault()
         return
       }
+      // Pending drag (hold timer running) — block JS scroll. Finger should
+      // stay still for the long press. Movement > SLOP_PX clears drag via
+      // pointermove, then subsequent touchmoves resume JS scroll.
+      if (dragRef.current) return
       // JS scroll fallback: no native scroll with touch-none cells.
       const y = e.touches[0].clientY
       const delta = lastTouchY - y
@@ -236,18 +240,51 @@ export default function Calendar({
   // but touches on weekday strip, header, or body padding can still scroll
   // the page itself. Pre-arm hold must NOT lock — user may be starting a
   // regular scroll swipe, not a range gesture.
-  const dragArmed = drag?.armed ?? false
+  //
+  // Listener attached IMMEDIATELY (not conditionally) — gating inside the
+  // handler via refs avoids the re-render delay that left a gap where the
+  // page could scroll between arm-time and state-update-time.
   useEffect(() => {
-    if (!dragArmed && !editAxis && !edit) return
-    const veto = (e: TouchEvent) => e.preventDefault()
-    const wheelVeto = (e: WheelEvent) => e.preventDefault()
+    const veto = (e: TouchEvent) => {
+      if (dragRef.current || editAxisRef.current || editRef.current) e.preventDefault()
+    }
+    const wheelVeto = (e: WheelEvent) => {
+      if (dragRef.current?.armed || editAxisRef.current || editRef.current) e.preventDefault()
+    }
     document.addEventListener('touchmove', veto, { passive: false, capture: true })
     document.addEventListener('wheel', wheelVeto, { passive: false, capture: true })
     return () => {
       document.removeEventListener('touchmove', veto, { capture: true })
       document.removeEventListener('wheel', wheelVeto, { capture: true })
     }
-  }, [dragArmed, editAxis, edit])
+  }, [])
+
+  // PAGE-level scroll lock: when armed, set touch-action: none + overflow:
+  // hidden on html AND body. preventDefault on touchmove alone is NOT enough
+  // — the browser commits to a scroll gesture based on touch-action at
+  // touchstart time, before our JS can react. Setting CSS touch-action: none
+  // tells the browser upfront that NO element on the page should scroll via
+  // touch. overflow: hidden is the belt to that suspenders.
+  const pageScrollLocked = (drag?.armed ?? false) || !!editAxis || !!edit
+  useEffect(() => {
+    if (!pageScrollLocked) return
+    const html = document.documentElement
+    const body = document.body
+    const prevHtmlTouch = html.style.touchAction
+    const prevBodyTouch = body.style.touchAction
+    const prevHtmlOverflow = html.style.overflow
+    const prevBodyOverflow = body.style.overflow
+    html.style.touchAction = 'none'
+    body.style.touchAction = 'none'
+    html.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+    return () => {
+      html.style.touchAction = prevHtmlTouch
+      body.style.touchAction = prevBodyTouch
+      html.style.overflow = prevHtmlOverflow
+      body.style.overflow = prevBodyOverflow
+    }
+  }, [pageScrollLocked])
 
   // While a drag is armed (or an edit handle is being dragged), hovering at
   // the top/bottom edge of the scroll box keeps it scrolling — the range can
@@ -520,8 +557,8 @@ export default function Calendar({
           const t = e.currentTarget.scrollTop
           setAtTop(t < 20)
         }}
-        className={`-mx-5 h-[21rem] overscroll-contain px-5 select-none ${
-          drag?.armed || editAxis || edit ? 'overflow-hidden touch-none' : 'overflow-y-auto'
+        className={`-mx-5 h-[21rem] overscroll-contain px-5 select-none touch-none ${
+          drag?.armed || editAxis || edit ? 'overflow-hidden' : 'overflow-y-auto'
         }`}
         onPointerMove={(e) => {
           lastPointerRef.current = { x: e.clientX, y: e.clientY }
