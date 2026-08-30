@@ -517,9 +517,7 @@ export default function Calendar({
           const t = e.currentTarget.scrollTop
           setAtTop(t < 20)
         }}
-        className={`-mx-5 h-[21rem] overscroll-contain px-5 select-none ${
-          drag || editAxis || edit ? 'overflow-hidden touch-none' : 'overflow-y-auto'
-        }`}
+        className="-mx-5 h-[21rem] overflow-y-auto overscroll-contain px-5 select-none touch-none"
         onPointerMove={(e) => {
           lastPointerRef.current = { x: e.clientX, y: e.clientY }
           updateAutoScroll(e.clientY)
