@@ -69,9 +69,13 @@ export function cellLayoutClass(
   scoop: boolean,
   monthTint: boolean,
 ): string {
-  if (shape === 'single') return 'mx-auto w-full max-w-11 rounded-full'
-  if (shape === 'start') return 'w-full rounded-l-full rounded-r-none'
-  if (shape === 'end') return 'w-full rounded-r-full rounded-l-none'
+  // Tinted months: shaped cells render as full squares (tint bg) with the
+  // rose shape painted by an inner absolute span — the corners outside the
+  // cap rounding show the tint instead of the parent white. Non-tinted
+  // months keep the direct rounded geometry.
+  if (shape === 'single') return monthTint ? 'w-full rounded-none' : 'mx-auto w-full max-w-11 rounded-full'
+  if (shape === 'start') return monthTint ? 'w-full rounded-none' : 'w-full rounded-l-full rounded-r-none'
+  if (shape === 'end') return monthTint ? 'w-full rounded-none' : 'w-full rounded-r-full rounded-l-none'
   if (shape) return 'w-full rounded-none'
   if (scoop) return 'w-full rounded-none'
   if (monthTint) return 'w-full rounded-none'
@@ -93,13 +97,16 @@ export function cellFillClass(
   predicted: boolean,
   monthTint: boolean,
 ): string {
-  if (shape === 'start') {
-    return 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
+  if (shape) {
+    // Tinted months: cell paints the tint (slate-100) so corners outside the
+    // rounded cap show the month bg instead of the parent white. The rose
+    // shape is rendered as an inner absolute span (Calendar.tsx) so the
+    // shadow stays on the shape, not the tint cell.
+    // Non-tinted months: cell paints rose directly (corners are transparent).
+    return monthTint
+      ? 'bg-slate-100 font-bold text-white'
+      : 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
   }
-  if (shape === 'end') {
-    return 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
-  }
-  if (shape) return 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
   if (scoop) return 'bg-slate-100'
   if (fertile) return 'bg-lavender-100 font-semibold text-lavender-700'
   if (predicted) {

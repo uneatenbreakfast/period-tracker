@@ -779,6 +779,14 @@ export default function Calendar({
                       {scoop && !shape ? (
                         <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 bg-white rounded-tl-[12px]" style={{ left: '12px' }} />
                       ) : null}
+                      {shape && monthTint ? (
+                        <span
+                          aria-hidden
+                          className={`pointer-events-none absolute inset-0 bg-rose-400 shadow-[0_3px_10px_rgba(217,111,147,0.45)] ${
+                            shape === 'single' ? 'rounded-full' : shape === 'start' ? 'rounded-l-full' : shape === 'end' ? 'rounded-r-full' : ''
+                          }`}
+                        />
+                      ) : null}
                       {editHandle === 'start' ? grip : null}
                       <span className="relative z-10">
                         {isMonthStart && (

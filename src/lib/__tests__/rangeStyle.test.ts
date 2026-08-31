@@ -129,22 +129,26 @@ describe('monthScoopClass', () => {
   })
 })
 
-// BLOOM-0017 — period selection styling must be identical on tinted (even)
-// and untinted months. Regression: the tint was stacked as a second bg class
-// under bg-rose-400 and Tailwind's emission order made slate win.
+// Period selection on tinted months: cell paints the tint as a full square so
+// corners outside the cap rounding show the month bg instead of white; the
+// rose shape is rendered by an inner absolute span in Calendar.tsx. On
+// untinted months the cell itself carries the rounded geometry directly.
 describe('cellLayoutClass', () => {
-  it('capsule strip geometry identical on tinted and untinted months', () => {
-    for (const shape of ['start', 'middle', 'end'] as const) {
-      expect(cellLayoutClass(shape, false, true)).toBe(cellLayoutClass(shape, false, false))
-    }
-    expect(cellLayoutClass('start', false, true)).toBe('w-full rounded-l-full rounded-r-none')
-    expect(cellLayoutClass('middle', false, true)).toBe('w-full rounded-none')
-    expect(cellLayoutClass('end', false, true)).toBe('w-full rounded-r-full rounded-l-none')
+  it('untinted months: capsule strip geometry (rounded caps)', () => {
+    expect(cellLayoutClass('start', false, false)).toBe('w-full rounded-l-full rounded-r-none')
+    expect(cellLayoutClass('middle', false, false)).toBe('w-full rounded-none')
+    expect(cellLayoutClass('end', false, false)).toBe('w-full rounded-r-full rounded-l-none')
   })
 
-  it('a lone day keeps its circle even on a tinted month (was a square)', () => {
-    expect(cellLayoutClass('single', false, true)).toBe('mx-auto w-full max-w-11 rounded-full')
-    expect(cellLayoutClass('single', false, true)).toBe(cellLayoutClass('single', false, false))
+  it('tinted months: shaped cells render as full squares (inner span paints shape)', () => {
+    expect(cellLayoutClass('start', false, true)).toBe('w-full rounded-none')
+    expect(cellLayoutClass('middle', false, true)).toBe('w-full rounded-none')
+    expect(cellLayoutClass('end', false, true)).toBe('w-full rounded-none')
+    expect(cellLayoutClass('single', false, true)).toBe('w-full rounded-none')
+  })
+
+  it('untinted months: a lone day keeps its circle', () => {
+    expect(cellLayoutClass('single', false, false)).toBe('mx-auto w-full max-w-11 rounded-full')
   })
 
   it('unshaped cells: full-width square on tint months, centered circle otherwise', () => {
@@ -155,22 +159,21 @@ describe('cellLayoutClass', () => {
   it('scoop cells fill the column flush with the adjacent block', () => {
     expect(cellLayoutClass(null, true, false)).toBe('w-full rounded-none')
   })
-
-  it('shape wins over scoop layout', () => {
-    expect(cellLayoutClass('single', true, true)).toBe('mx-auto w-full max-w-11 rounded-full')
-  })
 })
 
 describe('cellFillClass', () => {
-  it('caps solid rose on tinted months (single colour across range)', () => {
-    expect(cellFillClass('start', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    expect(cellFillClass('end', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    // Untinted caps unchanged — solid rose
+  it('tinted months: cell paints the tint (inner span paints rose shape)', () => {
+    expect(cellFillClass('start', false, false, false, true)).toBe('bg-slate-100 font-bold text-white')
+    expect(cellFillClass('end', false, false, false, true)).toBe('bg-slate-100 font-bold text-white')
+    expect(cellFillClass('middle', false, false, false, true)).toBe('bg-slate-100 font-bold text-white')
+    expect(cellFillClass('single', false, false, false, true)).toBe('bg-slate-100 font-bold text-white')
+  })
+
+  it('untinted months: cell paints solid rose directly', () => {
     expect(cellFillClass('start', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
     expect(cellFillClass('end', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    // Middle + single still solid rose on tinted months
-    expect(cellFillClass('middle', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    expect(cellFillClass('single', false, false, false, true)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('middle', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('single', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
   })
 
   it('scoop cell carries the tint itself (overlay reveals the corner)', () => {
@@ -198,8 +201,12 @@ describe('cellFillClass', () => {
     expect(cellFillClass(null, false, false, false, false)).toBe('')
   })
 
-  it('period fill wins over fertile/predicted markers', () => {
-    expect(cellFillClass('middle', false, true, true, true)).toContain('bg-rose-400')
+  it('period fill wins over fertile/predicted markers (inner span paints rose on tinted months)', () => {
+    // Tinted: cell bg is slate-100 (inner span paints rose shape)
+    expect(cellFillClass('middle', false, true, true, true)).toContain('bg-slate-100')
     expect(cellFillClass('middle', false, true, true, true)).not.toContain('lavender')
+    // Untinted: cell bg is rose directly
+    expect(cellFillClass('middle', false, true, true, false)).toContain('bg-rose-400')
+    expect(cellFillClass('middle', false, true, true, false)).not.toContain('lavender')
   })
 })
