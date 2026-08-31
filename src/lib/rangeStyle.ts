@@ -98,20 +98,20 @@ export function cellFillClass(
   monthTint: boolean,
 ): string {
   if (shape) {
-    // Tinted months: cell paints the tint (slate-100) so corners outside the
+    // Tinted months: cell paints the tint (month-tint) so corners outside the
     // rounded cap show the month bg instead of the parent white. The rose
     // shape is rendered as an inner absolute span (Calendar.tsx) so the
     // shadow stays on the shape, not the tint cell.
     // Non-tinted months: cell paints rose directly (corners are transparent).
     return monthTint
-      ? 'bg-slate-100 font-bold text-white'
+      ? 'bg-month-tint font-bold text-white'
       : 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
   }
-  if (scoop) return 'bg-slate-100'
+  if (scoop) return 'bg-month-tint'
   if (fertile) return 'bg-lavender-100 font-semibold text-lavender-700'
   if (predicted) {
-    return `${monthTint ? 'bg-slate-100 ' : ''}border-2 border-dashed border-rose-300 text-rose-400`
+    return `${monthTint ? 'bg-month-tint ' : ''}border-2 border-dashed border-rose-300 text-rose-400`
   }
-  if (monthTint) return 'bg-slate-100'
+  if (monthTint) return 'bg-month-tint'
   return ''
 }
