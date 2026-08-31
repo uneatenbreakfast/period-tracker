@@ -253,7 +253,7 @@ export default function App() {
         />
       )}
 
-      <span className="pointer-events-none fixed bottom-1 left-2 z-0 font-mono text-[10px] text-ink-soft/50">
+      <span className="pointer-events-none fixed bottom-1 left-2 z-50 font-mono text-[10px] text-ink-soft">
         v{__APP_VERSION__}
       </span>
     </div>
