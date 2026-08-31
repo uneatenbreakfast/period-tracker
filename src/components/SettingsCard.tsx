@@ -53,9 +53,11 @@ function Stepper({ label, hint, value, min, max, testId, onChange }: StepperProp
 interface SettingsCardProps {
   settings: Settings
   onChange: (next: Settings) => void
+  onExport: () => void
+  onImport: (file: File) => void
 }
 
-export default function SettingsCard({ settings, onChange }: SettingsCardProps) {
+export default function SettingsCard({ settings, onChange, onExport, onImport }: SettingsCardProps) {
   return (
     <div className="rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
       <h2 className="text-sm font-extrabold uppercase tracking-wider text-ink-soft">Settings</h2>
@@ -81,6 +83,32 @@ export default function SettingsCard({ settings, onChange }: SettingsCardProps) 
           testId="settings-period-length"
           onChange={(periodLength) => onChange({ ...settings, periodLength })}
         />
+      </div>
+      <div className="mt-5 flex flex-col gap-2 border-t border-rose-100 pt-4">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-ink-soft">Data</h3>
+        <button
+          type="button"
+          onClick={onExport}
+          className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-600 transition-colors hover:bg-rose-100"
+        >
+          Export all data
+        </button>
+        <label className="cursor-pointer rounded-xl bg-white px-4 py-2.5 text-center text-sm font-bold text-rose-600 shadow-[0_2px_8px_rgba(217,111,147,0.15)] transition-colors hover:bg-rose-50">
+          Import data
+          <input
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onImport(file)
+              e.target.value = ''
+            }}
+          />
+        </label>
+        <p className="text-[11px] font-semibold text-ink-soft/70">
+          Export saves your period history and settings as a JSON file. Import replaces your current data.
+        </p>
       </div>
       <p className="mt-4 text-[11px] font-semibold text-ink-soft/80">Saved automatically on this device.</p>
     </div>

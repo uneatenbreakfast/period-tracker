@@ -4,6 +4,9 @@ Local markdown tracker (no GitHub Issues). Prefix: `BLOOM-`.
 
 ## Open
 
+### BLOOM-0018 — Export/Import data from Settings
+Settings card now has Export/Import buttons under a "Data" section. Export downloads `bloom-backup-YYYY-MM-DD.json` containing the full snapshot (entries + settings). Import reads a `.json` file, validates it via `parseSnapshot`, confirms with user before replacing current data. Uses existing `serializeSnapshot`/`parseSnapshot` for round-trip safety. New tests verify serialization, round-trip, invalid JSON rejection, version mismatch, and entry filtering. Completed 2026-08-31.
+
 ### BLOOM-0001 — Sync: server blob endpoint
 When sync feature is built: whole snapshot `serializeSnapshot()` uploads as blob; server stores opaque JSON; restore replaces local snapshot. Decide: endpoint shape, auth, conflict policy (last-write-wins probably, blob is atomic). Blocked on nothing; scheduled post-RN-planning. Not started.
 

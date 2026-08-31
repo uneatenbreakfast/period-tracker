@@ -14,9 +14,11 @@ import {
   deleteRangeFlow,
   getEntry,
   loadSnapshot,
+  parseSnapshot,
   removeEntry,
   replaceRangeFlow,
   saveSnapshot,
+  serializeSnapshot,
   upsertReact,
 } from './lib/storage'
 
@@ -106,6 +108,36 @@ export default function App() {
   // Delete button in edit mode: clears the committed range entirely.
   const deleteRange = (start: string, end: string) => {
     setSnap((s) => deleteRangeFlow(s, start, end))
+  }
+
+  const handleExport = () => {
+    const json = serializeSnapshot(snap)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `bloom-backup-${todayISO()}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result
+      if (typeof text !== 'string') return
+      const parsed = parseSnapshot(text)
+      if (!parsed) {
+        alert('Invalid backup file. Please select a valid Bloom export.')
+        return
+      }
+      if (confirm(`Import ${parsed.entries.length} days of data? This will replace your current data.`)) {
+        setSnap(parsed)
+      }
+    }
+    reader.readAsText(file)
   }
 
   const scrollToMonth = (year: number, month: number) => {
@@ -200,6 +232,8 @@ export default function App() {
           <SettingsCard
             settings={snap.settings}
             onChange={(settings) => setSnap((s) => ({ ...s, settings }))}
+            onExport={handleExport}
+            onImport={handleImport}
           />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
