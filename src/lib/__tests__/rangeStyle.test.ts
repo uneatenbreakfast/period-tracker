@@ -163,10 +163,10 @@ describe('cellLayoutClass', () => {
 
 describe('cellFillClass', () => {
   it('tinted months: cell paints the tint (inner span paints rose shape)', () => {
-    expect(cellFillClass('start', false, false, false, true)).toBe('bg-slate-100 font-bold text-white')
-    expect(cellFillClass('end', false, false, false, true)).toBe('bg-slate-100 font-bold text-white')
-    expect(cellFillClass('middle', false, false, false, true)).toBe('bg-slate-100 font-bold text-white')
-    expect(cellFillClass('single', false, false, false, true)).toBe('bg-slate-100 font-bold text-white')
+    expect(cellFillClass('start', false, false, false, true)).toBe('bg-month-tint font-bold text-white')
+    expect(cellFillClass('end', false, false, false, true)).toBe('bg-month-tint font-bold text-white')
+    expect(cellFillClass('middle', false, false, false, true)).toBe('bg-month-tint font-bold text-white')
+    expect(cellFillClass('single', false, false, false, true)).toBe('bg-month-tint font-bold text-white')
   })
 
   it('untinted months: cell paints solid rose directly', () => {
@@ -177,7 +177,7 @@ describe('cellFillClass', () => {
   })
 
   it('scoop cell carries the tint itself (overlay reveals the corner)', () => {
-    expect(cellFillClass(null, true, false, false, false)).toBe('bg-slate-100')
+    expect(cellFillClass(null, true, false, false, false)).toBe('bg-month-tint')
   })
 
   it('fertile window unchanged by tint', () => {
@@ -189,7 +189,7 @@ describe('cellFillClass', () => {
 
   it('predicted days keep tint under the dashed border on tinted months only', () => {
     expect(cellFillClass(null, false, false, true, true)).toBe(
-      'bg-slate-100 border-2 border-dashed border-rose-300 text-rose-400',
+      'bg-month-tint border-2 border-dashed border-rose-300 text-rose-400',
     )
     expect(cellFillClass(null, false, false, true, false)).toBe(
       'border-2 border-dashed border-rose-300 text-rose-400',
@@ -197,13 +197,13 @@ describe('cellFillClass', () => {
   })
 
   it('plain tint-month cells get the block background; untinted stay clear', () => {
-    expect(cellFillClass(null, false, false, false, true)).toBe('bg-slate-100')
+    expect(cellFillClass(null, false, false, false, true)).toBe('bg-month-tint')
     expect(cellFillClass(null, false, false, false, false)).toBe('')
   })
 
   it('period fill wins over fertile/predicted markers (inner span paints rose on tinted months)', () => {
-    // Tinted: cell bg is slate-100 (inner span paints rose shape)
-    expect(cellFillClass('middle', false, true, true, true)).toContain('bg-slate-100')
+    // Tinted: cell bg is month-tint (inner span paints rose shape)
+    expect(cellFillClass('middle', false, true, true, true)).toContain('bg-month-tint')
     expect(cellFillClass('middle', false, true, true, true)).not.toContain('lavender')
     // Untinted: cell bg is rose directly
     expect(cellFillClass('middle', false, true, true, false)).toContain('bg-rose-400')
