@@ -185,23 +185,75 @@ export default function Calendar({
     const el = scrollElRef.current
     if (!el) return
     let lastTouchY = 0
+    let lastTouchT = 0
+    let velocityY = 0          // px per ms, positive = scrolling down (content up)
+    let inertiaRAF: number | null = null
+    const stopInertia = () => {
+      if (inertiaRAF !== null) {
+        cancelAnimationFrame(inertiaRAF)
+        inertiaRAF = null
+      }
+    }
     const onTouchStart = (e: TouchEvent) => {
-      lastTouchY = e.touches[0].clientY
+      stopInertia()
+      const t = e.touches[0]
+      lastTouchY = t.clientY
+      lastTouchT = e.timeStamp
+      velocityY = 0
     }
     const onTouchMove = (e: TouchEvent) => {
       if (dragRef.current || editAxisRef.current || editRef.current) {
         e.preventDefault()
+        stopInertia()
         return
       }
       // Pending drag (hold timer running) — block JS scroll. Finger should
       // stay still for the long press. Movement > SLOP_PX clears drag via
       // pointermove, then subsequent touchmoves resume JS scroll.
-      if (dragRef.current) return
-      // JS scroll fallback: no native scroll with touch-none cells.
-      const y = e.touches[0].clientY
-      const delta = lastTouchY - y
+      if (dragRef.current) {
+        stopInertia()
+        return
+      }
+      const t = e.touches[0]
+      const now = e.timeStamp
+      const y = t.clientY
+      const dy = lastTouchY - y
+      const dt = Math.max(1, now - lastTouchT)
+      // Smoothed velocity: 70% new sample + 30% carry, dampens jitter.
+      velocityY = 0.7 * (dy / dt) + 0.3 * velocityY
       lastTouchY = y
-      el.scrollTop += delta
+      lastTouchT = now
+      el.scrollTop += dy
+    }
+    const onTouchEnd = () => {
+      if (dragRef.current || editAxisRef.current || editRef.current) return
+      // Kick off inertia only if finger was moving fast enough to matter.
+      if (Math.abs(velocityY) < 0.15) {
+        velocityY = 0
+        return
+      }
+      const FRICTION = 0.955       // per-frame velocity multiplier
+      const MIN_VEL = 0.03         // px/ms — below this, stop
+      let lastFrame = performance.now()
+      const step = (now: number) => {
+        const dt = now - lastFrame
+        lastFrame = now
+        velocityY *= Math.pow(FRICTION, dt / 16.67)
+        if (Math.abs(velocityY) < MIN_VEL) {
+          inertiaRAF = null
+          return
+        }
+        el.scrollTop += velocityY * dt
+        // Clamp: stop inertia at bounds (don't rubber-band).
+        const atTop = el.scrollTop <= 0
+        const atBot = el.scrollTop + el.clientHeight >= el.scrollHeight
+        if ((atTop && velocityY < 0) || (atBot && velocityY > 0)) {
+          inertiaRAF = null
+          return
+        }
+        inertiaRAF = requestAnimationFrame(step)
+      }
+      inertiaRAF = requestAnimationFrame(step)
     }
     // Wheel veto: mouse wheel must not scroll the calendar while a drag
     // is pending (hold timer running) or armed — the gesture owns vertical
@@ -213,10 +265,15 @@ export default function Calendar({
     // is too late — the browser has already committed to the pan gesture.
     el.addEventListener('touchstart', onTouchStart, { passive: true, capture: true })
     el.addEventListener('touchmove', onTouchMove, { passive: false, capture: true })
+    el.addEventListener('touchend', onTouchEnd, { passive: true, capture: true })
+    el.addEventListener('touchcancel', stopInertia, { passive: true, capture: true })
     el.addEventListener('wheel', onWheel, { passive: false, capture: true })
     return () => {
+      stopInertia()
       el.removeEventListener('touchstart', onTouchStart, { capture: true })
       el.removeEventListener('touchmove', onTouchMove, { capture: true })
+      el.removeEventListener('touchend', onTouchEnd, { capture: true })
+      el.removeEventListener('touchcancel', stopInertia, { capture: true })
       el.removeEventListener('wheel', onWheel, { capture: true })
     }
   }, [])
