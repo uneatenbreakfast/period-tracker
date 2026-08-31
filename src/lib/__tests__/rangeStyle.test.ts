@@ -196,9 +196,9 @@ describe('cellFillClass', () => {
     )
   })
 
-  it('plain tint-month cells get the block background; untinted stay clear', () => {
+  it('plain tint-month cells get the block background; untinted get explicit white (cream parent bleeds through otherwise)', () => {
     expect(cellFillClass(null, false, false, false, true)).toBe('bg-month-tint')
-    expect(cellFillClass(null, false, false, false, false)).toBe('')
+    expect(cellFillClass(null, false, false, false, false)).toBe('bg-white')
   })
 
   it('period fill wins over fertile/predicted markers (inner span paints rose on tinted months)', () => {

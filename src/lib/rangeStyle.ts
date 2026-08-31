@@ -113,5 +113,5 @@ export function cellFillClass(
     return `${monthTint ? 'bg-month-tint ' : ''}border-2 border-dashed border-rose-300 text-rose-400`
   }
   if (monthTint) return 'bg-month-tint'
-  return ''
+  return 'bg-white'
 }
