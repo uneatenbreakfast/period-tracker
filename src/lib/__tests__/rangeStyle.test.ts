@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellFillClass, cellLayoutClass, dragShape, monthInverseScoopClass, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, monthEdgeOverride, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
 
 const member = (set: Set<string>) => (iso: string) => set.has(iso)
 
@@ -129,25 +129,35 @@ describe('monthScoopClass', () => {
   })
 })
 
-describe('monthInverseScoopClass', () => {
-  it('returns rounded-bl-xl when 1st of tinted month with untinted left neighbor', () => {
-    expect(monthInverseScoopClass(true, true, true)).toBe('rounded-bl-xl')
+describe('monthEdgeOverride', () => {
+  it('strips left rounding on 1st of tinted month', () => {
+    const base = 'w-full rounded-tl-xl rounded-bl-xl bg-month-tint'
+    expect(monthEdgeOverride(true, false, true, null, base)).toBe('w-full   bg-month-tint')
   })
 
-  it('returns empty string when not month start', () => {
-    expect(monthInverseScoopClass(false, true, true)).toBe('')
+  it('adds rounded-br-xl on last day of tinted month', () => {
+    const base = 'w-full bg-month-tint'
+    expect(monthEdgeOverride(false, true, true, null, base)).toBe('w-full bg-month-tint rounded-br-xl')
   })
 
-  it('returns empty string when self is untinted (odd month)', () => {
-    expect(monthInverseScoopClass(true, false, true)).toBe('')
+  it('both 1st AND last day (single-day month? edge case): strips left, adds br', () => {
+    const base = 'w-full rounded-tl-xl bg-month-tint'
+    expect(monthEdgeOverride(true, true, true, null, base)).toBe('w-full  bg-month-tint rounded-br-xl')
   })
 
-  it('returns empty string when left neighbor is tinted (same or even month)', () => {
-    expect(monthInverseScoopClass(true, true, false)).toBe('')
+  it('no-op when not tinted', () => {
+    const base = 'mx-auto w-full max-w-11 rounded-full'
+    expect(monthEdgeOverride(true, true, false, null, base)).toBe(base)
   })
 
-  it('returns empty string when no left neighbor (di=0, leftUntinted=false)', () => {
-    expect(monthInverseScoopClass(true, true, false)).toBe('')
+  it('no-op when shaped (period cell)', () => {
+    const base = 'w-full rounded-none bg-month-tint'
+    expect(monthEdgeOverride(true, true, true, 'middle', base)).toBe(base)
+  })
+
+  it('does not duplicate rounded-br-xl if already present', () => {
+    const base = 'w-full rounded-br-xl bg-month-tint'
+    expect(monthEdgeOverride(false, true, true, null, base)).toBe(base)
   })
 })
 

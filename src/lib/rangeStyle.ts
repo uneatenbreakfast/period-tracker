@@ -59,19 +59,28 @@ export function monthScoopClass(
 }
 
 /**
- * Inverse concave corner for the 1st of a tinted (even) month. The bottom-left
- * corner curves inward so one side shows the month's teal tint and the other
- * shows the previous month's background (white for odd months). Returns '' when
- * no inverse scoop applies (needs the cell to be the 1st, tinted, and the cell
- * to the left to exist AND be untinted).
+ * Month boundary overrides for tinted-month background blocks.
+ * - 1st of tinted month: square left edge (strip any rounded-tl/bl).
+ * - Last day of tinted month: rounded bottom-right corner.
+ * Shaped (period) cells keep their own geometry — override skipped.
+ * Returns the adjusted class string.
  */
-export function monthInverseScoopClass(
+export function monthEdgeOverride(
   isMonthStart: boolean,
-  selfTinted: boolean,
-  leftUntinted: boolean,
+  isMonthEnd: boolean,
+  monthTint: boolean,
+  shape: DayShape | null,
+  baseCls: string,
 ): string {
-  if (!isMonthStart || !selfTinted || !leftUntinted) return ''
-  return 'rounded-bl-xl'
+  if (!monthTint || shape) return baseCls
+  let cls = baseCls
+  if (isMonthStart) {
+    cls = cls.replace(/\brounded-tl-xl\b/g, '').replace(/\brounded-bl-xl\b/g, '')
+  }
+  if (isMonthEnd && !cls.includes('rounded-br-xl')) {
+    cls += ' rounded-br-xl'
+  }
+  return cls
 }
 
 /**
