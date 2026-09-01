@@ -59,6 +59,22 @@ export function monthScoopClass(
 }
 
 /**
+ * Inverse concave corner for the 1st of a tinted (even) month. The bottom-left
+ * corner curves inward so one side shows the month's teal tint and the other
+ * shows the previous month's background (white for odd months). Returns '' when
+ * no inverse scoop applies (needs the cell to be the 1st, tinted, and the cell
+ * to the left to exist AND be untinted).
+ */
+export function monthInverseScoopClass(
+  isMonthStart: boolean,
+  selfTinted: boolean,
+  leftUntinted: boolean,
+): string {
+  if (!isMonthStart || !selfTinted || !leftUntinted) return ''
+  return 'rounded-bl-xl'
+}
+
+/**
  * Layout (width + corner rounding) for a calendar day cell. Period-shaped
  * cells keep their capsule-strip / lone-circle geometry on EVERY month —
  * including even-month tint-block months, where unshaped cells render as

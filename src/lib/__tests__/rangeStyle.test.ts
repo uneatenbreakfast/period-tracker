@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellFillClass, cellLayoutClass, dragShape, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, monthInverseScoopClass, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
 
 const member = (set: Set<string>) => (iso: string) => set.has(iso)
 
@@ -126,6 +126,28 @@ describe('monthScoopClass', () => {
 
   it('returns empty string when neither neighbor is tinted', () => {
     expect(monthScoopClass(false, false, false)).toBe('')
+  })
+})
+
+describe('monthInverseScoopClass', () => {
+  it('returns rounded-bl-xl when 1st of tinted month with untinted left neighbor', () => {
+    expect(monthInverseScoopClass(true, true, true)).toBe('rounded-bl-xl')
+  })
+
+  it('returns empty string when not month start', () => {
+    expect(monthInverseScoopClass(false, true, true)).toBe('')
+  })
+
+  it('returns empty string when self is untinted (odd month)', () => {
+    expect(monthInverseScoopClass(true, false, true)).toBe('')
+  })
+
+  it('returns empty string when left neighbor is tinted (same or even month)', () => {
+    expect(monthInverseScoopClass(true, true, false)).toBe('')
+  })
+
+  it('returns empty string when no left neighbor (di=0, leftUntinted=false)', () => {
+    expect(monthInverseScoopClass(true, true, false)).toBe('')
   })
 })
 

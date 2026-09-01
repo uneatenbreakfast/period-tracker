@@ -19,7 +19,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellLayoutClass, dragShape, monthScoopClass, runShape } from '../lib/rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, monthInverseScoopClass, monthScoopClass, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -641,6 +641,15 @@ export default function Calendar({
                       wi > 0 && cellTinted(weeks[wi - 1][di])
                     scoop = monthScoopClass(monthTint, leftTinted, topTinted)
                   }
+                  // Inverse scoop: concave bottom-left on the 1st of a tinted
+                  // (even) month when the cell to its left exists and is untinted
+                  // (previous odd month). The teal curves inward, meeting the
+                  // white background of the previous month.
+                  const inverseScoop = monthInverseScoopClass(
+                    isMonthStart,
+                    monthTint,
+                    di > 0 && !cellTinted(weeks[wi][di - 1]),
+                  )
                   // Strip cells (start cap / square / end cap) fill their grid
                   // column edge-to-edge so adjacent days read as ONE continuous
                   // period bar; the run ends are semicircle caps, the middle a
@@ -778,6 +787,9 @@ export default function Calendar({
                     >
                       {scoop && !shape ? (
                         <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 bg-white rounded-tl-[12px]" style={{ left: '12px' }} />
+                      ) : null}
+                      {inverseScoop && !shape ? (
+                        <span aria-hidden className="pointer-events-none absolute bottom-0 left-0 bg-white rounded-tr-[12px]" style={{ width: '12px', height: '12px' }} />
                       ) : null}
                       {shape && monthTint ? (
                         <span
