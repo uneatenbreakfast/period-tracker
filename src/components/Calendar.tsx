@@ -675,9 +675,13 @@ export default function Calendar({
                     const isMonthEnd = nextDay.slice(5, 7) !== cell.iso.slice(5, 7)
                     cls = monthEdgeOverride(isMonthStart, isMonthEnd, monthTint, shape, cls)
                   }
-                  // 1st of tinted month: zero left border so the teal tint
-                  // doesn't show a visible left edge.
-                  if (isMonthStart && monthTint && !shape) cls += ' border-l-0'
+                  // 1st of month: zero left border + full-width square so the
+                  // previous month's tint doesn't spill through transparent
+                  // corners of a centered circle.
+                  if (isMonthStart && !shape) {
+                    cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '').replace(/\brounded-full\b/g, '')
+                    cls += ' border-l-0 rounded-l-none'
+                  }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: simple border circle (no ring-offset that gets cut off).
                   // Selected: outline for non-period cells only.
