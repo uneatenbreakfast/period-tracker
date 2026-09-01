@@ -790,7 +790,7 @@ export default function Calendar({
                       {editHandle === 'start' ? grip : null}
                       <span className="relative z-10">
                         {isMonthStart && (
-                          <sup className="text-[8px] font-bold uppercase leading-none tracking-wide">
+                          <sup className={`text-[8px] font-bold uppercase leading-none tracking-wide ${edit ? 'border-l-2 border-rose-400 pl-0.5' : ''}`}>
                             {MONTH_NAMES[Number(cell.iso.slice(5, 7)) - 1].slice(0, 3)}
                           </sup>
                         )}
