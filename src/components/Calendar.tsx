@@ -668,13 +668,16 @@ export default function Calendar({
                   const edgeCls = shape ? undefined : monthEdges.get(cell.iso)
                   if (edgeCls) cls += ' ' + edgeCls
                   // Month boundary overrides for tinted months:
-                  // - 1st of month: square left edge (no rounding)
+                  // - 1st of month: square left edge (no rounding), no left border
                   // - Last day: rounded bottom-right corner
                   if (monthTint && !shape) {
                     const nextDay = addDays(cell.iso, 1)
                     const isMonthEnd = nextDay.slice(5, 7) !== cell.iso.slice(5, 7)
                     cls = monthEdgeOverride(isMonthStart, isMonthEnd, monthTint, shape, cls)
                   }
+                  // 1st of tinted month: zero left border so the teal tint
+                  // doesn't show a visible left edge.
+                  if (isMonthStart && monthTint && !shape) cls += ' border-l-0'
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: simple border circle (no ring-offset that gets cut off).
                   // Selected: outline for non-period cells only.
