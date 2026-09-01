@@ -677,10 +677,11 @@ export default function Calendar({
                   }
                   // 1st of month: zero left border + full-width square so the
                   // previous month's tint doesn't spill through transparent
-                  // corners of a centered circle. Also strip background tint
-                  // so the cell stays transparent.
+                  // corners of a centered circle. Tinted months keep their
+                  // bg-month-tint fill; non-tinted months never had it.
                   if (isMonthStart && !shape) {
-                    cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '').replace(/\brounded-full\b/g, '').replace(/\bbg-month-tint\b/g, '')
+                    cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '').replace(/\brounded-full\b/g, '')
+                    if (!monthTint) cls = cls.replace(/\bbg-month-tint\b/g, '')
                     cls += ' border-l-0 rounded-l-none'
                   }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
