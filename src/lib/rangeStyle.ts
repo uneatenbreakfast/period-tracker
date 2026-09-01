@@ -59,6 +59,23 @@ export function monthScoopClass(
 }
 
 /**
+ * First-day-of-untinted-month tint bleed: when the 1st of an odd month
+ * sits directly right of the last day of an even (tinted) month in the
+ * same grid row, the cell inherits the tint block's background so the
+ * visual seam is continuous. Returns classes to apply; '' otherwise.
+ * Shaped (period) cells are excluded — they carry their own rose fill.
+ */
+export function firstDayTintBleed(
+  isMonthStart: boolean,
+  monthTint: boolean,
+  leftTinted: boolean,
+  shape: DayShape | null,
+): string {
+  if (!isMonthStart || monthTint || !leftTinted || shape) return ''
+  return 'bg-month-tint rounded-tl-xl text-white'
+}
+
+/**
  * Month boundary overrides for tinted-month background blocks.
  * - 1st of tinted month: rounded top-left corner (XL).
  * - Last day of tinted month: rounded bottom-right corner.

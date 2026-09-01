@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellFillClass, cellLayoutClass, dragShape, monthEdgeOverride, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, firstDayTintBleed, monthEdgeOverride, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
 
 const member = (set: Set<string>) => (iso: string) => set.has(iso)
 
@@ -195,6 +195,31 @@ describe('cellLayoutClass', () => {
 
   it('scoop cells fill the column flush with the adjacent block', () => {
     expect(cellLayoutClass(null, true, false)).toBe('w-full rounded-none')
+  })
+})
+
+describe('firstDayTintBleed', () => {
+  it('returns tint classes when 1st of untinted month has tinted left neighbor', () => {
+    expect(firstDayTintBleed(true, false, true, null)).toBe('bg-month-tint rounded-tl-xl text-white')
+  })
+
+  it('returns empty when not month start', () => {
+    expect(firstDayTintBleed(false, false, true, null)).toBe('')
+  })
+
+  it('returns empty when month is tinted (already has tint bg)', () => {
+    expect(firstDayTintBleed(true, true, true, null)).toBe('')
+  })
+
+  it('returns empty when left neighbor not tinted', () => {
+    expect(firstDayTintBleed(true, false, false, null)).toBe('')
+  })
+
+  it('returns empty when shaped (period cell carries own fill)', () => {
+    expect(firstDayTintBleed(true, false, true, 'start')).toBe('')
+    expect(firstDayTintBleed(true, false, true, 'middle')).toBe('')
+    expect(firstDayTintBleed(true, false, true, 'end')).toBe('')
+    expect(firstDayTintBleed(true, false, true, 'single')).toBe('')
   })
 })
 

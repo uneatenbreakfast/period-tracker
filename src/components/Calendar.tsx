@@ -20,7 +20,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellLayoutClass, dragShape, monthEdgeOverride, monthScoopClass, runShape } from '../lib/rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, firstDayTintBleed, monthEdgeOverride, monthScoopClass, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -683,6 +683,15 @@ export default function Calendar({
                     cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '').replace(/\brounded-full\b/g, '')
                     if (!monthTint) cls = cls.replace(/\bbg-month-tint\b/g, '')
                     cls += ' border-l-0 rounded-l-none'
+                    // Untinted 1st adjacent to tinted month's last day: inherit
+                    // the tint block bg + TL rounding + white foreground so the
+                    // seam reads as one continuous block.
+                    const leftTintedBleed = di > 0 && cellTinted(weeks[wi][di - 1])
+                    const bleedCls = firstDayTintBleed(isMonthStart, monthTint, leftTintedBleed, shape)
+                    if (bleedCls) {
+                      cls = cls.replace(/\bbg-white\b/g, '')
+                      cls += ' ' + bleedCls
+                    }
                   }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: simple border circle (no ring-offset that gets cut off).
