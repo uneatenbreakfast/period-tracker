@@ -773,7 +773,7 @@ export default function Calendar({
                         if (editRef.current || editAxisRef.current) return
                         onSelect(cell.iso)
                       }}
-                      className={`${cls}${scoop ? ' relative' : ''}`}
+                      className={`${cls} relative`}
                       aria-label={cell.iso}
                     >
                       {scoop && !shape ? (
