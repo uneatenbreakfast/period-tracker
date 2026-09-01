@@ -60,7 +60,7 @@ export function monthScoopClass(
 
 /**
  * Month boundary overrides for tinted-month background blocks.
- * - 1st of tinted month: square left edge (strip any rounded-tl/bl).
+ * - 1st of tinted month: rounded top-left corner (XL).
  * - Last day of tinted month: rounded bottom-right corner.
  * Shaped (period) cells keep their own geometry — override skipped.
  * Returns the adjusted class string.
@@ -74,8 +74,8 @@ export function monthEdgeOverride(
 ): string {
   if (!monthTint || shape) return baseCls
   let cls = baseCls
-  if (isMonthStart) {
-    cls = cls.replace(/\brounded-tl-xl\b/g, '').replace(/\brounded-bl-xl\b/g, '')
+  if (isMonthStart && !cls.includes('rounded-tl-xl')) {
+    cls += ' rounded-tl-xl'
   }
   if (isMonthEnd && !cls.includes('rounded-br-xl')) {
     cls += ' rounded-br-xl'

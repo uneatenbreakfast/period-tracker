@@ -130,9 +130,14 @@ describe('monthScoopClass', () => {
 })
 
 describe('monthEdgeOverride', () => {
-  it('strips left rounding on 1st of tinted month', () => {
-    const base = 'w-full rounded-tl-xl rounded-bl-xl bg-month-tint'
-    expect(monthEdgeOverride(true, false, true, null, base)).toBe('w-full   bg-month-tint')
+  it('adds rounded-tl-xl on 1st of tinted month when missing', () => {
+    const base = 'w-full bg-month-tint'
+    expect(monthEdgeOverride(true, false, true, null, base)).toBe('w-full bg-month-tint rounded-tl-xl')
+  })
+
+  it('does not duplicate rounded-tl-xl if already present', () => {
+    const base = 'w-full rounded-tl-xl bg-month-tint'
+    expect(monthEdgeOverride(true, false, true, null, base)).toBe(base)
   })
 
   it('adds rounded-br-xl on last day of tinted month', () => {
@@ -140,9 +145,9 @@ describe('monthEdgeOverride', () => {
     expect(monthEdgeOverride(false, true, true, null, base)).toBe('w-full bg-month-tint rounded-br-xl')
   })
 
-  it('both 1st AND last day (single-day month? edge case): strips left, adds br', () => {
-    const base = 'w-full rounded-tl-xl bg-month-tint'
-    expect(monthEdgeOverride(true, true, true, null, base)).toBe('w-full  bg-month-tint rounded-br-xl')
+  it('both 1st AND last day: adds tl and br', () => {
+    const base = 'w-full bg-month-tint'
+    expect(monthEdgeOverride(true, true, true, null, base)).toBe('w-full bg-month-tint rounded-tl-xl rounded-br-xl')
   })
 
   it('no-op when not tinted', () => {
