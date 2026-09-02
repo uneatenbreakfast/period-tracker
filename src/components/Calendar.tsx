@@ -655,7 +655,7 @@ export default function Calendar({
                   // geometry on every month (tinted or not); unshaped cells
                   // are full-width squares on tint months, circles elsewhere.
                   cls += ' ' + cellLayoutClass(shape, !!scoop, monthTint)
-                  if (!cell.inMonth) cls += ' opacity-25'
+                  if (!cell.inMonth) cls += ' opacity-15 text-ink-soft/40'
                   // Fill: exactly ONE bg utility per cell — stacking the tint
                   // under a specific fill let stylesheet emission order pick
                   // slate over rose, painting strips gray on tinted months.
@@ -679,24 +679,30 @@ export default function Calendar({
                   // previous month's tint doesn't spill through transparent
                   // corners of a centered circle. Tinted months keep their
                   // bg-month-tint fill; non-tinted months never had it.
+                  // Untinted 1st adjacent to tinted month's last day: inherit
+                  // the tint block bg + TL rounding + white foreground so the
+                  // seam reads as one continuous block. Computed BEFORE the
+                  // isMonthStart block so we can suppress the scoop overlay
+                  // when bleed applies (both fight for the same cell).
+                  const leftTintedBleed = isMonthStart && !shape && di > 0 && cellTinted(weeks[wi][di - 1])
+                  const bleedCls = leftTintedBleed ? firstDayTintBleed(isMonthStart, monthTint, leftTintedBleed, shape) : ''
+                  // Scoop overlay must NOT render when the 1st gets a tint
+                  // bleed — the bleed paints the cell as a tint-block
+                  // continuation; the scoop's white rectangle would cover
+                  // that, leaving an orphaned tint curve in the corner.
+                  const showScoopOverlay = !!scoop && !shape && !bleedCls
                   if (isMonthStart && !shape) {
                     cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '').replace(/\brounded-full\b/g, '')
                     if (!monthTint) cls = cls.replace(/\bbg-month-tint\b/g, '')
                     cls += ' border-l-0 rounded-l-none'
-                    // Untinted 1st adjacent to tinted month's last day: inherit
-                    // the tint block bg + TL rounding + white foreground so the
-                    // seam reads as one continuous block.
-                    const leftTintedBleed = di > 0 && cellTinted(weeks[wi][di - 1])
-                    const bleedCls = firstDayTintBleed(isMonthStart, monthTint, leftTintedBleed, shape)
                     if (bleedCls) {
                       cls = cls.replace(/\bbg-white\b/g, '')
                       cls += ' ' + bleedCls
                     }
                   }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
-                  // Today: simple border circle (no ring-offset that gets cut off).
-                  // Selected: outline for non-period cells only.
-                  if (isToday) cls += ' border-2 border-rose-400'
+                  // Today: small ink dot below number — distinct from rose period
+                  // fill, zero state ambiguity. Selected: outline for non-period.
                   if (isSelected && !shape) cls += ' outline-2 outline-offset-2 outline-rose-300'
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
 
@@ -803,7 +809,7 @@ export default function Calendar({
                       className={`${cls} relative`}
                       aria-label={cell.iso}
                     >
-                      {scoop && !shape ? (
+                      {showScoopOverlay ? (
                         <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 bg-white rounded-tl-[12px]" style={{ left: '12px' }} />
                       ) : null}
 
@@ -825,6 +831,14 @@ export default function Calendar({
                         {Number(cell.iso.slice(8))}
                       </span>
                       {editHandle === 'end' ? grip : null}
+                      {isToday && (
+                        <span
+                          aria-hidden
+                          className={`pointer-events-none absolute bottom-1 left-1/2 z-10 h-1 w-1 -translate-x-1/2 rounded-full ${
+                            shape ? 'bg-white' : 'bg-ink'
+                          }`}
+                        />
+                      )}
                     </button>
                   )
                 })}
