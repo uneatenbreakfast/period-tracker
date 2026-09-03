@@ -550,13 +550,14 @@ export default function Calendar({
         }}
       >
       {/* SVG month background layer: one continuous path per month, rounded
-          on convex outer corners, flush on interior edges. Positioned behind
-          the grid cells (z-0) so the tint shows through transparent cells. */}
+          on convex outer corners, flush on interior edges. Uses CSS bg on
+          the scroll container so the tint sits exactly behind the grid. */}
       <svg
-        className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+        className="pointer-events-none absolute left-5 right-5 top-0 z-0 h-full"
         viewBox={`0 0 7 ${weeks.length}`}
         preserveAspectRatio="none"
         aria-hidden
+        style={{ height: '21rem' }}
       >
         {monthBgPaths.map(({ monthKey, pathD }) => {
           const m = Number(monthKey.slice(5, 7))
