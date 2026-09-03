@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DayEntry, Prediction, Snapshot } from '../types'
+import type { Prediction, Snapshot } from '../types'
 import {
   continuousGrid,
   initialMonths,
@@ -19,7 +19,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellLayoutClass, dragShape, monthScoopClass, runShape } from '../lib/rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, monthBackgroundPaths, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -38,12 +38,6 @@ interface CalendarProps {
   onRangeDelete: (start: string, end: string) => void
   /** Max days a drag/edit range can span (from settings.periodLength). */
   maxPeriodDays?: number
-  /** Undo state for replaced period ranges */
-  undoState: { prevEntries: DayEntry[], newRangeStart: string, newRangeEnd: string, message: string } | null
-  /** Restore the replaced entries */
-  onUndo: () => void
-  /** Dismiss the undo toast */
-  onDismissUndo: () => void
 }
 
 const fmtDay = (iso: string) => {
@@ -61,9 +55,6 @@ export default function Calendar({
   onRangeComplete,
   onRangeDelete,
   maxPeriodDays,
-  undoState,
-  onUndo,
-  onDismissUndo,
 }: CalendarProps) {
   const today = todayISO()
   // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead;
@@ -73,6 +64,8 @@ export default function Calendar({
   // ONE flowing week strip across the whole month window — weeks span month
   // boundaries (a month ending Tue 31 continues same-row into Wed 1).
   const weeks = useMemo(() => continuousGrid(months), [months])
+  // Unified SVG month background paths — replaces per-cell rounded corners + tint
+  const monthBgPaths = useMemo(() => monthBackgroundPaths(weeks), [weeks])
   // Edit mode for an existing committed run: drag the start/end handles,
   // confirm with the Save/Cancel modal.
   const [edit, setEdit] = useState<EditRange | null>(null)
@@ -133,52 +126,6 @@ export default function Calendar({
     for (const e of snap.entries) m.set(e.date, e)
     return m
   }, [snap.entries])
-  // Odd-month tint predicate — shared by monthEdges, the cell bg assembly
-  // and the concave scoop check so all three stay in sync.
-  const cellTinted = (c: { iso: string; inMonth: boolean }) =>
-    c.inMonth && Number(c.iso.slice(5, 7)) % 2 !== 0
-  // Precompute month-block edge corners so odd-month blocks get rounded
-  // outer edges (e.g. rounded-tl-xl on the top-left cell of a month).
-  // A neighbor counts as "connected" if it's the same month OR if it's a
-  // scoop cell (odd-month, inMonth, tinted left+top) — the gray continues
-  // into scoop cells, so we must not round the shared edge.
-  const monthEdges = useMemo(() => {
-    const edgeMap = new Map<string, string>()
-    // Detect whether an even-month neighbor is a "scoop" cell — untinted
-    // but visually connected to the tint block via the scoop mechanism.
-    // Checks both tl-scoop (left+top tinted) and br-scoop (right+bottom
-    // tinted) orientations so horizontal and vertical neighbors are handled.
-    const isScoop = (o: { iso: string; inMonth: boolean }, oi: number, row: { iso: string; inMonth: boolean }[], ri: number) => {
-      if (!o || !o.inMonth) return false
-      const m = Number(o.iso.slice(5, 7))
-      if (m % 2 === 0) {
-        // tl-scoop: tinted left AND top
-        if (oi > 0 && ri > 0 && cellTinted(row[oi - 1]) && cellTinted(weeks[ri - 1][oi])) return true
-        // br-scoop: tinted right AND bottom
-        if (oi < 6 && ri < weeks.length - 1 && cellTinted(row[oi + 1]) && cellTinted(weeks[ri + 1][oi])) return true
-      }
-      return false
-    }
-    for (let wi = 0; wi < weeks.length; wi++) {
-      for (let di = 0; di < 7; di++) {
-        const c = weeks[wi][di]
-        if (!c.inMonth) continue
-        const sameMonth = (o: { iso: string; inMonth: boolean }) =>
-          o && o.inMonth && o.iso.slice(5, 7) === c.iso.slice(5, 7)
-        const left = di > 0 && (sameMonth(weeks[wi][di - 1]) || isScoop(weeks[wi][di - 1], di - 1, weeks[wi], wi))
-        const right = di < 6 && (sameMonth(weeks[wi][di + 1]) || isScoop(weeks[wi][di + 1], di + 1, weeks[wi], wi))
-        const top = wi > 0 && (sameMonth(weeks[wi - 1][di]) || isScoop(weeks[wi - 1][di], di, weeks[wi - 1], wi - 1))
-        const bottom = wi < weeks.length - 1 && (sameMonth(weeks[wi + 1][di]) || isScoop(weeks[wi + 1][di], di, weeks[wi + 1], wi + 1))
-        const corners: string[] = []
-        if (!top && !left) corners.push('rounded-tl-[2rem]')
-        if (!top && !right) corners.push('rounded-tr-[2rem]')
-        if (!bottom && !left) corners.push('rounded-bl-[2rem]')
-        if (!bottom && !right) corners.push('rounded-br-[2rem]')
-        if (corners.length) edgeMap.set(c.iso, corners.join(' '))
-      }
-    }
-    return edgeMap
-  }, [weeks])
   const entriesRef = useRef(entriesByDate)
   useEffect(() => {
     entriesRef.current = entriesByDate
@@ -489,13 +436,6 @@ export default function Calendar({
     setEditAxis(null)
   }
 
-  // Auto-dismiss undo toast after 5 seconds
-  useEffect(() => {
-    if (!undoState) return
-    const timer = setTimeout(onDismissUndo, 5000)
-    return () => clearTimeout(timer)
-  }, [undoState, onDismissUndo])
-
   return (
     <div className="relative rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
       {edit && (
@@ -609,6 +549,22 @@ export default function Calendar({
           })
         }}
       >
+      {/* SVG month background layer: one continuous path per month, rounded
+          on convex outer corners, flush on interior edges. Positioned behind
+          the grid cells (z-0) so the tint shows through transparent cells. */}
+      <svg
+        className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+        viewBox={`0 0 7 ${weeks.length}`}
+        preserveAspectRatio="none"
+        aria-hidden
+      >
+        {monthBgPaths.map(({ monthKey, pathD }) => {
+          const m = Number(monthKey.slice(5, 7))
+          return m % 2 !== 0 ? (
+            <path key={monthKey} d={pathD} className="fill-month-tint" />
+          ) : null
+        })}
+      </svg>
       {weeks.map((week, wi) => {
         // Anchor for the month whose 1st falls in this row — App's Today pill
         // and the initial scroll bring the row containing the 1st to the top.
@@ -618,7 +574,7 @@ export default function Calendar({
           : undefined
         return (
           <div key={`w${wi}`} data-month={monthRef} className="grid grid-cols-7">
-            {week.map((cell, di) => {
+            {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
                   // Committed period run wins over the live drag preview when
@@ -646,65 +602,16 @@ export default function Calendar({
                     : null
 
                   const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 !== 0
-                  // Capsule strip membership (start/middle/end); a lone day
-                  // keeps its circle. Scoop cells also fill the column so the
-                  // tint connects flush with the adjacent odd-month block.
-                  // Concave scoop: an untinted cell tucked into the inner
-                  // corner of an odd-month tint block. Two orientations:
-                  //   'tl' — tinted left AND top (concave at month start)
-                  //   'br' — tinted right AND bottom (concave at month end)
-                  // The cell paints the tint as its own bg and a white
-                  // overlay with the matching rounded corner on top.
-                  let scoop = ''
-                  if (!monthTint && cell.inMonth) {
-                    const leftTinted =
-                      di > 0 && cellTinted(weeks[wi][di - 1])
-                    const topTinted =
-                      wi > 0 && cellTinted(weeks[wi - 1][di])
-                    const rightTinted =
-                      di < 6 && cellTinted(weeks[wi][di + 1])
-                    const bottomTinted =
-                      wi < weeks.length - 1 && cellTinted(weeks[wi + 1][di])
-                    scoop = monthScoopClass(monthTint, leftTinted, topTinted, rightTinted, bottomTinted)
-                  }
-                  // Strip cells (start cap / square / end cap) fill their grid
-                  // column edge-to-edge so adjacent days read as ONE continuous
-                  // period bar; the run ends are semicircle caps, the middle a
-                  // flush square. A lone day keeps the circle. Scoop cells
-                  // also fill the column so the tint connects flush with the
-                  // adjacent odd-month block. Everything else stays the small
-                  // centered circle.
+                  // Layout: centered circles by default; period shapes use
+                  // capsule geometry. SVG layer behind grid provides month tint.
                   let cls =
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-none'
-                  // Layout: period-shaped cells keep their capsule/circle
-                  // geometry on every month (tinted or not); unshaped cells
-                  // are full-width squares on tint months, circles elsewhere.
-                  cls += ' ' + cellLayoutClass(shape, !!scoop, monthTint)
+                  cls += ' ' + cellLayoutClass(shape)
                   if (!cell.inMonth) cls += ' opacity-15 text-ink-soft/40'
-                  // Fill: exactly ONE bg utility per cell — stacking the tint
-                  // under a specific fill let stylesheet emission order pick
-                  // slate over rose, painting strips gray on tinted months.
-                  cls += ' ' + cellFillClass(shape, !!scoop, isFertile, isPredicted, monthTint)
+                  // Fill: period shapes always paint rose; non-shaped cells
+                  // are transparent so SVG month bg shows through.
+                  cls += ' ' + cellFillClass(shape, isFertile, isPredicted, monthTint)
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
-                  // Rounded corners on month-block outer edges — only on
-                  // unshaped cells; a period capsule/circle keeps its own
-                  // rounding (a block corner over a rose cap painted a
-                  // squared-off notch on tinted months).
-                  const edgeCls = shape ? undefined : monthEdges.get(cell.iso)
-                  if (edgeCls) cls += ' ' + edgeCls
-
-                  // 1st of month: full-width square so the previous month's
-                  // tint doesn't spill through transparent corners of a
-                  // centered circle. Tinted months keep their bg-month-tint
-                  // fill; non-tinted months strip it — unless the cell is a
-                  // scoop (which carries its own tint via the scoop mechanism).
-                  const showScoopOverlay = !!scoop && !shape
-                  if (isMonthStart && !shape) {
-                    cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '')
-                    // Soft rounded square instead of sharp — cohesive with month block curves
-                    cls = cls.replace(/\brounded-full\b/g, 'rounded-2xl')
-                    if (!monthTint && !scoop) cls = cls.replace(/\bbg-month-tint\b/g, '')
-                  }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: small ink dot below number — distinct from rose period
                   // fill, zero state ambiguity. Selected: outline for non-period.
@@ -814,20 +721,6 @@ export default function Calendar({
                       className={`${cls} relative`}
                       aria-label={cell.iso}
                     >
-                      {showScoopOverlay && scoop === 'tl' ? (
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute inset-0"
-                          style={{ background: 'radial-gradient(circle at top left, transparent 23px, white 25px)' }}
-                        />
-                      ) : showScoopOverlay && scoop === 'br' ? (
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute inset-0"
-                          style={{ background: 'radial-gradient(circle at bottom right, transparent 23px, white 25px)' }}
-                        />
-                      ) : null}
-
                       {shape && monthTint ? (
                         <span
                           aria-hidden
@@ -839,7 +732,7 @@ export default function Calendar({
                       {editHandle === 'start' ? grip : null}
                       <span className="relative z-10 flex flex-col items-center justify-center gap-0.5">
                         {isMonthStart && (
-                          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase leading-none tracking-wider ${monthTint ? 'bg-white/50 text-ink' : 'bg-rose-100 text-rose-500'}`}>
+                          <span className={`text-[9px] font-bold uppercase leading-none tracking-wide opacity-80 ${edit ? 'border-l-2 border-rose-400 pl-0.5' : ''}`}>
                             {MONTH_NAMES[Number(cell.iso.slice(5, 7)) - 1].slice(0, 3)}
                           </span>
                         )}
@@ -861,20 +754,6 @@ export default function Calendar({
             )
           })}
       </div>
-      {undoState && (
-        <div className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2 animate-slide-up rounded-full bg-ink px-4 py-2 text-xs font-bold text-white shadow-lg">
-          <div className="flex items-center gap-3">
-            <span>{undoState.message}</span>
-            <button
-              type="button"
-              onClick={onUndo}
-              className="rounded-full bg-white/20 px-3 py-0.5 text-xs font-bold text-white transition-colors hover:bg-white/30"
-            >
-              Undo
-            </button>
-          </div>
-        </div>
-      )}
       {!showLegend ? null : (
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-rose-50 pt-3 text-xs text-ink-soft">
           <span className="flex items-center gap-1.5">

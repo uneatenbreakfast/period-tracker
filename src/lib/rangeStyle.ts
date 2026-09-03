@@ -5,8 +5,12 @@
  * full circle. Pure so the shape rules are unit-testable; the Tailwind
  * layout/fill helpers (`cellLayoutClass`, `cellFillClass`) are defined here
  * and consumed by Calendar.tsx.
+ *
+ * Also provides `monthBackgroundPaths` for the unified SVG month background
+ * shapes that replace per-cell rounded corners.
  */
 import { addDays } from './dates'
+import type { MonthCell } from './dates'
 
 export type DayShape = 'single' | 'start' | 'middle' | 'end'
 
@@ -71,58 +75,174 @@ export function monthScoopClass(
 
 /**
  * Layout (width + corner rounding) for a calendar day cell. Period-shaped
- * cells keep their capsule-strip / lone-circle geometry on EVERY month —
- * including odd-month tint-block months, where unshaped cells render as
- * full-width flush squares instead of centered circles.
+ * cells keep their capsule-strip / lone-circle geometry. Month backgrounds
+ * are now rendered as unified SVG shapes behind the grid.
  */
-export function cellLayoutClass(
-  shape: DayShape | null,
-  scoop: boolean,
-  monthTint: boolean,
-): string {
-  // Tinted months: shaped cells render as full squares (tint bg) with the
-  // rose shape painted by an inner absolute span — the corners outside the
-  // cap rounding show the tint instead of the parent white. Non-tinted
-  // months keep the direct rounded geometry.
-  if (shape === 'single') return monthTint ? 'w-full rounded-none' : 'mx-auto w-full max-w-11 rounded-full'
-  if (shape === 'start') return monthTint ? 'w-full rounded-none' : 'w-full rounded-l-full rounded-r-none'
-  if (shape === 'end') return monthTint ? 'w-full rounded-none' : 'w-full rounded-r-full rounded-l-none'
+export function cellLayoutClass(shape: DayShape | null): string {
+  if (shape === 'single') return 'mx-auto w-full max-w-11 rounded-full'
+  if (shape === 'start') return 'w-full rounded-l-full rounded-r-none'
+  if (shape === 'end') return 'w-full rounded-r-full rounded-l-none'
   if (shape) return 'w-full rounded-none'
-  if (scoop) return 'w-full rounded-none'
-  if (monthTint) return 'w-full rounded-none'
   return 'mx-auto w-full max-w-11 rounded-full'
 }
 
 /**
- * Fill/text classes for a day cell — emits EXACTLY ONE background utility.
- * Stacking the month tint under a specific fill lets Tailwind's stylesheet
- * emission order pick the winner (it picked slate over rose, painting period
- * strips gray on tinted months), so precedence is decided here instead.
- * A shaped period cell always paints rose; the scoop cell carries the tint
- * itself (its white overlay reveals it in the scooped corner).
+ * Fill/text classes for a day cell. Month backgrounds are now rendered as
+ * unified SVG shapes behind the grid, so unshaped cells are transparent.
+ * Shaped period cells paint rose directly (on non-tinted months) or show
+ * the tint through rounded cap corners (on tinted months).
  */
 export function cellFillClass(
   shape: DayShape | null,
-  scoop: boolean,
   fertile: boolean,
   predicted: boolean,
   monthTint: boolean,
 ): string {
   if (shape) {
-    // Tinted months: cell paints the tint (month-tint) so corners outside the
-    // rounded cap show the month bg instead of the parent white. The rose
-    // shape is rendered as an inner absolute span (Calendar.tsx) so the
-    // shadow stays on the shape, not the tint cell.
-    // Non-tinted months: cell paints rose directly (corners are transparent).
+    // Tinted months: cell is transparent so SVG bg shows through corners
+    // outside the rounded cap. Non-tinted months: cell paints rose directly.
     return monthTint
-      ? 'bg-month-tint font-bold text-white'
+      ? 'font-bold text-white'
       : 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
   }
-  if (scoop) return 'bg-month-tint'
   if (fertile) return 'bg-lavender-100 font-semibold text-lavender-700'
-  if (predicted) {
-    return `${monthTint ? 'bg-month-tint ' : ''}border-2 border-dashed border-rose-300 text-rose-400`
+  if (predicted) return 'border-2 border-dashed border-rose-300 text-rose-400'
+  return ''
+}
+
+/**
+ * SVG path data for a continuous month background shape. Traces the outer
+ * boundary of a month's cells in the grid, rounding only convex corners
+ * (where no same-month cell sits diagonally outward). Interior edges
+ * between same-month cells are invisible — the shape reads as one organic
+ * blob with smooth curves only on the outer perimeter.
+ *
+ * @param weeks — the continuousGrid output (MonthCell[][])
+ * @returns Array of { monthKey (YYYY-MM), pathD (SVG path data), color }[]
+ */
+export interface MonthBgPath {
+  monthKey: string
+  pathD: string
+  color: string
+}
+
+export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
+  if (weeks.length === 0) return []
+
+  // Map row,col → cell for neighbor lookups
+  const cellAt = new Map<string, MonthCell>()
+  for (let r = 0; r < weeks.length; r++) {
+    for (let c = 0; c < weeks[r].length; c++) {
+      cellAt.set(`${r},${c}`, weeks[r][c])
+    }
   }
-  if (monthTint) return 'bg-month-tint'
-  return 'bg-white'
+
+  // Group cells by month (YYYY-MM)
+  const groups = new Map<string, { r: number; c: number; iso: string }[]>()
+  for (let r = 0; r < weeks.length; r++) {
+    for (let c = 0; c < weeks[r].length; c++) {
+      const cell = weeks[r][c]
+      if (!cell.inMonth) continue
+      const mk = cell.iso.slice(0, 7)
+      let arr = groups.get(mk)
+      if (!arr) { arr = []; groups.set(mk, arr) }
+      arr.push({ r, c, iso: cell.iso })
+    }
+  }
+
+  const results: MonthBgPath[] = []
+
+  for (const [mk, cells] of groups) {
+    if (cells.length === 0) continue
+
+    // Set of grid positions in this month (for neighbor checks)
+    const inMonth = new Set(cells.map((c) => `${c.r},${c.c}`))
+
+    // 4 edge types: top, right, bottom, left
+    // Each: { sr, sc, er, ec } — start→end in grid coords
+    interface Edge { sr: number; sc: number; er: number; ec: number; kind: string }
+    const edges: Edge[] = []
+
+    for (const { r, c } of cells) {
+      // Top edge (row r, cols c→c+1): exterior if no cell above
+      if (!inMonth.has(`${r - 1},${c}`)) {
+        edges.push({ sr: r, sc: c, er: r, ec: c + 1, kind: 'top' })
+      }
+      // Right edge (rows r→r+1, col c+1): exterior if no cell to right
+      if (!inMonth.has(`${r},${c + 1}`)) {
+        edges.push({ sr: r, sc: c + 1, er: r + 1, ec: c + 1, kind: 'right' })
+      }
+      // Bottom edge (row r+1, cols c+1→c): exterior if no cell below
+      if (!inMonth.has(`${r + 1},${c}`)) {
+        edges.push({ sr: r + 1, sc: c + 1, er: r + 1, ec: c, kind: 'bottom' })
+      }
+      // Left edge (rows r+1→r, col c): exterior if no cell to left
+      if (!inMonth.has(`${r},${c - 1}`)) {
+        edges.push({ sr: r + 1, sc: c, er: r, ec: c, kind: 'left' })
+      }
+    }
+
+    if (edges.length === 0) continue
+
+    // Build endpoint map: (r,c) → edge starting there
+    const nextMap = new Map<string, Edge[]>()
+    for (const e of edges) {
+      const k = `${e.sr},${e.sc}`
+      let arr = nextMap.get(k)
+      if (!arr) { arr = []; nextMap.set(k, arr) }
+      arr.push(e)
+    }
+
+    // Check if corner at (cr,cc) is convex for a same-month shape
+    // Convex when NO same-month cell sits diagonally outward from that corner
+    const isConvex = (cr: number, cc: number) =>
+      !inMonth.has(`${cr - 1},${cc - 1}`) ||
+      !inMonth.has(`${cr - 1},${cc}`) ||
+      !inMonth.has(`${cr},${cc - 1}`) ||
+      !inMonth.has(`${cr},${cc}`)
+
+    // Trace perimeter: start at first edge, follow endpoints
+    const used = new Set<number>()
+    let segIdx = 0
+    const d: string[] = []
+
+    for (let safety = 0; safety < edges.length + 2; safety++) {
+      if (used.has(segIdx)) break
+      used.add(segIdx)
+      const seg = edges[segIdx]
+
+      if (d.length === 0) {
+        d.push(`M ${seg.sc} ${seg.sr}`)
+      } else {
+        // The corner is at the start of this segment (= end of previous)
+        const cornerR = seg.sr
+        const cornerC = seg.sc
+        if (isConvex(cornerR, cornerC)) {
+          d.push(`Q ${cornerC} ${cornerR} ${seg.ec} ${seg.er}`)
+        } else {
+          d.push(`L ${seg.ec} ${seg.er}`)
+        }
+      }
+
+      // Find next segment starting where this one ends
+      const endK = `${seg.er},${seg.ec}`
+      const candidates = nextMap.get(endK)
+      if (candidates) {
+        const next = candidates.find((e) => {
+          const idx = edges.indexOf(e)
+          return idx !== segIdx && !used.has(idx)
+        })
+        if (next) {
+          segIdx = edges.indexOf(next)
+          continue
+        }
+      }
+      break
+    }
+
+    d.push('Z')
+    results.push({ monthKey: mk, pathD: d.join(' '), color: '' })
+  }
+
+  return results
 }
