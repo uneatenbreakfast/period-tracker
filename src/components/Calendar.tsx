@@ -170,10 +170,10 @@ export default function Calendar({
         const top = wi > 0 && (sameMonth(weeks[wi - 1][di]) || isScoop(weeks[wi - 1][di], di, weeks[wi - 1], wi - 1))
         const bottom = wi < weeks.length - 1 && (sameMonth(weeks[wi + 1][di]) || isScoop(weeks[wi + 1][di], di, weeks[wi + 1], wi + 1))
         const corners: string[] = []
-        if (!top && !left) corners.push('rounded-tl-3xl')
-        if (!top && !right) corners.push('rounded-tr-3xl')
-        if (!bottom && !left) corners.push('rounded-bl-3xl')
-        if (!bottom && !right) corners.push('rounded-br-3xl')
+        if (!top && !left) corners.push('rounded-tl-[2rem]')
+        if (!top && !right) corners.push('rounded-tr-[2rem]')
+        if (!bottom && !left) corners.push('rounded-bl-[2rem]')
+        if (!bottom && !right) corners.push('rounded-br-[2rem]')
         if (corners.length) edgeMap.set(c.iso, corners.join(' '))
       }
     }
@@ -700,9 +700,10 @@ export default function Calendar({
                   // scoop (which carries its own tint via the scoop mechanism).
                   const showScoopOverlay = !!scoop && !shape
                   if (isMonthStart && !shape) {
-                    cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '').replace(/\brounded-full\b/g, '')
+                    cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '')
+                    // Soft rounded square instead of sharp — cohesive with month block curves
+                    cls = cls.replace(/\brounded-full\b/g, 'rounded-2xl')
                     if (!monthTint && !scoop) cls = cls.replace(/\bbg-month-tint\b/g, '')
-                    cls += ' border-l-0'
                   }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: small ink dot below number — distinct from rose period
@@ -838,7 +839,7 @@ export default function Calendar({
                       {editHandle === 'start' ? grip : null}
                       <span className="relative z-10 flex flex-col items-center justify-center gap-0.5">
                         {isMonthStart && (
-                          <span className={`text-[9px] font-bold uppercase leading-none tracking-wide opacity-80 ${edit ? 'border-l-2 border-rose-400 pl-0.5' : ''}`}>
+                          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase leading-none tracking-wider ${monthTint ? 'bg-white/50 text-ink' : 'bg-rose-100 text-rose-500'}`}>
                             {MONTH_NAMES[Number(cell.iso.slice(5, 7)) - 1].slice(0, 3)}
                           </span>
                         )}
