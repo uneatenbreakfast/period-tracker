@@ -116,7 +116,7 @@ describe('monthScoopClass', () => {
     expect(monthScoopClass(false, false, false, true, true)).toBe('br')
   })
 
-  it('returns empty string when self is tinted (even month)', () => {
+  it('returns empty string when self is tinted (odd month)', () => {
     expect(monthScoopClass(true, true, true)).toBe('')
   })
 

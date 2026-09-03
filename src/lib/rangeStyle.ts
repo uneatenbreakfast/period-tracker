@@ -42,7 +42,7 @@ export function dragShape(iso: string, from: string, to: string): DayShape | nul
 
 /**
  * Concave "scoop" corner for an untinted cell that sits in the inner corner
- * of an even-month tint block. Two orientations:
+ * of an odd-month tint block. Two orientations:
  *
  *   'tl' — left+top neighbors tinted (e.g. Sep 1 with Aug tint to its left
  *          and above). White overlay with rounded-tl covers the cell; tint
@@ -72,7 +72,7 @@ export function monthScoopClass(
 /**
  * Layout (width + corner rounding) for a calendar day cell. Period-shaped
  * cells keep their capsule-strip / lone-circle geometry on EVERY month —
- * including even-month tint-block months, where unshaped cells render as
+ * including odd-month tint-block months, where unshaped cells render as
  * full-width flush squares instead of centered circles.
  */
 export function cellLayoutClass(

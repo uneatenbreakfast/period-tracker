@@ -124,25 +124,25 @@ export default function Calendar({
     for (const e of snap.entries) m.set(e.date, e)
     return m
   }, [snap.entries])
-  // Even-month tint predicate — shared by monthEdges, the cell bg assembly
+  // Odd-month tint predicate — shared by monthEdges, the cell bg assembly
   // and the concave scoop check so all three stay in sync.
   const cellTinted = (c: { iso: string; inMonth: boolean }) =>
-    c.inMonth && Number(c.iso.slice(5, 7)) % 2 === 0
-  // Precompute month-block edge corners so even-month blocks get rounded
+    c.inMonth && Number(c.iso.slice(5, 7)) % 2 !== 0
+  // Precompute month-block edge corners so odd-month blocks get rounded
   // outer edges (e.g. rounded-tl-xl on the top-left cell of a month).
   // A neighbor counts as "connected" if it's the same month OR if it's a
   // scoop cell (odd-month, inMonth, tinted left+top) — the gray continues
   // into scoop cells, so we must not round the shared edge.
   const monthEdges = useMemo(() => {
     const edgeMap = new Map<string, string>()
-    // Detect whether an odd-month neighbor is a "scoop" cell — untinted
+    // Detect whether an even-month neighbor is a "scoop" cell — untinted
     // but visually connected to the tint block via the scoop mechanism.
     // Checks both tl-scoop (left+top tinted) and br-scoop (right+bottom
     // tinted) orientations so horizontal and vertical neighbors are handled.
     const isScoop = (o: { iso: string; inMonth: boolean }, oi: number, row: { iso: string; inMonth: boolean }[], ri: number) => {
       if (!o || !o.inMonth) return false
       const m = Number(o.iso.slice(5, 7))
-      if (m % 2 !== 0) {
+      if (m % 2 === 0) {
         // tl-scoop: tinted left AND top
         if (oi > 0 && ri > 0 && cellTinted(row[oi - 1]) && cellTinted(weeks[ri - 1][oi])) return true
         // br-scoop: tinted right AND bottom
@@ -629,12 +629,12 @@ export default function Calendar({
                         : null
                     : null
 
-                  const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 === 0
+                  const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 !== 0
                   // Capsule strip membership (start/middle/end); a lone day
                   // keeps its circle. Scoop cells also fill the column so the
-                  // tint connects flush with the adjacent even-month block.
+                  // tint connects flush with the adjacent odd-month block.
                   // Concave scoop: an untinted cell tucked into the inner
-                  // corner of an even-month tint block. Two orientations:
+                  // corner of an odd-month tint block. Two orientations:
                   //   'tl' — tinted left AND top (concave at month start)
                   //   'br' — tinted right AND bottom (concave at month end)
                   // The cell paints the tint as its own bg and a white
@@ -656,7 +656,7 @@ export default function Calendar({
                   // period bar; the run ends are semicircle caps, the middle a
                   // flush square. A lone day keeps the circle. Scoop cells
                   // also fill the column so the tint connects flush with the
-                  // adjacent even-month block. Everything else stays the small
+                  // adjacent odd-month block. Everything else stays the small
                   // centered circle.
                   let cls =
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-none'
