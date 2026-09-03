@@ -39,7 +39,7 @@ interface CalendarProps {
   /** Max days a drag/edit range can span (from settings.periodLength). */
   maxPeriodDays?: number
   /** Undo state for replaced period ranges */
-  undoState: { prevEntries: DayEntry[], message: string } | null
+  undoState: { prevEntries: DayEntry[], newRangeStart: string, newRangeEnd: string, message: string } | null
   /** Restore the replaced entries */
   onUndo: () => void
   /** Dismiss the undo toast */

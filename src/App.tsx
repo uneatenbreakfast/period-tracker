@@ -32,7 +32,7 @@ export default function App() {
   const [snap, setSnap] = useState<Snapshot>(() => loadSnapshot(storage))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [tab, setTab] = useState<'calendar' | 'health' | 'trends' | 'settings'>('calendar')
-  const [undoState, setUndoState] = useState<{ prevEntries: DayEntry[], message: string } | null>(null)
+  const [undoState, setUndoState] = useState<{ prevEntries: DayEntry[], newRangeStart: string, newRangeEnd: string, message: string } | null>(null)
   const now = new Date()
 
   useEffect(() => saveSnapshot(snap, storage), [snap])
@@ -117,18 +117,21 @@ export default function App() {
     
     setSnap((s) => replaceRangeFlow(s, start, end, DEFAULT_FLOW))
     
-    if (clearedEntries.length > 0) {
-      setUndoState({
-        prevEntries: clearedEntries,
-        message: `Replaced ${clearedEntries.length} day${clearedEntries.length === 1 ? '' : 's'}`
-      })
-    }
+    setUndoState({
+      prevEntries: clearedEntries,
+      newRangeStart: from,
+      newRangeEnd: to,
+      message: clearedEntries.length > 0
+        ? `Replaced ${clearedEntries.length} day${clearedEntries.length === 1 ? '' : 's'}`
+        : `Added ${Math.round((+new Date(to) - +new Date(from)) / 86400000) + 1} day${from === to ? '' : 's'}`
+    })
   }
 
   const handleUndo = () => {
     if (!undoState) return
     setSnap((s) => {
-      let next = s
+      // Wipe the newly added range first, then restore previous entries.
+      let next = deleteRangeFlow(s, undoState.newRangeStart, undoState.newRangeEnd)
       for (const entry of undoState.prevEntries) {
         next = upsertEntry(next, entry)
       }
