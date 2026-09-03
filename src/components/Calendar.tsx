@@ -513,7 +513,7 @@ export default function Calendar({
           const t = e.currentTarget.scrollTop
           setAtTop(t < 20)
         }}
-        className={`-mx-5 h-[21rem] overscroll-contain px-5 select-none touch-none ${
+        className={`relative -mx-5 h-[21rem] overscroll-contain px-5 select-none touch-none ${
           drag || editAxis || edit ? 'overflow-hidden' : 'overflow-y-auto'
         }`}
         onPointerMove={(e) => {
@@ -549,20 +549,20 @@ export default function Calendar({
           })
         }}
       >
+      {/* Positioning wrapper: SVG fills exactly the grid content area */}
+      <div className="relative">
       {/* SVG month background layer: one continuous path per month, rounded
-          on convex outer corners, flush on interior edges. Uses CSS bg on
-          the scroll container so the tint sits exactly behind the grid. */}
+          on convex outer corners, flush on interior edges. */}
       <svg
-        className="pointer-events-none absolute left-5 right-5 top-0 z-0 h-full"
+        className="pointer-events-none absolute inset-0 h-full w-full"
         viewBox={`0 0 7 ${weeks.length}`}
         preserveAspectRatio="none"
         aria-hidden
-        style={{ height: '21rem' }}
       >
         {monthBgPaths.map(({ monthKey, pathD }) => {
           const m = Number(monthKey.slice(5, 7))
           return m % 2 !== 0 ? (
-            <path key={monthKey} d={pathD} className="fill-month-tint" />
+            <path key={monthKey} d={pathD} style={{ fill: '#dfe3e8' }} />
           ) : null
         })}
       </svg>
@@ -754,6 +754,7 @@ export default function Calendar({
               </div>
             )
           })}
+      </div>
       </div>
       {!showLegend ? null : (
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-rose-50 pt-3 text-xs text-ink-soft">
