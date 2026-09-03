@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FlowLevel, Snapshot } from './types'
+import type { DayEntry, FlowLevel, Snapshot } from './types'
 import Calendar from './components/Calendar'
 import DaySheet from './components/DaySheet'
 import HistoryCard from './components/HistoryCard'
@@ -19,6 +19,7 @@ import {
   replaceRangeFlow,
   saveSnapshot,
   serializeSnapshot,
+  upsertEntry,
   upsertReact,
 } from './lib/storage'
 
@@ -31,6 +32,7 @@ export default function App() {
   const [snap, setSnap] = useState<Snapshot>(() => loadSnapshot(storage))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [tab, setTab] = useState<'calendar' | 'health' | 'trends' | 'settings'>('calendar')
+  const [undoState, setUndoState] = useState<{ prevEntries: DayEntry[], message: string } | null>(null)
   const now = new Date()
 
   useEffect(() => saveSnapshot(snap, storage), [snap])
@@ -102,8 +104,40 @@ export default function App() {
   // Drag across calendar days: the range becomes THE period for the month(s)
   // it touches — any previously marked period days in those months are cleared.
   const commitRange = (start: string, end: string) => {
+    const [from, to] = start <= end ? [start, end] : [end, start]
+    const months = new Set<string>()
+    for (let d = from; d <= to; d = addDays(d, 1)) months.add(d.slice(0, 7))
+    
+    // Capture entries that will be cleared (flow days in touched months outside new range)
+    const clearedEntries = snap.entries.filter(e => {
+      if (e.flow === undefined) return false
+      if (e.date >= from && e.date <= to) return false
+      return months.has(e.date.slice(0, 7))
+    })
+    
     setSnap((s) => replaceRangeFlow(s, start, end, DEFAULT_FLOW))
+    
+    if (clearedEntries.length > 0) {
+      setUndoState({
+        prevEntries: clearedEntries,
+        message: `Replaced ${clearedEntries.length} day${clearedEntries.length === 1 ? '' : 's'}`
+      })
+    }
   }
+
+  const handleUndo = () => {
+    if (!undoState) return
+    setSnap((s) => {
+      let next = s
+      for (const entry of undoState.prevEntries) {
+        next = upsertEntry(next, entry)
+      }
+      return next
+    })
+    setUndoState(null)
+  }
+
+  const dismissUndo = () => setUndoState(null)
 
   // Delete button in edit mode: clears the committed range entirely.
   const deleteRange = (start: string, end: string) => {
@@ -265,6 +299,9 @@ export default function App() {
             onRangeComplete={commitRange}
             onRangeDelete={deleteRange}
             maxPeriodDays={snap.settings.periodLength}
+            undoState={undoState}
+            onUndo={handleUndo}
+            onDismissUndo={dismissUndo}
           />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device

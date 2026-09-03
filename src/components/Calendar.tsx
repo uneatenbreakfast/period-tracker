@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Prediction, Snapshot } from '../types'
+import type { DayEntry, Prediction, Snapshot } from '../types'
 import {
   continuousGrid,
   initialMonths,
@@ -38,6 +38,12 @@ interface CalendarProps {
   onRangeDelete: (start: string, end: string) => void
   /** Max days a drag/edit range can span (from settings.periodLength). */
   maxPeriodDays?: number
+  /** Undo state for replaced period ranges */
+  undoState: { prevEntries: DayEntry[], message: string } | null
+  /** Restore the replaced entries */
+  onUndo: () => void
+  /** Dismiss the undo toast */
+  onDismissUndo: () => void
 }
 
 const fmtDay = (iso: string) => {
@@ -55,6 +61,9 @@ export default function Calendar({
   onRangeComplete,
   onRangeDelete,
   maxPeriodDays,
+  undoState,
+  onUndo,
+  onDismissUndo,
 }: CalendarProps) {
   const today = todayISO()
   // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead;
@@ -480,6 +489,13 @@ export default function Calendar({
     setEditAxis(null)
   }
 
+  // Auto-dismiss undo toast after 5 seconds
+  useEffect(() => {
+    if (!undoState) return
+    const timer = setTimeout(onDismissUndo, 5000)
+    return () => clearTimeout(timer)
+  }, [undoState, onDismissUndo])
+
   return (
     <div className="relative rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
       {edit && (
@@ -844,6 +860,20 @@ export default function Calendar({
             )
           })}
       </div>
+      {undoState && (
+        <div className="absolute bottom-4 left-1/2 z-40 -translate-x-1/2 animate-slide-up rounded-full bg-ink px-4 py-2 text-xs font-bold text-white shadow-lg">
+          <div className="flex items-center gap-3">
+            <span>{undoState.message}</span>
+            <button
+              type="button"
+              onClick={onUndo}
+              className="rounded-full bg-white/20 px-3 py-0.5 text-xs font-bold text-white transition-colors hover:bg-white/30"
+            >
+              Undo
+            </button>
+          </div>
+        </div>
+      )}
       {!showLegend ? null : (
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-rose-50 pt-3 text-xs text-ink-soft">
           <span className="flex items-center gap-1.5">
