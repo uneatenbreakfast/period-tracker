@@ -129,16 +129,11 @@ export interface MonthBgPath {
 export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
   if (weeks.length === 0) return []
 
-  // Map row,col → cell for neighbor lookups
-  const cellAt = new Map<string, MonthCell>()
-  for (let r = 0; r < weeks.length; r++) {
-    for (let c = 0; c < weeks[r].length; c++) {
-      cellAt.set(`${r},${c}`, weeks[r][c])
-    }
-  }
+  // Corner radius in grid units (0.35 = ~35% of cell size)
+  const R = 0.35
 
   // Group cells by month (YYYY-MM)
-  const groups = new Map<string, { r: number; c: number; iso: string }[]>()
+  const groups = new Map<string, { r: number; c: number }[]>()
   for (let r = 0; r < weeks.length; r++) {
     for (let c = 0; c < weeks[r].length; c++) {
       const cell = weeks[r][c]
@@ -146,7 +141,7 @@ export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
       const mk = cell.iso.slice(0, 7)
       let arr = groups.get(mk)
       if (!arr) { arr = []; groups.set(mk, arr) }
-      arr.push({ r, c, iso: cell.iso })
+      arr.push({ r, c })
     }
   }
 
@@ -155,89 +150,101 @@ export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
   for (const [mk, cells] of groups) {
     if (cells.length === 0) continue
 
-    // Set of grid positions in this month (for neighbor checks)
     const inMonth = new Set(cells.map((c) => `${c.r},${c.c}`))
 
-    // 4 edge types: top, right, bottom, left
-    // Each: { sr, sc, er, ec } — start→end in grid coords
-    interface Edge { sr: number; sc: number; er: number; ec: number; kind: string }
-    const edges: Edge[] = []
+    // Collect exterior edges as SVG line segments (x=col, y=row)
+    interface Seg {
+      x1: number; y1: number; x2: number; y2: number
+      dir: 'right' | 'down' | 'left' | 'up'
+    }
+    const segs: Seg[] = []
 
     for (const { r, c } of cells) {
-      // Top edge (row r, cols c→c+1): exterior if no cell above
-      if (!inMonth.has(`${r - 1},${c}`)) {
-        edges.push({ sr: r, sc: c, er: r, ec: c + 1, kind: 'top' })
-      }
-      // Right edge (rows r→r+1, col c+1): exterior if no cell to right
-      if (!inMonth.has(`${r},${c + 1}`)) {
-        edges.push({ sr: r, sc: c + 1, er: r + 1, ec: c + 1, kind: 'right' })
-      }
-      // Bottom edge (row r+1, cols c+1→c): exterior if no cell below
-      if (!inMonth.has(`${r + 1},${c}`)) {
-        edges.push({ sr: r + 1, sc: c + 1, er: r + 1, ec: c, kind: 'bottom' })
-      }
-      // Left edge (rows r+1→r, col c): exterior if no cell to left
-      if (!inMonth.has(`${r},${c - 1}`)) {
-        edges.push({ sr: r + 1, sc: c, er: r, ec: c, kind: 'left' })
-      }
+      // Top edge: exterior if no cell above
+      if (!inMonth.has(`${r - 1},${c}`))
+        segs.push({ x1: c, y1: r, x2: c + 1, y2: r, dir: 'right' })
+      // Right edge: exterior if no cell to right
+      if (!inMonth.has(`${r},${c + 1}`))
+        segs.push({ x1: c + 1, y1: r, x2: c + 1, y2: r + 1, dir: 'down' })
+      // Bottom edge: exterior if no cell below
+      if (!inMonth.has(`${r + 1},${c}`))
+        segs.push({ x1: c + 1, y1: r + 1, x2: c, y2: r + 1, dir: 'left' })
+      // Left edge: exterior if no cell to left
+      if (!inMonth.has(`${r},${c - 1}`))
+        segs.push({ x1: c, y1: r + 1, x2: c, y2: r, dir: 'up' })
     }
 
-    if (edges.length === 0) continue
+    if (segs.length === 0) continue
 
-    // Build endpoint map: (r,c) → edge starting there
-    const nextMap = new Map<string, Edge[]>()
-    for (const e of edges) {
-      const k = `${e.sr},${e.sc}`
-      let arr = nextMap.get(k)
-      if (!arr) { arr = []; nextMap.set(k, arr) }
-      arr.push(e)
+    // Build adjacency: endpoint key → outgoing segments
+    const outMap = new Map<string, Seg[]>()
+    for (const s of segs) {
+      const k = `${s.x1},${s.y1}`
+      let arr = outMap.get(k)
+      if (!arr) { arr = []; outMap.set(k, arr) }
+      arr.push(s)
     }
 
-    // Check if corner at (cr,cc) is convex for a same-month shape
-    // Convex when NO same-month cell sits diagonally outward from that corner
-    const isConvex = (cr: number, cc: number) =>
-      !inMonth.has(`${cr - 1},${cc - 1}`) ||
-      !inMonth.has(`${cr - 1},${cc}`) ||
-      !inMonth.has(`${cr},${cc - 1}`) ||
-      !inMonth.has(`${cr},${cc}`)
+    // Turn classification between consecutive directed edges
+    const turnType = (prev: Seg, next: Seg): 'convex' | 'concave' | 'straight' => {
+      const pair = `${prev.dir}-${next.dir}`
+      if (prev.dir === next.dir) return 'straight'
+      if (['right-left', 'left-right', 'up-down', 'down-up'].includes(pair)) return 'straight'
+      // Convex = outer corner of the filled shape
+      if (['right-down', 'down-left', 'left-up', 'up-right'].includes(pair)) return 'convex'
+      return 'concave'
+    }
 
-    // Trace perimeter: start at first edge, follow endpoints
-    const used = new Set<number>()
-    let segIdx = 0
+    // Trace perimeter with rounded convex corners
+    const used = new Set<Seg>()
+    let cur = segs[0]
     const d: string[] = []
+    let first = true
 
-    for (let safety = 0; safety < edges.length + 2; safety++) {
-      if (used.has(segIdx)) break
-      used.add(segIdx)
-      const seg = edges[segIdx]
+    for (let safety = 0; safety < segs.length * 2 && cur; safety++) {
+      if (used.has(cur)) break
+      used.add(cur)
 
-      if (d.length === 0) {
-        d.push(`M ${seg.sc} ${seg.sr}`)
+      if (first) {
+        // Offset start point past first corner's radius
+        const dx = cur.dir === 'right' ? R : cur.dir === 'left' ? -R : 0
+        const dy = cur.dir === 'down' ? R : cur.dir === 'up' ? -R : 0
+        d.push(`M ${cur.x1 + dx} ${cur.y1 + dy}`)
+        first = false
+      }
+
+      // Find next segment starting at current endpoint
+      const endK = `${cur.x2},${cur.y2}`
+      const candidates = outMap.get(endK)
+      const next = candidates?.find((s) => s !== cur && !used.has(s))
+
+      if (!next) {
+        // No continuation — close path back to start
+        d.push(`L ${cur.x2} ${cur.y2}`)
+        break
+      }
+
+      const turn = turnType(cur, next)
+
+      if (turn === 'convex') {
+        // Shorten current edge end by R, arc to shortened next edge start
+        const ex = cur.dir === 'right' ? cur.x2 - R : cur.dir === 'left' ? cur.x2 + R : cur.x2
+        const ey = cur.dir === 'down' ? cur.y2 - R : cur.dir === 'up' ? cur.y2 + R : cur.y2
+        const nx = next.dir === 'right' ? next.x1 + R : next.dir === 'left' ? next.x1 - R : next.x1
+        const ny = next.dir === 'down' ? next.y1 + R : next.dir === 'up' ? next.y1 - R : next.y1
+        d.push(`L ${ex} ${ey}`)
+        d.push(`A ${R} ${R} 0 0 1 ${nx} ${ny}`)
       } else {
-        // The corner is at the start of this segment (= end of previous)
-        const cornerR = seg.sr
-        const cornerC = seg.sc
-        if (isConvex(cornerR, cornerC)) {
-          d.push(`Q ${cornerC} ${cornerR} ${seg.ec} ${seg.er}`)
-        } else {
-          d.push(`L ${seg.ec} ${seg.er}`)
-        }
+        // Concave or straight: go directly to corner
+        d.push(`L ${cur.x2} ${cur.y2}`)
       }
 
-      // Find next segment starting where this one ends
-      const endK = `${seg.er},${seg.ec}`
-      const candidates = nextMap.get(endK)
-      if (candidates) {
-        const next = candidates.find((e) => {
-          const idx = edges.indexOf(e)
-          return idx !== segIdx && !used.has(idx)
-        })
-        if (next) {
-          segIdx = edges.indexOf(next)
-          continue
-        }
-      }
-      break
+      cur = next
+    }
+
+    // Handle closing corner (last→first transition)
+    if (d.length > 1 && cur && used.has(segs[0])) {
+      // Already closed via loop break — Z handles it
     }
 
     d.push('Z')
