@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellFillClass, cellLayoutClass, dragShape, firstDayTintBleed, monthEdgeOverride, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, monthScoopClass, runShape, type DayShape } from '../rangeStyle'
 
 const member = (set: Set<string>) => (iso: string) => set.has(iso)
 
@@ -108,8 +108,12 @@ describe('shape vocabulary', () => {
 })
 
 describe('monthScoopClass', () => {
-  it('returns rounded-tl-xl when left and top are tinted and self is not', () => {
-    expect(monthScoopClass(false, true, true)).toBe('rounded-tl-xl')
+  it('returns tl when left and top are tinted and self is not', () => {
+    expect(monthScoopClass(false, true, true)).toBe('tl')
+  })
+
+  it('returns br when right and bottom are tinted and self is not', () => {
+    expect(monthScoopClass(false, false, false, true, true)).toBe('br')
   })
 
   it('returns empty string when self is tinted (even month)', () => {
@@ -127,44 +131,16 @@ describe('monthScoopClass', () => {
   it('returns empty string when neither neighbor is tinted', () => {
     expect(monthScoopClass(false, false, false)).toBe('')
   })
-})
 
-describe('monthEdgeOverride', () => {
-  it('adds rounded-tl-xl on 1st of tinted month when missing', () => {
-    const base = 'w-full bg-month-tint'
-    expect(monthEdgeOverride(true, false, true, null, base)).toBe('w-full bg-month-tint rounded-tl-xl')
+  it('returns empty string when only right is tinted', () => {
+    expect(monthScoopClass(false, false, false, true, false)).toBe('')
   })
 
-  it('does not duplicate rounded-tl-xl if already present', () => {
-    const base = 'w-full rounded-tl-xl bg-month-tint'
-    expect(monthEdgeOverride(true, false, true, null, base)).toBe(base)
-  })
-
-  it('adds rounded-br-xl on last day of tinted month', () => {
-    const base = 'w-full bg-month-tint'
-    expect(monthEdgeOverride(false, true, true, null, base)).toBe('w-full bg-month-tint rounded-br-xl')
-  })
-
-  it('both 1st AND last day: adds tl and br', () => {
-    const base = 'w-full bg-month-tint'
-    expect(monthEdgeOverride(true, true, true, null, base)).toBe('w-full bg-month-tint rounded-tl-xl rounded-br-xl')
-  })
-
-  it('no-op when not tinted', () => {
-    const base = 'mx-auto w-full max-w-11 rounded-full'
-    expect(monthEdgeOverride(true, true, false, null, base)).toBe(base)
-  })
-
-  it('no-op when shaped (period cell)', () => {
-    const base = 'w-full rounded-none bg-month-tint'
-    expect(monthEdgeOverride(true, true, true, 'middle', base)).toBe(base)
-  })
-
-  it('does not duplicate rounded-br-xl if already present', () => {
-    const base = 'w-full rounded-br-xl bg-month-tint'
-    expect(monthEdgeOverride(false, true, true, null, base)).toBe(base)
+  it('returns empty string when only bottom is tinted', () => {
+    expect(monthScoopClass(false, false, false, false, true)).toBe('')
   })
 })
+
 
 // Period selection on tinted months: cell paints the tint as a full square so
 // corners outside the cap rounding show the month bg instead of white; the
@@ -195,31 +171,6 @@ describe('cellLayoutClass', () => {
 
   it('scoop cells fill the column flush with the adjacent block', () => {
     expect(cellLayoutClass(null, true, false)).toBe('w-full rounded-none')
-  })
-})
-
-describe('firstDayTintBleed', () => {
-  it('returns tint classes when 1st of untinted month has tinted left neighbor', () => {
-    expect(firstDayTintBleed(true, false, true, null)).toBe('bg-month-tint rounded-tl-xl text-white')
-  })
-
-  it('returns empty when not month start', () => {
-    expect(firstDayTintBleed(false, false, true, null)).toBe('')
-  })
-
-  it('returns empty when month is tinted (already has tint bg)', () => {
-    expect(firstDayTintBleed(true, true, true, null)).toBe('')
-  })
-
-  it('returns empty when left neighbor not tinted', () => {
-    expect(firstDayTintBleed(true, false, false, null)).toBe('')
-  })
-
-  it('returns empty when shaped (period cell carries own fill)', () => {
-    expect(firstDayTintBleed(true, false, true, 'start')).toBe('')
-    expect(firstDayTintBleed(true, false, true, 'middle')).toBe('')
-    expect(firstDayTintBleed(true, false, true, 'end')).toBe('')
-    expect(firstDayTintBleed(true, false, true, 'single')).toBe('')
   })
 })
 

@@ -42,62 +42,31 @@ export function dragShape(iso: string, from: string, to: string): DayShape | nul
 
 /**
  * Concave "scoop" corner for an untinted cell that sits in the inner corner
- * of an even-month tint block (e.g. Sep 1 directly right+below Aug 31 in the
- * same grid row-pair). The cell paints the tint as its own background and a
- * white overlay with the rounded corner on top — the tint shows through only
- * in the scooped corner, so the block's convex rounding gets a matching
- * concave counterpart. Returns '' when no scoop applies (needs BOTH a tinted
- * left and a tinted top neighbor, and the cell itself untinted).
+ * of an even-month tint block. Two orientations:
+ *
+ *   'tl' — left+top neighbors tinted (e.g. Sep 1 with Aug tint to its left
+ *          and above). White overlay with rounded-tl covers the cell; tint
+ *          shows through the left strip and the scooped top-left corner.
+ *
+ *   'br' — right+bottom neighbors tinted (e.g. Sep 30 with Oct tint to its
+ *          right and below). White overlay with rounded-br covers the cell;
+ *          tint shows through the right strip and the scooped bottom-right
+ *          corner.
+ *
+ * Returns '' when no scoop applies (self tinted, or not enough tinted
+ * neighbors).
  */
 export function monthScoopClass(
   selfTinted: boolean,
   leftTinted: boolean,
   topTinted: boolean,
+  rightTinted = false,
+  bottomTinted = false,
 ): string {
-  if (selfTinted || !leftTinted || !topTinted) return ''
-  return 'rounded-tl-xl'
-}
-
-/**
- * First-day-of-untinted-month tint bleed: when the 1st of an odd month
- * sits directly right of the last day of an even (tinted) month in the
- * same grid row, the cell inherits the tint block's background so the
- * visual seam is continuous. Returns classes to apply; '' otherwise.
- * Shaped (period) cells are excluded — they carry their own rose fill.
- */
-export function firstDayTintBleed(
-  isMonthStart: boolean,
-  monthTint: boolean,
-  leftTinted: boolean,
-  shape: DayShape | null,
-): string {
-  if (!isMonthStart || monthTint || !leftTinted || shape) return ''
-  return 'bg-month-tint rounded-tl-xl text-white'
-}
-
-/**
- * Month boundary overrides for tinted-month background blocks.
- * - 1st of tinted month: rounded top-left corner (XL).
- * - Last day of tinted month: rounded bottom-right corner.
- * Shaped (period) cells keep their own geometry — override skipped.
- * Returns the adjusted class string.
- */
-export function monthEdgeOverride(
-  isMonthStart: boolean,
-  isMonthEnd: boolean,
-  monthTint: boolean,
-  shape: DayShape | null,
-  baseCls: string,
-): string {
-  if (!monthTint || shape) return baseCls
-  let cls = baseCls
-  if (isMonthStart && !cls.includes('rounded-tl-xl')) {
-    cls += ' rounded-tl-xl'
-  }
-  if (isMonthEnd && !cls.includes('rounded-br-xl')) {
-    cls += ' rounded-br-xl'
-  }
-  return cls
+  if (selfTinted) return ''
+  if (leftTinted && topTinted) return 'tl'
+  if (rightTinted && bottomTinted) return 'br'
+  return ''
 }
 
 /**

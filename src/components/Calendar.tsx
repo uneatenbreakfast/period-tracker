@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Prediction, Snapshot } from '../types'
 import {
-  addDays,
   continuousGrid,
   initialMonths,
   loadOlderMonths,
@@ -20,7 +19,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellLayoutClass, dragShape, firstDayTintBleed, monthEdgeOverride, monthScoopClass, runShape } from '../lib/rangeStyle'
+import { cellFillClass, cellLayoutClass, dragShape, monthScoopClass, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -136,12 +135,18 @@ export default function Calendar({
   // into scoop cells, so we must not round the shared edge.
   const monthEdges = useMemo(() => {
     const edgeMap = new Map<string, string>()
+    // Detect whether an odd-month neighbor is a "scoop" cell — untinted
+    // but visually connected to the tint block via the scoop mechanism.
+    // Checks both tl-scoop (left+top tinted) and br-scoop (right+bottom
+    // tinted) orientations so horizontal and vertical neighbors are handled.
     const isScoop = (o: { iso: string; inMonth: boolean }, oi: number, row: { iso: string; inMonth: boolean }[], ri: number) => {
       if (!o || !o.inMonth) return false
       const m = Number(o.iso.slice(5, 7))
-      if (m % 2 !== 0 && oi > 0 && ri > 0) {
-        // Odd month — check if scoop (tinted left AND top)
-        return cellTinted(row[oi - 1]) && cellTinted(weeks[ri - 1][oi])
+      if (m % 2 !== 0) {
+        // tl-scoop: tinted left AND top
+        if (oi > 0 && ri > 0 && cellTinted(row[oi - 1]) && cellTinted(weeks[ri - 1][oi])) return true
+        // br-scoop: tinted right AND bottom
+        if (oi < 6 && ri < weeks.length - 1 && cellTinted(row[oi + 1]) && cellTinted(weeks[ri + 1][oi])) return true
       }
       return false
     }
@@ -149,8 +154,6 @@ export default function Calendar({
       for (let di = 0; di < 7; di++) {
         const c = weeks[wi][di]
         if (!c.inMonth) continue
-        const monthNum = Number(c.iso.slice(5, 7))
-        if (monthNum % 2 !== 0) continue // only even months get blocks
         const sameMonth = (o: { iso: string; inMonth: boolean }) =>
           o && o.inMonth && o.iso.slice(5, 7) === c.iso.slice(5, 7)
         const left = di > 0 && (sameMonth(weeks[wi][di - 1]) || isScoop(weeks[wi][di - 1], di - 1, weeks[wi], wi))
@@ -158,10 +161,10 @@ export default function Calendar({
         const top = wi > 0 && (sameMonth(weeks[wi - 1][di]) || isScoop(weeks[wi - 1][di], di, weeks[wi - 1], wi - 1))
         const bottom = wi < weeks.length - 1 && (sameMonth(weeks[wi + 1][di]) || isScoop(weeks[wi + 1][di], di, weeks[wi + 1], wi + 1))
         const corners: string[] = []
-        if (!top && !left) corners.push('rounded-tl-xl')
-        if (!top && !right) corners.push('rounded-tr-xl')
-        if (!bottom && !left) corners.push('rounded-bl-xl')
-        if (!bottom && !right) corners.push('rounded-br-xl')
+        if (!top && !left) corners.push('rounded-tl-3xl')
+        if (!top && !right) corners.push('rounded-tr-3xl')
+        if (!bottom && !left) corners.push('rounded-bl-3xl')
+        if (!bottom && !right) corners.push('rounded-br-3xl')
         if (corners.length) edgeMap.set(c.iso, corners.join(' '))
       }
     }
@@ -631,16 +634,22 @@ export default function Calendar({
                   // keeps its circle. Scoop cells also fill the column so the
                   // tint connects flush with the adjacent even-month block.
                   // Concave scoop: an untinted cell tucked into the inner
-                  // corner of an even-month block (tinted left AND top
-                  // neighbors) paints the tint itself and covers it with a
-                  // white rounded-tl overlay — tint outside, white inside.
+                  // corner of an even-month tint block. Two orientations:
+                  //   'tl' — tinted left AND top (concave at month start)
+                  //   'br' — tinted right AND bottom (concave at month end)
+                  // The cell paints the tint as its own bg and a white
+                  // overlay with the matching rounded corner on top.
                   let scoop = ''
                   if (!monthTint && cell.inMonth) {
                     const leftTinted =
                       di > 0 && cellTinted(weeks[wi][di - 1])
                     const topTinted =
                       wi > 0 && cellTinted(weeks[wi - 1][di])
-                    scoop = monthScoopClass(monthTint, leftTinted, topTinted)
+                    const rightTinted =
+                      di < 6 && cellTinted(weeks[wi][di + 1])
+                    const bottomTinted =
+                      wi < weeks.length - 1 && cellTinted(weeks[wi + 1][di])
+                    scoop = monthScoopClass(monthTint, leftTinted, topTinted, rightTinted, bottomTinted)
                   }
                   // Strip cells (start cap / square / end cap) fill their grid
                   // column edge-to-edge so adjacent days read as ONE continuous
@@ -667,38 +676,17 @@ export default function Calendar({
                   // squared-off notch on tinted months).
                   const edgeCls = shape ? undefined : monthEdges.get(cell.iso)
                   if (edgeCls) cls += ' ' + edgeCls
-                  // Month boundary overrides for tinted months:
-                  // - 1st of month: square left edge (no rounding), no left border
-                  // - Last day: rounded bottom-right corner
-                  if (monthTint && !shape) {
-                    const nextDay = addDays(cell.iso, 1)
-                    const isMonthEnd = nextDay.slice(5, 7) !== cell.iso.slice(5, 7)
-                    cls = monthEdgeOverride(isMonthStart, isMonthEnd, monthTint, shape, cls)
-                  }
-                  // 1st of month: zero left border + full-width square so the
-                  // previous month's tint doesn't spill through transparent
-                  // corners of a centered circle. Tinted months keep their
-                  // bg-month-tint fill; non-tinted months never had it.
-                  // Untinted 1st adjacent to tinted month's last day: inherit
-                  // the tint block bg + TL rounding + white foreground so the
-                  // seam reads as one continuous block. Computed BEFORE the
-                  // isMonthStart block so we can suppress the scoop overlay
-                  // when bleed applies (both fight for the same cell).
-                  const leftTintedBleed = isMonthStart && !shape && di > 0 && cellTinted(weeks[wi][di - 1])
-                  const bleedCls = leftTintedBleed ? firstDayTintBleed(isMonthStart, monthTint, leftTintedBleed, shape) : ''
-                  // Scoop overlay must NOT render when the 1st gets a tint
-                  // bleed — the bleed paints the cell as a tint-block
-                  // continuation; the scoop's white rectangle would cover
-                  // that, leaving an orphaned tint curve in the corner.
-                  const showScoopOverlay = !!scoop && !shape && !bleedCls
+
+                  // 1st of month: full-width square so the previous month's
+                  // tint doesn't spill through transparent corners of a
+                  // centered circle. Tinted months keep their bg-month-tint
+                  // fill; non-tinted months strip it — unless the cell is a
+                  // scoop (which carries its own tint via the scoop mechanism).
+                  const showScoopOverlay = !!scoop && !shape
                   if (isMonthStart && !shape) {
                     cls = cls.replace(/\bmx-auto\b/g, '').replace(/\bmax-w-11\b/g, '').replace(/\brounded-full\b/g, '')
-                    if (!monthTint) cls = cls.replace(/\bbg-month-tint\b/g, '')
-                    cls += ' border-l-0 rounded-l-none'
-                    if (bleedCls) {
-                      cls = cls.replace(/\bbg-white\b/g, '')
-                      cls += ' ' + bleedCls
-                    }
+                    if (!monthTint && !scoop) cls = cls.replace(/\bbg-month-tint\b/g, '')
+                    cls += ' border-l-0'
                   }
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: small ink dot below number — distinct from rose period
@@ -809,8 +797,18 @@ export default function Calendar({
                       className={`${cls} relative`}
                       aria-label={cell.iso}
                     >
-                      {showScoopOverlay ? (
-                        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 bg-white rounded-tl-[12px]" style={{ left: '12px' }} />
+                      {showScoopOverlay && scoop === 'tl' ? (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0"
+                          style={{ background: 'radial-gradient(circle at top left, transparent 23px, white 25px)' }}
+                        />
+                      ) : showScoopOverlay && scoop === 'br' ? (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0"
+                          style={{ background: 'radial-gradient(circle at bottom right, transparent 23px, white 25px)' }}
+                        />
                       ) : null}
 
                       {shape && monthTint ? (
@@ -822,13 +820,13 @@ export default function Calendar({
                         />
                       ) : null}
                       {editHandle === 'start' ? grip : null}
-                      <span className="relative z-10">
+                      <span className="relative z-10 flex flex-col items-center justify-center gap-0.5">
                         {isMonthStart && (
-                          <sup className={`text-[8px] font-bold uppercase leading-none tracking-wide ${edit ? 'border-l-2 border-rose-400 pl-0.5' : ''}`}>
+                          <span className={`text-[9px] font-bold uppercase leading-none tracking-wide opacity-80 ${edit ? 'border-l-2 border-rose-400 pl-0.5' : ''}`}>
                             {MONTH_NAMES[Number(cell.iso.slice(5, 7)) - 1].slice(0, 3)}
-                          </sup>
+                          </span>
                         )}
-                        {Number(cell.iso.slice(8))}
+                        <span>{Number(cell.iso.slice(8))}</span>
                       </span>
                       {editHandle === 'end' ? grip : null}
                       {isToday && (
