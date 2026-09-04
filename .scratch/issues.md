@@ -63,3 +63,13 @@ Bloom prediction now follows Fitbit's officially documented model: `averageCycle
 **Problem**: Every calendar cell rendered rose-pink instead of alternating gray/white. Inner `<span>` elements using `absolute inset-0` (rose period overlay) escaped to the card container (`position: relative`) because the parent button lacked `position: relative`. Two 358×460px rose overlays covered the entire grid.
 **Fix**: Always add `relative` to the button element (`className={\`${cls} relative\``)`. Grid cells have no layout side effects from `relative`.
 **Verified**: DOM dump shows correct computed backgrounds; pixel analysis shows proper alternation (gray 223,227,232 for even months, white for odd, rose 229,138,168 for period cells). Zero leaking overlays. Screenshot at `.scratch/bloom-fixed.png`.
+
+### BLOOM-0020 — Restore undo toast for period range selection
+**Problem**: Regression — dragging a new period range that replaces an existing one no longer shows an undo toast. Feature was stripped 2026-09-03 after a deploy failure (props passed to Calendar but not declared in CalendarProps → TS2322).
+**Fix**: Re-implemented properly.
+- `src/lib/storage.ts`: added `captureClearedEntries` + `captureDeletedEntries` pure helpers that predict what `replaceRangeFlow`/`deleteRangeFlow` will clear/modify, called BEFORE the mutation.
+- `src/App.tsx`: owns `undoState` ({entries, message}); `commitRange` + `deleteRange` capture pre-mutation then `setUndoState`; `performUndo` re-applies via `upsertEntry` loop (additive — user keeps both old + new); passes `undoState`/`onUndo`/`onDismissUndo` to Calendar.
+- `src/components/Calendar.tsx`: declared undo props in `CalendarProps` + exported `UndoState` type; auto-dismiss `useEffect` (5s timer, cleanup on unmount); renders `animate-slide-up` toast at `bottom-4 left-1/2 z-40` (above edit modal z-30).
+- `index.css`: `slide-up` keyframe already present (uses `translate(-50%, ...)` to preserve `left-1/2` centering).
+**Tests**: 6 new unit tests in `storage.test.ts` lock capture semantics (matches replaceRangeFlow exactly, order-agnostic, includes partial-clear entries with symptoms/notes).
+**Verified**: 205/205 tests pass; tsc clean; build green (v245).

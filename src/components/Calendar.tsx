@@ -24,6 +24,11 @@ import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
+export interface UndoState {
+  entries: import('../types').DayEntry[]
+  message: string
+}
+
 interface CalendarProps {
   snap: Snapshot
   prediction: Prediction
@@ -38,6 +43,12 @@ interface CalendarProps {
   onRangeDelete: (start: string, end: string) => void
   /** Max days a drag/edit range can span (from settings.periodLength). */
   maxPeriodDays?: number
+  /** Undo toast state — truthy shows the toast. */
+  undoState?: UndoState | null
+  /** User tapped Undo — restore captured entries. */
+  onUndo?: () => void
+  /** Dismiss the toast (manual or auto-timer). */
+  onDismissUndo?: () => void
 }
 
 const fmtDay = (iso: string) => {
@@ -55,6 +66,9 @@ export default function Calendar({
   onRangeComplete,
   onRangeDelete,
   maxPeriodDays,
+  undoState,
+  onUndo,
+  onDismissUndo,
 }: CalendarProps) {
   const today = todayISO()
   // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead;
@@ -121,6 +135,12 @@ export default function Calendar({
   useEffect(() => {
     editAxisRef.current = editAxis
   })
+  // Auto-dismiss undo toast after 5s
+  useEffect(() => {
+    if (!undoState || !onDismissUndo) return
+    const timer = window.setTimeout(onDismissUndo, 5000)
+    return () => window.clearTimeout(timer)
+  }, [undoState, onDismissUndo])
   const entriesByDate = useMemo(() => {
     const m = new Map<string, Snapshot['entries'][number]>()
     for (const e of snap.entries) m.set(e.date, e)
@@ -756,6 +776,18 @@ export default function Calendar({
           })}
       </div>
       </div>
+      {undoState && (
+        <div className="animate-slide-up absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-ink px-4 py-2 shadow-lg">
+          <span className="text-sm font-bold text-white">{undoState.message}</span>
+          <button
+            type="button"
+            onClick={onUndo}
+            className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-white/30"
+          >
+            Undo
+          </button>
+        </div>
+      )}
       {!showLegend ? null : (
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-rose-50 pt-3 text-xs text-ink-soft">
           <span className="flex items-center gap-1.5">

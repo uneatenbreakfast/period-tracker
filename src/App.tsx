@@ -10,6 +10,8 @@ import { addDays, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
 import { DEFAULT_FLOW } from './lib/symptoms'
 import {
+  captureClearedEntries,
+  captureDeletedEntries,
   createLocalStorageAdapter,
   deleteRangeFlow,
   getEntry,
@@ -19,6 +21,7 @@ import {
   replaceRangeFlow,
   saveSnapshot,
   serializeSnapshot,
+  upsertEntry,
   upsertReact,
 } from './lib/storage'
 
@@ -99,15 +102,55 @@ export default function App() {
     setSnap((s) => removeEntry(s, selectedDate))
   }
 
+  // Undo toast state — captures entries cleared by a destructive operation
+  // so the user can restore them within a short window.
+  const [undoState, setUndoState] = useState<{
+    entries: Snapshot['entries']
+    message: string
+  } | null>(null)
+
+  const dismissUndo = () => setUndoState(null)
+
+  const performUndo = () => {
+    if (!undoState) return
+    setSnap((s) => {
+      let next = s
+      for (const e of undoState.entries) {
+        next = upsertEntry(next, e)
+      }
+      return next
+    })
+    setUndoState(null)
+  }
+
   // Drag across calendar days: the range becomes THE period for the month(s)
   // it touches — any previously marked period days in those months are cleared.
   const commitRange = (start: string, end: string) => {
+    // Capture BEFORE mutation — setSnap callback sees the NEW state.
+    const cleared = captureClearedEntries(snap, start, end)
     setSnap((s) => replaceRangeFlow(s, start, end, DEFAULT_FLOW))
+    if (cleared.length > 0) {
+      setUndoState({
+        entries: cleared,
+        message: `Replaced ${cleared.length} day${cleared.length === 1 ? '' : 's'}`,
+      })
+    } else {
+      setUndoState(null)
+    }
   }
 
   // Delete button in edit mode: clears the committed range entirely.
   const deleteRange = (start: string, end: string) => {
+    const deleted = captureDeletedEntries(snap, start, end)
     setSnap((s) => deleteRangeFlow(s, start, end))
+    if (deleted.length > 0) {
+      setUndoState({
+        entries: deleted,
+        message: `Deleted ${deleted.length} day${deleted.length === 1 ? '' : 's'}`,
+      })
+    } else {
+      setUndoState(null)
+    }
   }
 
   const handleExport = () => {
@@ -265,7 +308,9 @@ export default function App() {
             onRangeComplete={commitRange}
             onRangeDelete={deleteRange}
             maxPeriodDays={snap.settings.periodLength}
-
+            undoState={undoState}
+            onUndo={performUndo}
+            onDismissUndo={dismissUndo}
           />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device

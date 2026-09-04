@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  captureClearedEntries,
+  captureDeletedEntries,
   createEmptySnapshot,
   getEntry,
   loadSnapshot,
@@ -217,5 +219,81 @@ describe('entry mutations (pure)', () => {
     const a = replaceRangeFlow(s, '2026-01-12', '2026-01-10', 'light')
     expect(a.entries.map((e) => e.date)).toEqual(['2026-01-10', '2026-01-11', '2026-01-12'])
     expect(a.entries.every((e) => e.flow === 'light')).toBe(true)
+  })
+})
+
+describe('undo capture helpers', () => {
+  it('captureClearedEntries returns entries that replaceRangeFlow would clear', () => {
+    // Jan 5 has flow outside the new range but in same month → captured
+    // Jan 11 is inside the new range → NOT captured (kept by replace)
+    // Feb 1 is in a different month → NOT captured
+    const s = setRangeFlow(
+      upsertEntry(createEmptySnapshot(), { date: '2026-02-01', flow: 'light', symptoms: [] }),
+      '2026-01-05', '2026-01-05', 'medium',
+    )
+    const withJan11 = upsertEntry(s, { date: '2026-01-11', flow: 'heavy', symptoms: [] })
+    const cleared = captureClearedEntries(withJan11, '2026-01-10', '2026-01-12')
+    expect(cleared).toHaveLength(1)
+    expect(cleared[0].date).toBe('2026-01-05')
+    expect(cleared[0].flow).toBe('medium')
+  })
+
+  it('captureClearedEntries returns empty when no entries would be cleared', () => {
+    const s = createEmptySnapshot()
+    expect(captureClearedEntries(s, '2026-01-10', '2026-01-12')).toEqual([])
+  })
+
+  it('captureClearedEntries matches replaceRangeFlow behavior exactly', () => {
+    // Build a snapshot with entries across two months
+    let s = createEmptySnapshot()
+    s = upsertEntry(s, { date: '2026-01-03', flow: 'light', symptoms: ['cramps'] })
+    s = upsertEntry(s, { date: '2026-01-05', flow: 'medium', symptoms: [] })
+    s = upsertEntry(s, { date: '2026-01-15', flow: 'heavy', symptoms: [], notes: 'test' })
+    s = upsertEntry(s, { date: '2026-02-01', flow: 'light', symptoms: [] })
+
+    const cleared = captureClearedEntries(s, '2026-01-10', '2026-01-12')
+    const after = replaceRangeFlow(s, '2026-01-10', '2026-01-12', 'medium')
+
+    // Every captured entry should be gone (or modified) in the result
+    for (const c of cleared) {
+      const entry = getEntry(after, c.date)
+      // Either removed entirely or had flow stripped
+      if (entry) expect(entry.flow).toBeUndefined()
+    }
+    // Entries NOT captured should still have their flow
+    expect(getEntry(after, '2026-02-01')?.flow).toBe('light')
+  })
+
+  it('captureDeletedEntries returns all flow entries in range', () => {
+    let s = createEmptySnapshot()
+    s = upsertEntry(s, { date: '2026-01-10', flow: 'medium', symptoms: [] })
+    s = upsertEntry(s, { date: '2026-01-11', flow: 'heavy', symptoms: ['cramps'], notes: 'bad' })
+    s = upsertEntry(s, { date: '2026-01-13', flow: 'light', symptoms: [] })
+    // Outside range
+    s = upsertEntry(s, { date: '2026-01-15', flow: 'medium', symptoms: [] })
+
+    const deleted = captureDeletedEntries(s, '2026-01-10', '2026-01-12')
+    expect(deleted).toHaveLength(2)
+    const dates = deleted.map((e) => e.date).sort()
+    expect(dates).toEqual(['2026-01-10', '2026-01-11'])
+  })
+
+  it('captureDeletedEntries includes entries with symptoms/notes (partial clear)', () => {
+    // These entries won't be fully removed by deleteRangeFlow (symptoms kept),
+    // but they ARE affected — undo needs to restore their flow.
+    const s = upsertEntry(createEmptySnapshot(), {
+      date: '2026-01-10', flow: 'medium', symptoms: ['cramps'], notes: 'ouch',
+    })
+    const deleted = captureDeletedEntries(s, '2026-01-10', '2026-01-10')
+    expect(deleted).toHaveLength(1)
+    expect(deleted[0].flow).toBe('medium')
+    expect(deleted[0].symptoms).toEqual(['cramps'])
+  })
+
+  it('captureDeletedEntries is order-agnostic', () => {
+    const s = upsertEntry(createEmptySnapshot(), { date: '2026-01-12', flow: 'medium', symptoms: [] })
+    const a = captureDeletedEntries(s, '2026-01-12', '2026-01-10')
+    const b = captureDeletedEntries(s, '2026-01-10', '2026-01-12')
+    expect(a).toEqual(b)
   })
 })

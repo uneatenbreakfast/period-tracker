@@ -124,6 +124,40 @@ export function deleteRangeFlow(snap: Snapshot, start: string, end: string): Sna
   return next
 }
 
+
+/**
+ * Pure capture: returns entries that replaceRangeFlow would clear.
+ * Use BEFORE calling replaceRangeFlow to build an undo payload.
+ */
+export function captureClearedEntries(snap: Snapshot, start: string, end: string): DayEntry[] {
+  const [from, to] = start <= end ? [start, end] : [end, start]
+  const months = new Set<string>()
+  for (let d = from; d <= to; d = addDays(d, 1)) months.add(d.slice(0, 7))
+  const cleared: DayEntry[] = []
+  for (const e of snap.entries) {
+    if (e.flow === undefined) continue
+    if (e.date >= from && e.date <= to) continue
+    if (!months.has(e.date.slice(0, 7))) continue
+    cleared.push(e)
+  }
+  return cleared
+}
+
+/**
+ * Pure capture: returns entries that deleteRangeFlow would clear or modify.
+ * Use BEFORE calling deleteRangeFlow to build an undo payload.
+ */
+export function captureDeletedEntries(snap: Snapshot, start: string, end: string): DayEntry[] {
+  const [from, to] = start <= end ? [start, end] : [end, start]
+  const deleted: DayEntry[] = []
+  for (const e of snap.entries) {
+    if (e.flow === undefined) continue
+    if (e.date < from || e.date > to) continue
+    deleted.push(e)
+  }
+  return deleted
+}
+
 export function getEntry(snap: Snapshot, date: string): DayEntry | undefined {
   return snap.entries.find((e) => e.date === date)
 }
