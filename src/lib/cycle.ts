@@ -17,14 +17,23 @@ export const FERTILE_RANGE = { before: 5, after: 1 } as const
 export const DEFAULT_CYCLE_LENGTH = 28
 export const DEFAULT_PERIOD_LENGTH = 5
 
+/**
+ * Maximum plausible cycle length (start-to-start). Gaps beyond this are
+ * logging breaks, pregnancy, menopause, or data errors — not real cycles.
+ * 90 days matches clinical "oligomenorrhea" threshold.
+ */
+export const MAX_CYCLE_LENGTH_DAYS = 90
+
 export function isPeriodDay(d: DayEntry): boolean {
   return d.flow !== undefined && d.flow !== null
 }
 
 /** Group period days into cycle events. Days must carry flow. Sorted ascending. */
 export function detectCycles(entries: DayEntry[]): CycleEvent[] {
+  const today = todayISO()
   const periodDays = entries
     .filter(isPeriodDay)
+    .filter((e) => e.date <= today) // exclude future dates (test data, typos)
     .map((e) => e.date)
     .sort()
   if (periodDays.length === 0) return []
@@ -70,9 +79,12 @@ export function cycleLengths(cycles: CycleEvent[]): number[] {
  * the documented recency emphasis. Falls back to the user's default cycle
  * length (28 unless customized in Settings, BLOOM-0002) when fewer than two
  * cycles are logged — Fitbit's default starting point. Never null.
+ *
+ * Outlier gaps (> MAX_CYCLE_LENGTH_DAYS) are excluded — these represent
+ * logging breaks, pregnancy, or data errors rather than real cycles.
  */
 export function averageCycleLength(cycles: CycleEvent[], defaultCycleLength: number = DEFAULT_CYCLE_LENGTH): number {
-  const lens = cycleLengths(cycles)
+  const lens = cycleLengths(cycles).filter((len) => len <= MAX_CYCLE_LENGTH_DAYS)
   if (lens.length === 0) return defaultCycleLength
   let weightSum = 0
   let weightedSum = 0

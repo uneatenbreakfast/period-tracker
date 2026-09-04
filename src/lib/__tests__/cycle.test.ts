@@ -389,3 +389,53 @@ describe('custom settings defaults (BLOOM-0002)', () => {
     expect(p.nextPeriodStart).toBe(addDays('2026-02-02', 30))
   })
 })
+
+describe('outlier + future date filtering', () => {
+  it('excludes cycle gaps > 90 days from average (logging break)', () => {
+    const entries = [
+      '2026-01-03', '2026-01-05',
+      '2026-02-02', '2026-02-04', // +30
+      '2026-06-01', '2026-06-03', // +119 → outlier, excluded
+      '2026-07-01', '2026-07-03', // +30
+    ].map((d) => day(d))
+    const cycles = detectCycles(entries)
+    expect(cycleLengths(cycles)).toEqual([30, 119, 30])
+    // Only the two 30-day gaps count; 119 is filtered out
+    expect(averageCycleLength(cycles)).toBe(30)
+  })
+
+  it('falls back to default when all gaps are outliers', () => {
+    const entries = [
+      '2026-01-03', '2026-01-05',
+      '2026-06-01', '2026-06-03', // +149
+      '2026-12-01', '2026-12-03', // +183
+    ].map((d) => day(d))
+    expect(averageCycleLength(detectCycles(entries))).toBe(DEFAULT_CYCLE_LENGTH)
+  })
+
+  it('ignores future-dated period entries (test data / typos)', () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const future = addDays(today, 30)
+    const entries = [
+      '2026-01-03', '2026-01-05',
+      '2026-02-02', '2026-02-04',
+      future, addDays(future, 2), // future period → must be excluded
+    ].map((d) => day(d))
+    const cycles = detectCycles(entries)
+    // Only 2 real cycles detected; future one dropped
+    expect(cycles).toHaveLength(2)
+    expect(cycles[1].start).toBe('2026-02-02')
+  })
+
+  it('predictNext uses filtered average, not poisoned by outliers', () => {
+    const entries = [
+      '2026-01-03', '2026-01-05',
+      '2026-02-02', '2026-02-04', // +30
+      '2026-06-01', '2026-06-03', // +119 → outlier
+      '2026-07-01', '2026-07-03', // +30
+    ].map((d) => day(d))
+    const p = predictNext(entries)
+    expect(p.avgCycleLength).toBe(30)
+    expect(p.nextPeriodStart).toBe(addDays('2026-07-01', 30))
+  })
+})
