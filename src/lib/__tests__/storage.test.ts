@@ -6,6 +6,7 @@ import {
   getEntry,
   loadSnapshot,
   parseSnapshot,
+  deleteRangeFlow,
   removeEntry,
   replaceRangeFlow,
   saveSnapshot,
@@ -296,4 +297,48 @@ describe('undo capture helpers', () => {
     const b = captureDeletedEntries(s, '2026-01-10', '2026-01-12')
     expect(a).toEqual(b)
   })
+  it('captureClearedEntries + deleteRangeFlow = complete revert of replaceRangeFlow', () => {
+    // Setup: Feb 1-3 have flow, then we replace with Feb 10-12
+    const s = {
+      version: 1 as const,
+      entries: [
+        { date: '2026-02-01', flow: 'medium' as const, symptoms: [], notes: '' },
+        { date: '2026-02-02', flow: 'medium' as const, symptoms: [], notes: '' },
+        { date: '2026-02-03', flow: 'medium' as const, symptoms: [], notes: '' },
+      ],
+      settings: { cycleLength: 28, periodLength: 5 },
+      updatedAt: '2026-02-03T00:00:00.000Z',
+    }
+
+    // Capture cleared entries BEFORE mutation
+    const cleared = captureClearedEntries(s, '2026-02-10', '2026-02-12')
+    expect(cleared).toHaveLength(3) // Feb 1-3 are lone flow in same month
+
+    // Apply the operation
+    const afterReplace = replaceRangeFlow(s, '2026-02-10', '2026-02-12', 'medium')
+
+    // Verify the replacement happened
+    const newRangeEntries = afterReplace.entries.filter(e =>
+      e.date >= '2026-02-10' && e.date <= '2026-02-12'
+    )
+    expect(newRangeEntries).toHaveLength(3)
+
+    // Now simulate undo: restore cleared, then clear range
+    let undoResult = afterReplace
+    for (const e of cleared) {
+      undoResult = upsertEntry(undoResult, e)
+    }
+    undoResult = deleteRangeFlow(undoResult, '2026-02-10', '2026-02-12')
+
+    // Verify: Feb 1-3 restored, Feb 10-12 cleared
+    const restoredEntries = undoResult.entries.filter(e =>
+      e.date >= '2026-02-01' && e.date <= '2026-02-03'
+    )
+    const clearedNewRange = undoResult.entries.filter(e =>
+      e.date >= '2026-02-10' && e.date <= '2026-02-12'
+    )
+    expect(restoredEntries).toHaveLength(3)
+    expect(clearedNewRange).toHaveLength(0)
+  })
+
 })
