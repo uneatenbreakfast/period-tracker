@@ -106,6 +106,7 @@ export default function App() {
   // so the user can restore them within a short window.
   const [undoState, setUndoState] = useState<{
     entries: Snapshot['entries']
+    range?: { start: string; end: string }
     message: string
   } | null>(null)
 
@@ -115,8 +116,13 @@ export default function App() {
     if (!undoState) return
     setSnap((s) => {
       let next = s
+      // Restore entries that were cleared by the operation
       for (const e of undoState.entries) {
         next = upsertEntry(next, e)
+      }
+      // If this was a range replace, also clear the new range
+      if (undoState.range) {
+        next = deleteRangeFlow(next, undoState.range.start, undoState.range.end)
       }
       return next
     })
@@ -132,6 +138,7 @@ export default function App() {
     if (cleared.length > 0) {
       setUndoState({
         entries: cleared,
+        range: { start, end },
         message: `Replaced ${cleared.length} day${cleared.length === 1 ? '' : 's'}`,
       })
     } else {
