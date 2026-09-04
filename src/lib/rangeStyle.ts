@@ -112,10 +112,9 @@ export function cellFillClass(
 
 /**
  * SVG path data for a continuous month background shape. Traces the outer
- * boundary of a month's cells in the grid, rounding only convex corners
- * (where no same-month cell sits diagonally outward). Interior edges
- * between same-month cells are invisible — the shape reads as one organic
- * blob with smooth curves only on the outer perimeter.
+ * boundary of a month's cells in the grid, rounding convex AND concave
+ * corners. Interior edges between same-month cells are invisible — the shape
+ * reads as one organic blob with smooth curves on all corners.
  *
  * @param weeks — the continuousGrid output (MonthCell[][])
  * @returns Array of { monthKey (YYYY-MM), pathD (SVG path data), color }[]
@@ -195,56 +194,65 @@ export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
       return 'concave'
     }
 
-    // Trace perimeter with rounded convex corners
+    // Build ordered chain so we can handle closing corner (last→first)
+    const ordered: Seg[] = []
     const used = new Set<Seg>()
-    let cur = segs[0]
-    const d: string[] = []
-    let first = true
-
-    for (let safety = 0; safety < segs.length * 2 && cur; safety++) {
-      if (used.has(cur)) break
+    let cur: Seg | undefined = segs[0]
+    while (cur && !used.has(cur)) {
       used.add(cur)
+      ordered.push(cur)
+      const endK: string = `${cur.x2},${cur.y2}`
+      cur = outMap.get(endK)?.find((s) => !used.has(s))
+    }
+    if (ordered.length === 0) continue
 
-      if (first) {
-        // Offset start point past first corner's radius
-        const dx = cur.dir === 'right' ? R : cur.dir === 'left' ? -R : 0
-        const dy = cur.dir === 'down' ? R : cur.dir === 'up' ? -R : 0
-        d.push(`M ${cur.x1 + dx} ${cur.y1 + dy}`)
-        first = false
+    const d: string[] = []
+    const n = ordered.length
+
+    for (let i = 0; i < n; i++) {
+      const prev = ordered[(i - 1 + n) % n]
+      const seg = ordered[i]
+      const next = ordered[(i + 1) % n]
+      const turnIn = turnType(prev, seg)
+      const turnOut = turnType(seg, next)
+
+      // Start of segment: offset inward if incoming turn is convex or concave
+      let sx = seg.x1, sy = seg.y1
+      if (turnIn === 'convex' || turnIn === 'concave') {
+        sx += seg.dir === 'right' ? R : seg.dir === 'left' ? -R : 0
+        sy += seg.dir === 'down' ? R : seg.dir === 'up' ? -R : 0
       }
 
-      // Find next segment starting at current endpoint
-      const endK = `${cur.x2},${cur.y2}`
-      const candidates = outMap.get(endK)
-      const next = candidates?.find((s) => s !== cur && !used.has(s))
-
-      if (!next) {
-        // No continuation — close path back to start
-        d.push(`L ${cur.x2} ${cur.y2}`)
-        break
+      // End of segment: shorten if outgoing turn is convex or concave
+      let ex = seg.x2, ey = seg.y2
+      if (turnOut === 'convex' || turnOut === 'concave') {
+        ex -= seg.dir === 'right' ? R : seg.dir === 'left' ? -R : 0
+        ey -= seg.dir === 'down' ? R : seg.dir === 'up' ? -R : 0
       }
 
-      const turn = turnType(cur, next)
-
-      if (turn === 'convex') {
-        // Shorten current edge end by R, arc to shortened next edge start
-        const ex = cur.dir === 'right' ? cur.x2 - R : cur.dir === 'left' ? cur.x2 + R : cur.x2
-        const ey = cur.dir === 'down' ? cur.y2 - R : cur.dir === 'up' ? cur.y2 + R : cur.y2
-        const nx = next.dir === 'right' ? next.x1 + R : next.dir === 'left' ? next.x1 - R : next.x1
-        const ny = next.dir === 'down' ? next.y1 + R : next.dir === 'up' ? next.y1 - R : next.y1
-        d.push(`L ${ex} ${ey}`)
-        d.push(`A ${R} ${R} 0 0 1 ${nx} ${ny}`)
+      if (i === 0) {
+        d.push(`M ${sx} ${sy}`)
+      } else if (turnIn === 'convex') {
+        // Arc from previous segment's shortened end to this start (outward curve)
+        d.push(`A ${R} ${R} 0 0 1 ${sx} ${sy}`)
+      } else if (turnIn === 'concave') {
+        // Arc from previous segment's shortened end to this start (inward curve)
+        d.push(`A ${R} ${R} 0 0 0 ${sx} ${sy}`)
       } else {
-        // Concave or straight: go directly to corner
-        d.push(`L ${cur.x2} ${cur.y2}`)
+        d.push(`L ${sx} ${sy}`)
       }
 
-      cur = next
+      d.push(`L ${ex} ${ey}`)
     }
 
-    // Handle closing corner (last→first transition)
-    if (d.length > 1 && cur && used.has(segs[0])) {
-      // Already closed via loop break — Z handles it
+    // Closing corner: arc from last segment end to first segment start
+    const lastTurn = turnType(ordered[n - 1], ordered[0])
+    if (lastTurn === 'convex' || lastTurn === 'concave') {
+      const first = ordered[0]
+      const fx = first.dir === 'right' ? first.x1 + R : first.dir === 'left' ? first.x1 - R : first.x1
+      const fy = first.dir === 'down' ? first.y1 + R : first.dir === 'up' ? first.y1 - R : first.y1
+      const sweep = lastTurn === 'convex' ? 1 : 0
+      d.push(`A ${R} ${R} 0 0 ${sweep} ${fx} ${fy}`)
     }
 
     d.push('Z')
