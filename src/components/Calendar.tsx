@@ -35,6 +35,7 @@ interface CalendarProps {
   /** Dates (ISO) that are predicted period days this month */
   predictedDays: string[]
   fertileDays: string[]
+  safeDays: string[]
   selectedDate: string | null
   onSelect: (date: string) => void
   /** Commit a range: creation drag (start → end) or an edited period save. */
@@ -61,6 +62,7 @@ export default function Calendar({
   prediction,
   predictedDays,
   fertileDays,
+  safeDays,
   selectedDate,
   onSelect,
   onRangeComplete,
@@ -433,7 +435,7 @@ export default function Calendar({
   }
 
   const showLegend =
-    !!prediction && (prediction.fertileWindow !== null || predictedDays.length > 0)
+    !!prediction && (prediction.fertileWindow !== null || predictedDays.length > 0 || safeDays.length > 0)
 
   const saveEdit = () => {
     const ed = editRef.current
@@ -609,6 +611,8 @@ export default function Calendar({
                       : dragShapeFor(cell.iso)
                   const isPredicted = predictedDays.includes(cell.iso)
                   const isFertile = fertileDays.includes(cell.iso)
+                  const isOvulation = prediction.ovulationDay === cell.iso
+                  const isSafe = safeDays.includes(cell.iso)
                   const isToday = cell.iso === today
                   const isSelected = cell.iso === selectedDate
                   // Superscript month tag on the 1st of every month (e.g. “AUG 1”
@@ -631,7 +635,7 @@ export default function Calendar({
                   if (!cell.inMonth) cls += ' opacity-15 text-ink-soft/40'
                   // Fill: period shapes always paint rose; non-shaped cells
                   // are transparent so SVG month bg shows through.
-                  cls += ' ' + cellFillClass(shape, isFertile, isPredicted, monthTint)
+                  cls += ' ' + cellFillClass(shape, isFertile, isPredicted, isSafe, monthTint)
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: small ink dot below number — distinct from rose period
@@ -760,6 +764,14 @@ export default function Calendar({
                         <span>{Number(cell.iso.slice(8))}</span>
                       </span>
                       {editHandle === 'end' ? grip : null}
+                      {isOvulation && !shape && (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                        >
+                          <span className="h-2 w-2 rounded-full bg-lavender-400 ring-2 ring-lavender-100" />
+                        </span>
+                      )}
                       {isToday && (
                         <span
                           aria-hidden
@@ -800,7 +812,20 @@ export default function Calendar({
           )}
           {prediction.fertileWindow !== null && (
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-lavender-100" /> fertile window
+              <span className="h-3 w-3 rounded-full bg-lavender-100" /> fertile
+            </span>
+          )}
+          {prediction.ovulationDay && (
+            <span className="flex items-center gap-1.5">
+              <span className="flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-lavender-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-lavender-400" />
+              </span>
+              ovulation
+            </span>
+          )}
+          {safeDays.length > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-full bg-sage-100" /> safe
             </span>
           )}
         </div>

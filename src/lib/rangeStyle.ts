@@ -96,6 +96,7 @@ export function cellFillClass(
   shape: DayShape | null,
   fertile: boolean,
   predicted: boolean,
+  safe: boolean,
   monthTint: boolean,
 ): string {
   if (shape) {
@@ -106,6 +107,7 @@ export function cellFillClass(
       : 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
   }
   if (fertile) return 'bg-lavender-100 font-semibold text-lavender-700'
+  if (safe) return 'bg-sage-100 font-semibold text-sage-400'
   if (predicted) return 'border-2 border-dashed border-rose-300 text-rose-400'
   return ''
 }

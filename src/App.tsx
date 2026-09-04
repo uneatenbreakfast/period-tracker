@@ -56,6 +56,16 @@ export default function App() {
     return days
   }, [prediction.fertileWindow])
 
+  // Safe days: luteal phase post-fertile window until predicted period start
+  const safeDays = useMemo(() => {
+    if (!prediction.fertileWindow || !prediction.nextPeriodStart) return []
+    const days: string[] = []
+    for (let d = addDays(prediction.fertileWindow.end, 1); d < prediction.nextPeriodStart; d = addDays(d, 1)) {
+      days.push(d)
+    }
+    return days
+  }, [prediction.fertileWindow, prediction.nextPeriodStart])
+
   const selectedEntry = selectedDate ? getEntry(snap, selectedDate) : undefined
 
   const apply = (date: string, patch: Partial<Snapshot['entries'][number]>) => {
@@ -310,6 +320,7 @@ export default function App() {
             prediction={prediction}
             predictedDays={predictedDays}
             fertileDays={fertileDays}
+            safeDays={safeDays}
             selectedDate={selectedDate}
             onSelect={setSelectedDate}
             onRangeComplete={commitRange}

@@ -122,41 +122,47 @@ describe('cellLayoutClass', () => {
 
 describe('cellFillClass', () => {
   it('tinted months: shaped cells are transparent (SVG bg shows through)', () => {
-    expect(cellFillClass('start', false, false, true)).toBe('font-bold text-white')
-    expect(cellFillClass('end', false, false, true)).toBe('font-bold text-white')
-    expect(cellFillClass('middle', false, false, true)).toBe('font-bold text-white')
-    expect(cellFillClass('single', false, false, true)).toBe('font-bold text-white')
+    expect(cellFillClass('start', false, false, false, true)).toBe('font-bold text-white')
+    expect(cellFillClass('end', false, false, false, true)).toBe('font-bold text-white')
+    expect(cellFillClass('middle', false, false, false, true)).toBe('font-bold text-white')
+    expect(cellFillClass('single', false, false, false, true)).toBe('font-bold text-white')
   })
 
   it('untinted months: cell paints solid rose directly', () => {
-    expect(cellFillClass('start', false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    expect(cellFillClass('end', false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    expect(cellFillClass('middle', false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    expect(cellFillClass('single', false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('start', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('end', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('middle', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('single', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
   })
 
   it('fertile window: bg-lavender-100', () => {
-    expect(cellFillClass(null, true, false, false)).toContain('bg-lavender-100')
-    expect(cellFillClass(null, true, false, true)).toContain('bg-lavender-100')
+    expect(cellFillClass(null, true, false, false, false)).toContain('bg-lavender-100')
+    expect(cellFillClass(null, true, false, false, true)).toContain('bg-lavender-100')
+  })
+
+  it('safe days: bg-sage-100', () => {
+    expect(cellFillClass(null, false, false, true, false)).toContain('bg-sage-100')
+    expect(cellFillClass(null, false, false, true, true)).toContain('bg-sage-100')
   })
 
   it('predicted days: dashed border', () => {
-    expect(cellFillClass(null, false, true, true)).toBe(
+    expect(cellFillClass(null, false, true, false, true)).toBe(
       'border-2 border-dashed border-rose-300 text-rose-400',
     )
-    expect(cellFillClass(null, false, true, false)).toBe(
+    expect(cellFillClass(null, false, true, false, false)).toBe(
       'border-2 border-dashed border-rose-300 text-rose-400',
     )
   })
 
-  it('unshaped, non-fertile, non-predicted cells are transparent', () => {
-    expect(cellFillClass(null, false, false, true)).toBe('')
-    expect(cellFillClass(null, false, false, false)).toBe('')
+  it('unshaped, non-fertile, non-predicted, non-safe cells are transparent', () => {
+    expect(cellFillClass(null, false, false, false, true)).toBe('')
+    expect(cellFillClass(null, false, false, false, false)).toBe('')
   })
 
-  it('period fill wins over fertile/predicted markers', () => {
-    expect(cellFillClass('middle', true, true, false)).toContain('bg-rose-400')
-    expect(cellFillClass('middle', true, true, false)).not.toContain('lavender')
-    expect(cellFillClass('middle', false, true, false)).toContain('bg-rose-400')
+  it('period fill wins over fertile/predicted/safe markers', () => {
+    expect(cellFillClass('middle', true, true, true, false)).toContain('bg-rose-400')
+    expect(cellFillClass('middle', true, true, true, false)).not.toContain('lavender')
+    expect(cellFillClass('middle', true, true, true, false)).not.toContain('sage')
+    expect(cellFillClass('middle', false, true, false, false)).toContain('bg-rose-400')
   })
 })
