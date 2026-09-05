@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  captureClearedEntries,
   captureDeletedEntries,
   createEmptySnapshot,
   getEntry,
@@ -169,15 +168,15 @@ describe('entry mutations (pure)', () => {
     expect(getEntry(withOutside, '2026-01-10')).toEqual({ date: '2026-01-10', symptoms: [] })
   })
 
-  it('replaceRangeFlow clears a previously marked range in the same month', () => {
+  it('replaceRangeFlow adds to existing ranges in the same month (additive)', () => {
     const s = setRangeFlow(createEmptySnapshot(), '2026-01-03', '2026-01-05', 'medium')
     const a = replaceRangeFlow(s, '2026-01-10', '2026-01-12', 'medium')
-    // old range gone, new range present
-    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-10', '2026-01-11', '2026-01-12'])
+    // both ranges coexist
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-03', '2026-01-04', '2026-01-05', '2026-01-10', '2026-01-11', '2026-01-12'])
     expect(a.entries.every((e) => e.flow === 'medium')).toBe(true)
   })
 
-  it('replaceRangeFlow keeps symptoms/notes on days it unmarks', () => {
+  it('replaceRangeFlow preserves symptoms/notes on days outside the new range', () => {
     const s = upsertEntry(createEmptySnapshot(), {
       date: '2026-01-04',
       flow: 'light',
@@ -185,7 +184,8 @@ describe('entry mutations (pure)', () => {
       notes: 'bad day',
     })
     const a = replaceRangeFlow(s, '2026-01-10', '2026-01-12', 'medium')
-    expect(getEntry(a, '2026-01-04')).toEqual({ date: '2026-01-04', symptoms: ['cramps'], notes: 'bad day' })
+    // Outside day untouched — flow, symptoms, notes all preserved
+    expect(getEntry(a, '2026-01-04')).toEqual({ date: '2026-01-04', flow: 'light', symptoms: ['cramps'], notes: 'bad day' })
   })
 
   it('replaceRangeFlow leaves other months untouched', () => {
@@ -195,11 +195,13 @@ describe('entry mutations (pure)', () => {
     expect(getEntry(a, '2026-02-03')?.flow).toBe('light')
   })
 
-  it('replaceRangeFlow crossing a month boundary clears both touched months', () => {
+  it('replaceRangeFlow crossing a month boundary adds to both months (additive)', () => {
     const s = setRangeFlow(setRangeFlow(createEmptySnapshot(), '2026-01-28', '2026-01-29', 'light'), '2026-02-01', '2026-02-02', 'medium')
     const a = replaceRangeFlow(s, '2026-01-30', '2026-02-02', 'heavy')
-    // Jan 28-29 (old month range) cleared; Feb 1-2 inside the new range keep per-day flow
-    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-30', '2026-01-31', '2026-02-01', '2026-02-02'])
+    // Old Jan 28-29 kept, new Jan 30-31 added, Feb 1-2 keep per-day medium (not overwritten)
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-28', '2026-01-29', '2026-01-30', '2026-01-31', '2026-02-01', '2026-02-02'])
+    expect(getEntry(a, '2026-01-28')?.flow).toBe('light')
+    expect(getEntry(a, '2026-01-29')?.flow).toBe('light')
     expect(getEntry(a, '2026-01-30')?.flow).toBe('heavy')
     expect(getEntry(a, '2026-01-31')?.flow).toBe('heavy')
     expect(getEntry(a, '2026-02-01')?.flow).toBe('medium')
@@ -218,53 +220,14 @@ describe('entry mutations (pure)', () => {
   it('replaceRangeFlow is order-agnostic', () => {
     const s = setRangeFlow(createEmptySnapshot(), '2026-01-03', '2026-01-05', 'medium')
     const a = replaceRangeFlow(s, '2026-01-12', '2026-01-10', 'light')
-    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-10', '2026-01-11', '2026-01-12'])
-    expect(a.entries.every((e) => e.flow === 'light')).toBe(true)
+    // both ranges coexist; new range has light flow
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-03', '2026-01-04', '2026-01-05', '2026-01-10', '2026-01-11', '2026-01-12'])
+    expect(getEntry(a, '2026-01-10')?.flow).toBe('light')
+    expect(getEntry(a, '2026-01-12')?.flow).toBe('light')
   })
 })
 
 describe('undo capture helpers', () => {
-  it('captureClearedEntries returns entries that replaceRangeFlow would clear', () => {
-    // Jan 5 has flow outside the new range but in same month → captured
-    // Jan 11 is inside the new range → NOT captured (kept by replace)
-    // Feb 1 is in a different month → NOT captured
-    const s = setRangeFlow(
-      upsertEntry(createEmptySnapshot(), { date: '2026-02-01', flow: 'light', symptoms: [] }),
-      '2026-01-05', '2026-01-05', 'medium',
-    )
-    const withJan11 = upsertEntry(s, { date: '2026-01-11', flow: 'heavy', symptoms: [] })
-    const cleared = captureClearedEntries(withJan11, '2026-01-10', '2026-01-12')
-    expect(cleared).toHaveLength(1)
-    expect(cleared[0].date).toBe('2026-01-05')
-    expect(cleared[0].flow).toBe('medium')
-  })
-
-  it('captureClearedEntries returns empty when no entries would be cleared', () => {
-    const s = createEmptySnapshot()
-    expect(captureClearedEntries(s, '2026-01-10', '2026-01-12')).toEqual([])
-  })
-
-  it('captureClearedEntries matches replaceRangeFlow behavior exactly', () => {
-    // Build a snapshot with entries across two months
-    let s = createEmptySnapshot()
-    s = upsertEntry(s, { date: '2026-01-03', flow: 'light', symptoms: ['cramps'] })
-    s = upsertEntry(s, { date: '2026-01-05', flow: 'medium', symptoms: [] })
-    s = upsertEntry(s, { date: '2026-01-15', flow: 'heavy', symptoms: [], notes: 'test' })
-    s = upsertEntry(s, { date: '2026-02-01', flow: 'light', symptoms: [] })
-
-    const cleared = captureClearedEntries(s, '2026-01-10', '2026-01-12')
-    const after = replaceRangeFlow(s, '2026-01-10', '2026-01-12', 'medium')
-
-    // Every captured entry should be gone (or modified) in the result
-    for (const c of cleared) {
-      const entry = getEntry(after, c.date)
-      // Either removed entirely or had flow stripped
-      if (entry) expect(entry.flow).toBeUndefined()
-    }
-    // Entries NOT captured should still have their flow
-    expect(getEntry(after, '2026-02-01')?.flow).toBe('light')
-  })
-
   it('captureDeletedEntries returns all flow entries in range', () => {
     let s = createEmptySnapshot()
     s = upsertEntry(s, { date: '2026-01-10', flow: 'medium', symptoms: [] })
@@ -297,8 +260,9 @@ describe('undo capture helpers', () => {
     const b = captureDeletedEntries(s, '2026-01-10', '2026-01-12')
     expect(a).toEqual(b)
   })
-  it('captureClearedEntries + deleteRangeFlow = complete revert of replaceRangeFlow', () => {
-    // Setup: Feb 1-3 have flow, then we replace with Feb 10-12
+
+  it('deleteRangeFlow + captureDeletedEntries + upsert = complete revert', () => {
+    // Setup: Feb 1-3 have flow, then we delete Feb 1-2
     const s = {
       version: 1 as const,
       entries: [
@@ -310,35 +274,24 @@ describe('undo capture helpers', () => {
       updatedAt: '2026-02-03T00:00:00.000Z',
     }
 
-    // Capture cleared entries BEFORE mutation
-    const cleared = captureClearedEntries(s, '2026-02-10', '2026-02-12')
-    expect(cleared).toHaveLength(3) // Feb 1-3 are lone flow in same month
+    // Capture BEFORE deletion
+    const deleted = captureDeletedEntries(s, '2026-02-01', '2026-02-02')
+    expect(deleted).toHaveLength(2)
 
-    // Apply the operation
-    const afterReplace = replaceRangeFlow(s, '2026-02-10', '2026-02-12', 'medium')
+    // Apply deletion
+    const afterDelete = deleteRangeFlow(s, '2026-02-01', '2026-02-02')
 
-    // Verify the replacement happened
-    const newRangeEntries = afterReplace.entries.filter(e =>
-      e.date >= '2026-02-10' && e.date <= '2026-02-12'
-    )
-    expect(newRangeEntries).toHaveLength(3)
+    // Feb 1-2 gone, Feb 3 remains
+    expect(afterDelete.entries.map((e) => e.date)).toEqual(['2026-02-03'])
 
-    // Now simulate undo: restore cleared, then clear range
-    let undoResult = afterReplace
-    for (const e of cleared) {
+    // Undo: restore captured entries
+    let undoResult = afterDelete
+    for (const e of deleted) {
       undoResult = upsertEntry(undoResult, e)
     }
-    undoResult = deleteRangeFlow(undoResult, '2026-02-10', '2026-02-12')
 
-    // Verify: Feb 1-3 restored, Feb 10-12 cleared
-    const restoredEntries = undoResult.entries.filter(e =>
-      e.date >= '2026-02-01' && e.date <= '2026-02-03'
-    )
-    const clearedNewRange = undoResult.entries.filter(e =>
-      e.date >= '2026-02-10' && e.date <= '2026-02-12'
-    )
-    expect(restoredEntries).toHaveLength(3)
-    expect(clearedNewRange).toHaveLength(0)
+    // Verify: Feb 1-3 all restored
+    expect(undoResult.entries.map((e) => e.date)).toEqual(['2026-02-01', '2026-02-02', '2026-02-03'])
   })
 
 })

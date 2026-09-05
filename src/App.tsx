@@ -10,7 +10,6 @@ import { addDays, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
 import { DEFAULT_FLOW } from './lib/symptoms'
 import {
-  captureClearedEntries,
   captureDeletedEntries,
   createLocalStorageAdapter,
   deleteRangeFlow,
@@ -117,7 +116,6 @@ export default function App() {
   // so the user can restore them within a short window.
   const [undoState, setUndoState] = useState<{
     entries: Snapshot['entries']
-    range?: { start: string; end: string }
     message: string
   } | null>(null)
 
@@ -131,30 +129,16 @@ export default function App() {
       for (const e of undoState.entries) {
         next = upsertEntry(next, e)
       }
-      // If this was a range replace, also clear the new range
-      if (undoState.range) {
-        next = deleteRangeFlow(next, undoState.range.start, undoState.range.end)
-      }
       return next
     })
     setUndoState(null)
   }
 
-  // Drag across calendar days: the range becomes THE period for the month(s)
-  // it touches — any previously marked period days in those months are cleared.
+  // Drag across calendar days: additive — the range is added without clearing
+  // any other period days in the same month (multiple ranges can coexist).
   const commitRange = (start: string, end: string) => {
-    // Capture BEFORE mutation — setSnap callback sees the NEW state.
-    const cleared = captureClearedEntries(snap, start, end)
     setSnap((s) => replaceRangeFlow(s, start, end, DEFAULT_FLOW))
-    if (cleared.length > 0) {
-      setUndoState({
-        entries: cleared,
-        range: { start, end },
-        message: `Replaced ${cleared.length} day${cleared.length === 1 ? '' : 's'}`,
-      })
-    } else {
-      setUndoState(null)
-    }
+    setUndoState(null)
   }
 
   // Delete button in edit mode: clears the committed range entirely.
