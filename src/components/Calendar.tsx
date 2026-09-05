@@ -463,7 +463,7 @@ export default function Calendar({
       {edit && (
         <div
           data-edit-modal
-          className="absolute left-1/2 top-2 z-30 w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-2xl border border-rose-100 bg-white/95 p-3 shadow-xl backdrop-blur-sm"
+          className="absolute bottom-2 left-1/2 z-30 w-[calc(100%-1.5rem)] -translate-x-1/2 animate-slide-up rounded-2xl border border-rose-100 bg-white/95 p-3 shadow-xl backdrop-blur-sm"
         >
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
