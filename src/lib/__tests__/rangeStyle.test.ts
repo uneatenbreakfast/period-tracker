@@ -147,10 +147,10 @@ describe('cellFillClass', () => {
 
   it('predicted days: dashed border', () => {
     expect(cellFillClass(null, false, true, false, true)).toBe(
-      'border-2 border-dashed border-rose-300 text-rose-400',
+      'border border-dashed border-rose-300 text-rose-400',
     )
     expect(cellFillClass(null, false, true, false, false)).toBe(
-      'border-2 border-dashed border-rose-300 text-rose-400',
+      'border border-dashed border-rose-300 text-rose-400',
     )
   })
 

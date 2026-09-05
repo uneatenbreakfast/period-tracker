@@ -600,19 +600,30 @@ export default function Calendar({
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
-                  // Committed period run wins over the live drag preview when
-                  // they overlap — both paint the same rose, class assembly
-                  // below only differs in which shape source to use. Edit mode
-                  // replaces the committed run with the edited bounds.
-                  const shape = edit
-                    ? dragShape(cell.iso, edit.start, edit.end)
-                    : isPeriod
-                      ? committedShape(cell.iso)
-                      : dragShapeFor(cell.iso)
                   const isPredicted = predictedDays.includes(cell.iso)
                   const isFertile = fertileDays.includes(cell.iso)
                   const isOvulation = prediction.ovulationDay === cell.iso
                   const isSafe = safeDays.includes(cell.iso)
+                  // Calculate shapes for all range types (connected-strip look).
+                  // Priority: period > fertile > predicted > safe. Edit mode
+                  // replaces the committed run with the edited bounds.
+                  const fertileShape = isFertile ? runShape(cell.iso, (iso) => fertileDays.includes(iso)) : null
+                  const predictedShape = isPredicted ? runShape(cell.iso, (iso) => predictedDays.includes(iso)) : null
+                  const safeShape = isSafe ? runShape(cell.iso, (iso) => safeDays.includes(iso)) : null
+                  const shape = edit
+                    ? dragShape(cell.iso, edit.start, edit.end)
+                    : isPeriod
+                      ? committedShape(cell.iso)
+                      : dragShapeFor(cell.iso) ?? fertileShape ?? predictedShape ?? safeShape
+                  // Which range produced the shape? Drives fill color.
+                  const shapeOrigin: 'period' | 'fertile' | 'predicted' | 'safe' | undefined =
+                    edit ? undefined
+                    : isPeriod ? 'period'
+                    : dragShapeFor(cell.iso) ? undefined   // drag preview = period
+                    : fertileShape ? 'fertile'
+                    : predictedShape ? 'predicted'
+                    : safeShape ? 'safe'
+                    : undefined
                   const isToday = cell.iso === today
                   const isSelected = cell.iso === selectedDate
                   // Superscript month tag on the 1st of every month (e.g. “AUG 1”
@@ -633,9 +644,9 @@ export default function Calendar({
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-none'
                   cls += ' ' + cellLayoutClass(shape)
                   if (!cell.inMonth) cls += ' opacity-15 text-ink-soft/40'
-                  // Fill: period shapes always paint rose; non-shaped cells
-                  // are transparent so SVG month bg shows through.
-                  cls += ' ' + cellFillClass(shape, isFertile, isPredicted, isSafe, monthTint)
+                  // Fill: shapes paint rose/lavender/sage depending on range;
+                  // unshaped cells are transparent so SVG month bg shows through.
+                  cls += ' ' + cellFillClass(shape, isFertile, isPredicted, isSafe, monthTint, shapeOrigin)
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: small ink dot below number — distinct from rose period
@@ -807,7 +818,7 @@ export default function Calendar({
           </span>
           {predictedDays.length > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-full border-2 border-dashed border-rose-300" /> predicted
+              <span className="h-3 w-3 rounded-full border border-dashed border-rose-300" /> predicted
             </span>
           )}
           {prediction.fertileWindow !== null && (

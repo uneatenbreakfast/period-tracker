@@ -87,10 +87,25 @@ export function cellLayoutClass(shape: DayShape | null): string {
 }
 
 /**
+ * Border classes for a predicted-day strip. The dashed outline wraps the
+ * whole run, not each cell — middle cells skip left/right borders.
+ */
+function predictedStripBorder(shape: DayShape): string {
+  const base = 'border-dashed border-rose-300'
+  if (shape === 'single') return `border ${base}`
+  if (shape === 'start') return `border-y border-l ${base}`
+  if (shape === 'end') return `border-y border-r ${base}`
+  return `border-y ${base}` // middle
+}
+
+/**
  * Fill/text classes for a day cell. Month backgrounds are now rendered as
  * unified SVG shapes behind the grid, so unshaped cells are transparent.
  * Shaped period cells paint rose directly (on non-tinted months) or show
  * the tint through rounded cap corners (on tinted months).
+ *
+ * @param shapeOrigin — which range type produced the shape, so the fill
+ *   color matches. undefined = period (default rose).
  */
 export function cellFillClass(
   shape: DayShape | null,
@@ -98,17 +113,20 @@ export function cellFillClass(
   predicted: boolean,
   safe: boolean,
   monthTint: boolean,
+  shapeOrigin?: 'period' | 'fertile' | 'predicted' | 'safe',
 ): string {
   if (shape) {
-    // Tinted months: cell is transparent so SVG bg shows through corners
-    // outside the rounded cap. Non-tinted months: cell paints rose directly.
+    if (shapeOrigin === 'fertile') return 'bg-lavender-100 font-semibold text-lavender-700'
+    if (shapeOrigin === 'safe') return 'bg-sage-100 font-semibold text-sage-400'
+    if (shapeOrigin === 'predicted') return `bg-rose-50 ${predictedStripBorder(shape)} text-rose-400 font-semibold`
+    // Period shape (or drag preview) — rose fill.
     return monthTint
       ? 'font-bold text-white'
       : 'bg-rose-400 font-bold text-white'
   }
   if (fertile) return 'bg-lavender-100 font-semibold text-lavender-700'
   if (safe) return 'bg-sage-100 font-semibold text-sage-400'
-  if (predicted) return 'border-2 border-dashed border-rose-300 text-rose-400'
+  if (predicted) return 'border border-dashed border-rose-300 text-rose-400'
   return ''
 }
 
