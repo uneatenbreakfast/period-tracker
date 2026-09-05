@@ -355,6 +355,7 @@ describe('custom settings defaults (BLOOM-0002)', () => {
     const p = predictNext(['2026-01-03', '2026-01-04'].map((d) => day(d)), {
       cycleLength: 32,
       periodLength: 4,
+      showSafeDays: false,
     })
     expect(p.avgCycleLength).toBe(32)
     expect(p.nextPeriodStart).toBe(addDays('2026-01-03', 32))
@@ -364,6 +365,7 @@ describe('custom settings defaults (BLOOM-0002)', () => {
     const { rows, stats } = cycleTrends(['2026-01-03', '2026-01-04', '2026-01-05'].map((d) => day(d)), {
       cycleLength: 30,
       periodLength: 4,
+      showSafeDays: false,
     })
     expect(rows[0].cycleLength).toBe(30)
     expect(rows[0].nextStart).toBe('2026-02-02') // 01-03 + 30
@@ -374,6 +376,7 @@ describe('custom settings defaults (BLOOM-0002)', () => {
     const info = cycleDayInfo(['2026-01-03', '2026-01-04'].map((d) => day(d)), '2026-01-10', {
       cycleLength: 30,
       periodLength: 4,
+      showSafeDays: false,
     })!
     expect(info.cycleLength).toBe(30)
     expect(info.dayInCycle).toBe(7)
@@ -384,7 +387,7 @@ describe('custom settings defaults (BLOOM-0002)', () => {
       '2026-01-03', '2026-01-05',
       '2026-02-02', '2026-02-04', // +30
     ].map((d) => day(d))
-    const p = predictNext(entries, { cycleLength: 40, periodLength: 4 })
+    const p = predictNext(entries, { cycleLength: 40, periodLength: 4, showSafeDays: false })
     expect(p.avgCycleLength).toBe(30)
     expect(p.nextPeriodStart).toBe(addDays('2026-02-02', 30))
   })
