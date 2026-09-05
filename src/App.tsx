@@ -58,13 +58,14 @@ export default function App() {
 
   // Safe days: luteal phase post-fertile window until predicted period start
   const safeDays = useMemo(() => {
+    if (!snap.settings.showSafeDays) return []
     if (!prediction.fertileWindow || !prediction.nextPeriodStart) return []
     const days: string[] = []
     for (let d = addDays(prediction.fertileWindow.end, 1); d < prediction.nextPeriodStart; d = addDays(d, 1)) {
       days.push(d)
     }
     return days
-  }, [prediction.fertileWindow, prediction.nextPeriodStart])
+  }, [snap.settings.showSafeDays, prediction.fertileWindow, prediction.nextPeriodStart])
 
   const selectedEntry = selectedDate ? getEntry(snap, selectedDate) : undefined
 

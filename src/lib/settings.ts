@@ -1,7 +1,7 @@
 import type { Settings } from '../types'
 
 /** Fitbit-style defaults until the user customizes them (BLOOM-0002). */
-export const DEFAULT_SETTINGS: Settings = { cycleLength: 28, periodLength: 5 }
+export const DEFAULT_SETTINGS: Settings = { cycleLength: 28, periodLength: 5, showSafeDays: true }
 
 /** Sanity bounds for the settings page steppers. */
 export const SETTINGS_LIMITS = {
@@ -34,5 +34,6 @@ export function sanitizeSettings(raw: Partial<Settings> | null | undefined): Set
       SETTINGS_LIMITS.periodLength.max,
       DEFAULT_SETTINGS.periodLength,
     ),
+    showSafeDays: typeof raw?.showSafeDays === 'boolean' ? raw.showSafeDays : DEFAULT_SETTINGS.showSafeDays,
   }
 }

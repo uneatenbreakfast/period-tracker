@@ -83,6 +83,27 @@ export default function SettingsCard({ settings, onChange, onExport, onImport }:
           testId="settings-period-length"
           onChange={(periodLength) => onChange({ ...settings, periodLength })}
         />
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3" data-testid="settings-show-safe-days">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-ink">Show safe days</p>
+            <p className="text-[11px] font-semibold leading-tight text-ink-soft">
+              Highlight the post-fertile window on the calendar.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.showSafeDays}
+            aria-label="Show safe days"
+            data-testid="settings-show-safe-days-toggle"
+            onClick={() => onChange({ ...settings, showSafeDays: !settings.showSafeDays })}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${settings.showSafeDays ? 'bg-rose-500' : 'bg-ink-soft/20'}`}
+          >
+            <span
+              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${settings.showSafeDays ? 'translate-x-5' : 'translate-x-0.5'}`}
+            />
+          </button>
+        </div>
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t border-rose-100 pt-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-ink-soft">Data</h3>

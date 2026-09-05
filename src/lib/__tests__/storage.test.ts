@@ -49,31 +49,31 @@ describe('snapshot lifecycle', () => {
   })
 
   it('createEmptySnapshot carries default settings (BLOOM-0002)', () => {
-    expect(createEmptySnapshot().settings).toEqual({ cycleLength: 28, periodLength: 5 })
+    expect(createEmptySnapshot().settings).toEqual({ cycleLength: 28, periodLength: 5, showSafeDays: true })
   })
 
   it('parseSnapshot defaults settings when missing (legacy blobs)', () => {
     const raw = JSON.stringify({ version: 1, entries: [], updatedAt: '2026-01-01' })
     const parsed = parseSnapshot(raw)
-    expect(parsed?.settings).toEqual({ cycleLength: 28, periodLength: 5 })
+    expect(parsed?.settings).toEqual({ cycleLength: 28, periodLength: 5, showSafeDays: true })
   })
 
   it('parseSnapshot keeps valid custom settings, clamps garbage', () => {
     const good = parseSnapshot(
-      JSON.stringify({ version: 1, entries: [], settings: { cycleLength: 32, periodLength: 4 } }),
+      JSON.stringify({ version: 1, entries: [], settings: { cycleLength: 32, periodLength: 4, showSafeDays: false } }),
     )
-    expect(good?.settings).toEqual({ cycleLength: 32, periodLength: 4 })
+    expect(good?.settings).toEqual({ cycleLength: 32, periodLength: 4, showSafeDays: false })
     const bad = parseSnapshot(
       JSON.stringify({ version: 1, entries: [], settings: { cycleLength: 999, periodLength: -2 } }),
     )
-    expect(bad?.settings).toEqual({ cycleLength: 60, periodLength: 1 }) // clamped to limits
+    expect(bad?.settings).toEqual({ cycleLength: 60, periodLength: 1, showSafeDays: true }) // clamped to limits, showSafeDays defaulted
   })
 
   it('custom settings survive the save → load round-trip', () => {
     const storage = memoryStorage()
-    const s = { ...createEmptySnapshot(), settings: { cycleLength: 34, periodLength: 6 } }
+    const s = { ...createEmptySnapshot(), settings: { cycleLength: 34, periodLength: 6, showSafeDays: false } }
     saveSnapshot(s, storage)
-    expect(loadSnapshot(storage).settings).toEqual({ cycleLength: 34, periodLength: 6 })
+    expect(loadSnapshot(storage).settings).toEqual({ cycleLength: 34, periodLength: 6, showSafeDays: false })
   })
 
   it('load with corrupted JSON → empty snapshot', () => {
@@ -306,7 +306,7 @@ describe('undo capture helpers', () => {
         { date: '2026-02-02', flow: 'medium' as const, symptoms: [], notes: '' },
         { date: '2026-02-03', flow: 'medium' as const, symptoms: [], notes: '' },
       ],
-      settings: { cycleLength: 28, periodLength: 5 },
+      settings: { cycleLength: 28, periodLength: 5, showSafeDays: true },
       updatedAt: '2026-02-03T00:00:00.000Z',
     }
 

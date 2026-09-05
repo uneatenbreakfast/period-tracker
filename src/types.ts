@@ -14,6 +14,8 @@ export interface Settings {
   cycleLength: number
   /** Fallback period length (days): used when no cycle data exists. */
   periodLength: number
+  /** Show safe days (post-fertile luteal phase) on the calendar. */
+  showSafeDays: boolean
 }
 
 /** Versioned blob — the whole app state. Serializes to one JSON string (sync-ready). */
