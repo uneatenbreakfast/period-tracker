@@ -643,7 +643,7 @@ export default function Calendar({
                   if (isSelected && !shape) cls += ' outline-2 outline-offset-2 outline-rose-300'
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
 
-                  const grip = <span aria-hidden className="h-4 w-1 rounded-full bg-white/80" />
+                  const grip = <span aria-hidden className="relative z-20 h-4 w-1 rounded-full bg-white/80" />
 
                   return (
                     <button
