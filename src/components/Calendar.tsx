@@ -536,7 +536,7 @@ export default function Calendar({
           setAtTop(t < 20)
         }}
         className={`relative -mx-5 h-[21rem] overscroll-contain px-5 select-none touch-none ${
-          drag || editAxis || edit ? 'overflow-hidden' : 'overflow-y-auto'
+          drag?.armed ? 'overflow-hidden' : 'overflow-y-auto'
         }`}
         onPointerMove={(e) => {
           lastPointerRef.current = { x: e.clientX, y: e.clientY }
