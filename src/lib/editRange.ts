@@ -10,6 +10,7 @@
  * Calendar.tsx.
  */
 import { addDays } from './dates'
+import type { MonthCell } from './dates'
 
 export interface EditRange {
   /** Committed run bounds before editing (cancel restores these) */
@@ -137,4 +138,18 @@ export function deleteRange(edit: EditRange): { from: string; to: string } {
   return edit.originalStart <= edit.originalEnd
     ? { from: edit.originalStart, to: edit.originalEnd }
     : { from: edit.originalEnd, to: edit.originalStart }
+}
+
+/**
+ * Week index (row in the continuous grid) that the edit modal anchors to:
+ * the row containing the long-pressed day. The modal renders immediately
+ * UNDER that row so it stays adjacent to the edited run and the finger —
+ * never at the far edge of the card where it would cover unrelated rows or
+ * fall off-screen. Falls back to the row of `edit.start` (handle-mode edits
+ * carry no press origin); -1 when neither date exists in the grid.
+ */
+export function editAnchorWeek(weeks: MonthCell[][], edit: EditRange): number {
+  const find = (iso: string) => weeks.findIndex((w) => w.some((c) => c.iso === iso))
+  const pressed = find(edit.pressOriginISO ?? '')
+  return pressed !== -1 ? pressed : find(edit.start)
 }

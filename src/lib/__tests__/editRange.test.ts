@@ -4,6 +4,7 @@ import {
   beginEditHandle,
   commitEdit,
   deleteRange,
+  editAnchorWeek,
   extendEditRange,
   moveEnd,
   moveStart,
@@ -241,5 +242,39 @@ describe('editRange deleteRange', () => {
       '2026-08-20',
     )
     expect(deleteRange(edit)).toEqual({ from: '2026-08-10', to: '2026-08-12' })
+  })
+})
+
+describe('editRange editAnchorWeek (modal placement)', () => {
+  // Sept 2026: Sep 1 = Tuesday. Row 0 = Mon Aug 31 – Sun Sep 6, row 1 = Sep 7-13,
+  // row 2 = Sep 14-20, row 3 = Sep 21-27, row 4 = Sep 28 – Oct 4.
+  const weeks = [
+    ['2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05', '2026-09-06'],
+    ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11', '2026-09-12', '2026-09-13'],
+    ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20'],
+    ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27'],
+    ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'],
+  ].map((row) => row.map((iso) => ({ iso, inMonth: iso.startsWith('2026-09') })))
+
+  it('anchors to the row of the long-pressed day, not the run start', () => {
+    const edit = beginEdit({ start: '2026-09-03', end: '2026-09-05' }, '2026-09-04')
+    // Pressed Sep 4 and run start Sep 3 share row 0 — anchored there.
+    expect(editAnchorWeek(weeks, edit)).toBe(0)
+  })
+
+  it('anchors to the pressed row even when run bounds span rows', () => {
+    // Run Sep 3 – Sep 14: start row 0, end row 2. Pressed day Sep 14 (row 2).
+    const edit = beginEdit({ start: '2026-09-03', end: '2026-09-14' }, '2026-09-14')
+    expect(editAnchorWeek(weeks, edit)).toBe(2)
+  })
+
+  it('falls back to the run start row when the press origin is absent', () => {
+    const edit = beginEditHandle({ start: '2026-09-14', end: '2026-09-16' }, 'end')
+    expect(editAnchorWeek(weeks, edit)).toBe(2)
+  })
+
+  it('returns -1 when no edit date exists in the grid', () => {
+    const edit = beginEdit({ start: '2026-01-01', end: '2026-01-03' }, '2026-01-02')
+    expect(editAnchorWeek(weeks, edit)).toBe(-1)
   })
 })

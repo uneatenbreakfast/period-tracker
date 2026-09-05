@@ -21,7 +21,7 @@ import {
 import type { RangeDrag } from '../lib/rangeDrag'
 import { cellFillClass, cellLayoutClass, dragShape, monthBackgroundPaths, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
-import { beginEdit, commitEdit, deleteRange, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
+import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
 export interface UndoState {
@@ -184,7 +184,7 @@ export default function Calendar({
       velocityY = 0
     }
     const onTouchMove = (e: TouchEvent) => {
-      if (dragRef.current || editAxisRef.current || editRef.current) {
+      if (dragRef.current || editAxisRef.current) {
         e.preventDefault()
         stopInertia()
         return
@@ -241,7 +241,7 @@ export default function Calendar({
     // is pending (hold timer running) or armed — the gesture owns vertical
     // movement from press until release.
     const onWheel = (e: WheelEvent) => {
-      if (dragRef.current || editAxisRef.current || editRef.current) e.preventDefault()
+      if (dragRef.current || editAxisRef.current) e.preventDefault()
     }
     // Capture phase: veto runs BEFORE browser processes scroll. Bubble phase
     // is too late — the browser has already committed to the pan gesture.
@@ -271,10 +271,10 @@ export default function Calendar({
   // page could scroll between arm-time and state-update-time.
   useEffect(() => {
     const veto = (e: TouchEvent) => {
-      if (dragRef.current || editAxisRef.current || editRef.current) e.preventDefault()
+      if (dragRef.current || editAxisRef.current) e.preventDefault()
     }
     const wheelVeto = (e: WheelEvent) => {
-      if (dragRef.current || editAxisRef.current || editRef.current) e.preventDefault()
+      if (dragRef.current || editAxisRef.current) e.preventDefault()
     }
     document.addEventListener('touchmove', veto, { passive: false, capture: true })
     document.addEventListener('wheel', wheelVeto, { passive: false, capture: true })
@@ -290,7 +290,7 @@ export default function Calendar({
   // touchstart time, before our JS can react. Setting CSS touch-action: none
   // tells the browser upfront that NO element on the page should scroll via
   // touch. overflow: hidden is the belt to that suspenders.
-  const pageScrollLocked = !!drag || !!editAxis || !!edit
+  const pageScrollLocked = !!drag || !!editAxis
   useEffect(() => {
     if (!pageScrollLocked) return
     const html = document.documentElement
@@ -460,47 +460,7 @@ export default function Calendar({
 
   return (
     <div className="relative rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
-      {edit && (
-        <div
-          data-edit-modal
-          className="absolute bottom-2 left-1/2 z-30 w-[calc(100%-1.5rem)] -translate-x-1/2 animate-slide-up rounded-2xl border border-rose-100 bg-white/95 p-3 shadow-xl backdrop-blur-sm"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-soft">Edit period</p>
-              <p data-edit-range className="truncate text-sm font-extrabold text-ink">
-                {fmtDay(edit.start)} – {fmtDay(edit.end)}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                aria-label="Delete period"
-                onClick={deleteEdit}
-                className="rounded-full bg-rose-100 px-3 py-1.5 text-xs font-bold text-rose-500 transition-colors hover:bg-rose-200"
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                aria-label="Cancel edit"
-                onClick={cancelEdit}
-                className="rounded-full bg-cream px-4 py-1.5 text-xs font-bold text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                aria-label="Save edit"
-                onClick={saveEdit}
-                className="rounded-full bg-rose-400 px-4 py-1.5 text-xs font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.4)] transition-colors hover:bg-rose-500"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
       <button
         type="button"
         onClick={loadOlder}
@@ -595,8 +555,10 @@ export default function Calendar({
         const monthRef = firstCell
           ? `${firstCell.iso.slice(0, 4)}-${Number(firstCell.iso.slice(5, 7)) - 1}`
           : undefined
+        const isAnchor = edit !== null && editAnchorWeek(weeks, edit) === wi
+        const isLastWeek = wi === weeks.length - 1
         return (
-          <div key={`w${wi}`} data-month={monthRef} className="grid grid-cols-7">
+          <div key={`w${wi}`} data-month={monthRef} className="relative grid grid-cols-7">
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
@@ -800,6 +762,49 @@ export default function Calendar({
                     </button>
                   )
                 })}
+                {isAnchor && edit && (
+                  <div
+                    data-edit-modal
+                    className={`absolute left-1/2 z-30 w-[calc(100%-1.5rem)] -translate-x-1/2 animate-slide-up rounded-2xl border border-rose-100 bg-white/95 p-3 shadow-xl backdrop-blur-sm pointer-events-none ${
+                      isLastWeek ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-wider text-ink-soft">Edit period</p>
+                        <p data-edit-range className="truncate text-sm font-extrabold text-ink">
+                          {fmtDay(edit.start)} – {fmtDay(edit.end)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          aria-label="Delete period"
+                          onClick={deleteEdit}
+                          className="pointer-events-auto rounded-full bg-rose-100 px-3 py-1.5 text-xs font-bold text-rose-500 transition-colors hover:bg-rose-200"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Cancel edit"
+                          onClick={cancelEdit}
+                          className="pointer-events-auto rounded-full bg-cream px-4 py-1.5 text-xs font-bold text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Save edit"
+                          onClick={saveEdit}
+                          className="pointer-events-auto rounded-full bg-rose-400 px-4 py-1.5 text-xs font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.4)] transition-colors hover:bg-rose-500"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
