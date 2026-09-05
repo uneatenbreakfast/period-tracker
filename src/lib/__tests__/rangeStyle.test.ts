@@ -129,10 +129,10 @@ describe('cellFillClass', () => {
   })
 
   it('untinted months: cell paints solid rose directly', () => {
-    expect(cellFillClass('start', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    expect(cellFillClass('end', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    expect(cellFillClass('middle', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
-    expect(cellFillClass('single', false, false, false, false)).toBe('bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]')
+    expect(cellFillClass('start', false, false, false, false)).toBe('bg-rose-400 font-bold text-white')
+    expect(cellFillClass('end', false, false, false, false)).toBe('bg-rose-400 font-bold text-white')
+    expect(cellFillClass('middle', false, false, false, false)).toBe('bg-rose-400 font-bold text-white')
+    expect(cellFillClass('single', false, false, false, false)).toBe('bg-rose-400 font-bold text-white')
   })
 
   it('fertile window: bg-lavender-100', () => {

@@ -749,7 +749,7 @@ export default function Calendar({
                       {shape && monthTint ? (
                         <span
                           aria-hidden
-                          className={`pointer-events-none absolute inset-0 bg-rose-400 shadow-[0_3px_10px_rgba(217,111,147,0.45)] ${
+                          className={`pointer-events-none absolute inset-0 bg-rose-400 ${
                             shape === 'single' ? 'rounded-full' : shape === 'start' ? 'rounded-l-full' : shape === 'end' ? 'rounded-r-full' : ''
                           }`}
                         />

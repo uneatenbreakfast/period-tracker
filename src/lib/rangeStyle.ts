@@ -104,7 +104,7 @@ export function cellFillClass(
     // outside the rounded cap. Non-tinted months: cell paints rose directly.
     return monthTint
       ? 'font-bold text-white'
-      : 'bg-rose-400 font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.45)]'
+      : 'bg-rose-400 font-bold text-white'
   }
   if (fertile) return 'bg-lavender-100 font-semibold text-lavender-700'
   if (safe) return 'bg-sage-100 font-semibold text-sage-400'
