@@ -624,6 +624,12 @@ export default function Calendar({
                     : predictedShape ? 'predicted'
                     : safeShape ? 'safe'
                     : undefined
+                  // Rose overlay paints ONLY period visuals (committed run, drag
+                  // preview, edit bounds). Fertile/predicted/safe shapes must NOT
+                  // get the solid rose overlay — it painted every shaped cell on
+                  // tinted months as a solid pink block (legend mismatch).
+                  const isPeriodVisual =
+                    isPeriod || !!edit || dragShapeFor(cell.iso) !== null
                   const isToday = cell.iso === today
                   const isSelected = cell.iso === selectedDate
                   // Superscript month tag on the 1st of every month (e.g. “AUG 1”
@@ -757,7 +763,7 @@ export default function Calendar({
                       className={`${cls} relative`}
                       aria-label={cell.iso}
                     >
-                      {shape && monthTint ? (
+                      {shape && monthTint && isPeriodVisual ? (
                         <span
                           aria-hidden
                           className={`pointer-events-none absolute inset-0 bg-rose-400 ${

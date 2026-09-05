@@ -154,6 +154,24 @@ describe('cellFillClass', () => {
     )
   })
 
+  it('predicted shaped strip: dashed outline only, NO fill (matches legend swatch)', () => {
+    // Shaped predicted cells must NOT carry a bg fill — the rose-50 block read as
+    // a solid pink strip against month tints, contradicting the legend's empty
+    // dashed circle. Outline-only: dashes let the month background show through.
+    for (const shape of ['start', 'middle', 'end', 'single'] as const) {
+      const cls = cellFillClass(shape, false, true, false, true, 'predicted')
+      expect(cls).toContain('border-dashed')
+      expect(cls).toContain('border-rose-300')
+      expect(cls).not.toContain('bg-')
+      expect(cls).toContain('text-rose-400')
+    }
+    // Shape-aware border sides still apply
+    expect(cellFillClass('start', false, true, false, true, 'predicted')).toContain('border-l')
+    expect(cellFillClass('end', false, true, false, true, 'predicted')).toContain('border-r')
+    expect(cellFillClass('middle', false, true, false, true, 'predicted')).not.toContain('border-l')
+    expect(cellFillClass('single', false, true, false, true, 'predicted')).toContain('border border-dashed')
+  })
+
   it('unshaped, non-fertile, non-predicted, non-safe cells are transparent', () => {
     expect(cellFillClass(null, false, false, false, true)).toBe('')
     expect(cellFillClass(null, false, false, false, false)).toBe('')

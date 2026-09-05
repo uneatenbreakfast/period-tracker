@@ -73,3 +73,13 @@ Bloom prediction now follows Fitbit's officially documented model: `averageCycle
 - `index.css`: `slide-up` keyframe already present (uses `translate(-50%, ...)` to preserve `left-1/2` centering).
 **Tests**: 6 new unit tests in `storage.test.ts` lock capture semantics (matches replaceRangeFlow exactly, order-agnostic, includes partial-clear entries with symptoms/notes).
 **Verified**: 205/205 tests pass; tsc clean; build green (v245).
+
+### BLOOM-0021 — Predicted days rendered as solid pink block (legend said dashed outline)
+**Problem**: User: "predicted days, according to legend, should have a dotted line but it's just a full pink block now". Root cause was TWO stacked issues:
+1. **Rose overlay painted every shaped cell on tinted months** (Calendar.tsx `shape && monthTint` → `bg-rose-400` child span). `shapeOrigin` routing was added 2026-09-05 for predicted/fertile/safe fills, but the overlay condition never branched on it — so predicted strips AND safe strips (e.g. Sep 1-4) on odd (tinted) months rendered as SOLID rose-400 blocks. Pixel proof: 82,951 rose-400 px in the predicted strip region vs 427 after fix.
+2. **`bg-rose-50` fill on shaped predicted cells** (`rangeStyle.ts`) added to the pale block — cell interiors read pink against the gray month tint even when dashes rendered.
+**Fix**:
+- `Calendar.tsx`: added `isPeriodVisual = isPeriod || !!edit || dragShapeFor(cell.iso) !== null`; overlay now renders only `shape && monthTint && isPeriodVisual`. Committed period runs, drag preview, and edit-mode bounds keep the solid rose overlay; fertile/predicted/safe shapes stay outline/fill per their own classes.
+- `rangeStyle.ts`: shaped predicted cells drop `bg-rose-50` → dashed outline only (`predictedStripBorder(shape)` + text), matching the legend swatch (empty dashed circle). Month tint/white shows through the stitch line.
+**Tests**: new `rangeStyle.test.ts` case — shaped predicted strip asserts dashed rose-300 border + NO `bg-` class for all four shapes, caps/flush sides preserved. 210/210 pass; tsc clean.
+**Verified**: DOM dump — predicted Sep 5-9: transparent bg + 1px dashed, no rose overlay; safe Sep 1-4: sage only; period Jul 11-15 on tinted month: rose overlay intact. Pixel count in strip region 82,951 → 427 rose-400 px. Screenshot `.scratch/bloom-pred-fixed.png`.

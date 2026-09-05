@@ -118,7 +118,7 @@ export function cellFillClass(
   if (shape) {
     if (shapeOrigin === 'fertile') return 'bg-lavender-100 font-semibold text-lavender-700'
     if (shapeOrigin === 'safe') return 'bg-sage-100 font-semibold text-sage-400'
-    if (shapeOrigin === 'predicted') return `bg-rose-50 ${predictedStripBorder(shape)} text-rose-400 font-semibold`
+    if (shapeOrigin === 'predicted') return `${predictedStripBorder(shape)} text-rose-400 font-semibold`
     // Period shape (or drag preview) — rose fill.
     return monthTint
       ? 'font-bold text-white'
