@@ -1,5 +1,5 @@
-import type { Settings } from '../types'
-import { SETTINGS_LIMITS } from '../lib/settings'
+import type { CalendarStyle, Settings } from '../types'
+import { DEFAULT_CALENDAR_STYLE, SETTINGS_LIMITS } from '../lib/settings'
 
 interface StepperProps {
   label: string
@@ -57,6 +57,20 @@ interface SettingsCardProps {
   onImport: (file: File) => void
 }
 
+interface StyleField {
+  key: keyof CalendarStyle
+  label: string
+  hint: string
+}
+
+const STYLE_FIELDS: StyleField[] = [
+  { key: 'period', label: 'Period', hint: 'Period days on the calendar' },
+  { key: 'predicted', label: 'Predicted', hint: 'Dashed outline for the predicted period' },
+  { key: 'fertile', label: 'Fertile', hint: 'Fertile window days' },
+  { key: 'ovulation', label: 'Ovulation', hint: 'Ovulation day dot' },
+  { key: 'safe', label: 'Safe', hint: 'Safe days after the fertile window' },
+]
+
 export default function SettingsCard({ settings, onChange, onExport, onImport }: SettingsCardProps) {
   return (
     <div className="rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
@@ -104,6 +118,44 @@ export default function SettingsCard({ settings, onChange, onExport, onImport }:
             />
           </button>
         </div>
+      </div>
+      <div className="mt-5 flex flex-col gap-3 border-t border-rose-100 pt-4">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-ink-soft">Style</h3>
+        <p className="text-[11px] font-semibold text-ink-soft">
+          Calendar cell + legend colors. Tap a circle to pick a color.
+        </p>
+        {STYLE_FIELDS.map(({ key, label, hint }) => (
+          <div
+            key={key}
+            className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3"
+            data-testid={`settings-style-${key}`}
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-ink">{label}</p>
+              <p className="text-[11px] font-semibold leading-tight text-ink-soft">{hint}</p>
+            </div>
+            <label
+              className="relative h-9 w-9 shrink-0 cursor-pointer rounded-full shadow-[0_2px_8px_rgba(87,66,78,0.2)] transition-transform hover:scale-105"
+              style={{ backgroundColor: settings.style[key] }}
+              aria-label={`${label} color`}
+            >
+              <input
+                type="color"
+                value={settings.style[key]}
+                data-testid={`settings-style-${key}-input`}
+                onChange={(e) =>
+                  onChange({ ...settings, style: { ...settings.style, [key]: e.target.value } })
+                }
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </label>
+          </div>
+        ))}
+        <p className="text-[11px] font-semibold text-ink-soft/70">
+          Defaults: {DEFAULT_CALENDAR_STYLE.period} period · {DEFAULT_CALENDAR_STYLE.predicted} predicted ·{' '}
+          {DEFAULT_CALENDAR_STYLE.fertile} fertile · {DEFAULT_CALENDAR_STYLE.ovulation} ovulation ·{' '}
+          {DEFAULT_CALENDAR_STYLE.safe} safe
+        </p>
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t border-rose-100 pt-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-ink-soft">Data</h3>

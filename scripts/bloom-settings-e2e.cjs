@@ -1,6 +1,7 @@
-// Bloom Settings E2E (BLOOM-0002) — seed one period, verify the Settings tab
-// steppers, that changing them reshapes predictions (card "Average cycle"),
-// and that the choices persist through reload via the snapshot blob.
+// Bloom Settings E2E (BLOOM-0002 + BLOOM-0022) — seed one period, verify the
+// Settings tab steppers, that changing them reshapes predictions (card
+// "Average cycle"), that the choices persist through reload via the snapshot
+// blob, and that the Style section recolorizes calendar cells + legend.
 // Prereq: dev server (bun run dev --port 5176), run:
 //   NODE_PATH=/mnt/c/Repos/bookmarker/node_modules node bloom-settings-e2e.cjs
 // Pass BLOOM_BASE_URL=http://localhost:5176/ when another agent owns 5174.
@@ -100,6 +101,104 @@ const isoAdd = (iso, n) => {
   const minusDisabled = await page.getAttribute('[data-testid="settings-period-length-minus"]', 'disabled');
   if (minusDisabled !== null) ok('minus button disabled at min');
   else fail('minus button still enabled at min');
+
+  // STEP 6 — Style section exists with the 5 calendar color pickers, all
+  // showing the shipped pastel defaults (BLOOM-0022).
+  const DEFAULTS = {
+    period: '#e58aa8',
+    predicted: '#e89db9',
+    fertile: '#e4dcf3',
+    ovulation: '#b9a7d9',
+    safe: '#e3eddd',
+  };
+  for (const key of Object.keys(DEFAULTS)) {
+    const v = await page.getAttribute(`[data-testid="settings-style-${key}-input"]`, 'value');
+    if (v === DEFAULTS[key]) ok(`style ${key} picker default ${v}`);
+    else fail(`style ${key} picker default wrong: ${v}`);
+  }
+  const swatchBg = async (testId) =>
+    page.evaluate((s) => {
+      const label = document.querySelector(`[data-testid="${s}"] label`);
+      return label ? getComputedStyle(label).backgroundColor : '';
+    }, testId);
+
+  // STEP 7 — user picks new colors; swatches + persisted blob follow.
+  const setColor = async (testId, hex) => {
+    const sel = `[data-testid="${testId}"]`;
+    try {
+      await page.fill(sel, hex);
+    } catch {
+      await page.evaluate(
+        ([s, h]) => {
+          const el = document.querySelector(s);
+          if (!el) return;
+          el.value = h;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+        [sel, hex],
+      );
+    }
+    await page.waitForTimeout(200);
+  };
+  await setColor('settings-style-period-input', '#3366ff');
+  if ((await swatchBg('settings-style-period')) === 'rgb(51, 102, 255)')
+    ok('period swatch reflects #3366ff');
+  else fail('period swatch bg wrong: ' + (await swatchBg('settings-style-period')));
+  await setColor('settings-style-ovulation-input', '#00aa00');
+  if ((await swatchBg('settings-style-ovulation')) === 'rgb(0, 170, 0)')
+    ok('ovulation swatch reflects #00aa00');
+  else fail('ovulation swatch bg wrong: ' + (await swatchBg('settings-style-ovulation')));
+  let blobStyle = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1') || 'null'));
+  if (blobStyle && blobStyle.settings && blobStyle.settings.style && blobStyle.settings.style.period === '#3366ff' && blobStyle.settings.style.ovulation === '#00aa00')
+    ok('localStorage blob carries style {period: #3366ff, ovulation: #00aa00}');
+  else fail('blob style wrong: ' + JSON.stringify(blobStyle && blobStyle.settings && blobStyle.settings.style));
+
+  // STEP 8 — calendar cells + legend recolorized (period day fill, legend
+  // swatches) — the whole point of the Style section.
+  await goTab('Calendar');
+  const legendBg = async (which) =>
+    page.evaluate((w) => {
+      const el = document.querySelector(`[data-legend="${w}"]`);
+      return el ? getComputedStyle(el).backgroundColor : '';
+    }, which);
+  if ((await legendBg('period')) === 'rgb(51, 102, 255)') ok('legend period swatch now #3366ff');
+  else fail('legend period swatch wrong: ' + (await legendBg('period')));
+  const ovRing = await page.evaluate(
+    () => getComputedStyle(document.querySelector('[data-legend="ovulation"]')).boxShadow,
+  );
+  if (ovRing.includes('rgb(0, 170, 0)')) ok('legend ovulation ring now #00aa00');
+  else fail('legend ovulation ring wrong: ' + ovRing);
+  // Seeded period day: button fill on untinted months, overlay span on tinted.
+  const cellPeriodColor = async (iso) =>
+    page.evaluate((i) => {
+      const btn = document.querySelector(`button[aria-label="${i}"]`);
+      if (!btn) return '';
+      const painted = (n) => (n.style && n.style.backgroundColor) || '';
+      let c = painted(btn);
+      if (!c) for (const span of btn.querySelectorAll('span')) if ((c = painted(span))) break;
+      return c;
+    }, iso);
+  let cellColor = await cellPeriodColor(start);
+  if (!cellColor) {
+    await page.evaluate(() => { const el = document.querySelector('[data-calendar-scroll]'); if (el) el.scrollTop = 0; });
+    await page.waitForTimeout(500);
+    cellColor = await cellPeriodColor(start);
+  }
+  if (cellColor === 'rgb(51, 102, 255)') ok(`period day ${start} cell painted #3366ff`);
+  else fail(`period day cell not recolored: ${cellColor || '(not found)'}`);
+  if ((await legendBg('ovulation')) === 'rgb(255, 255, 255)') ok('ovulation swatch stays white (ring carries the color)');
+  else fail('ovulation swatch changed unexpectedly: ' + (await legendBg('ovulation')));
+
+  // STEP 9 — colors survive reload (style persisted with the blob)
+  await page.reload({ waitUntil: 'networkidle0' });
+  await goTab('Calendar');
+  if ((await legendBg('period')) === 'rgb(51, 102, 255)') ok('legend period #3366ff survives reload');
+  else fail('legend period color lost after reload: ' + (await legendBg('period')));
+  blobStyle = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1') || 'null'));
+  if (blobStyle && blobStyle.settings && blobStyle.settings.style && blobStyle.settings.style.period === '#3366ff')
+    ok('style.period persisted in blob after reload');
+  else fail('style.period missing from blob: ' + JSON.stringify(blobStyle && blobStyle.settings && blobStyle.settings.style));
 
   if (errors.length) fail('JS errors: ' + errors.join(' | '));
   else ok('no page errors');

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DayEntry } from '../../types'
+import { DEFAULT_SETTINGS } from '../settings'
 import {
   CYCLE_GAP_THRESHOLD_DAYS,
   DEFAULT_CYCLE_LENGTH,
@@ -353,6 +354,7 @@ describe('custom settings defaults (BLOOM-0002)', () => {
 
   it('predictNext anchors on the custom default cycle length', () => {
     const p = predictNext(['2026-01-03', '2026-01-04'].map((d) => day(d)), {
+      ...DEFAULT_SETTINGS,
       cycleLength: 32,
       periodLength: 4,
       showSafeDays: false,
@@ -363,6 +365,7 @@ describe('custom settings defaults (BLOOM-0002)', () => {
 
   it('cycleTrends single-cycle row uses the custom default', () => {
     const { rows, stats } = cycleTrends(['2026-01-03', '2026-01-04', '2026-01-05'].map((d) => day(d)), {
+      ...DEFAULT_SETTINGS,
       cycleLength: 30,
       periodLength: 4,
       showSafeDays: false,
@@ -374,6 +377,7 @@ describe('custom settings defaults (BLOOM-0002)', () => {
 
   it('cycleDayInfo ring length uses the custom default', () => {
     const info = cycleDayInfo(['2026-01-03', '2026-01-04'].map((d) => day(d)), '2026-01-10', {
+      ...DEFAULT_SETTINGS,
       cycleLength: 30,
       periodLength: 4,
       showSafeDays: false,
@@ -387,7 +391,7 @@ describe('custom settings defaults (BLOOM-0002)', () => {
       '2026-01-03', '2026-01-05',
       '2026-02-02', '2026-02-04', // +30
     ].map((d) => day(d))
-    const p = predictNext(entries, { cycleLength: 40, periodLength: 4, showSafeDays: false })
+    const p = predictNext(entries, { ...DEFAULT_SETTINGS, cycleLength: 40, periodLength: 4, showSafeDays: false })
     expect(p.avgCycleLength).toBe(30)
     expect(p.nextPeriodStart).toBe(addDays('2026-02-02', 30))
   })

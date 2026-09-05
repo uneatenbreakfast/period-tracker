@@ -19,7 +19,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellLayoutClass, dragShape, monthBackgroundPaths, runShape } from '../lib/rangeStyle'
+import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, monthBackgroundPaths, ovulationRing, runShape } from '../lib/rangeStyle'
 import type { DayShape } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -73,6 +73,8 @@ export default function Calendar({
   onDismissUndo,
 }: CalendarProps) {
   const today = todayISO()
+  // User-pickable calendar colors (BLOOM-0022) — drives cells + legend fills.
+  const calStyle = snap.settings.style
   // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead;
   // older history is revealed on demand via the "Load older periods" button
   // (loadOlder) — the past never auto-grows on scroll.
@@ -615,6 +617,9 @@ export default function Calendar({
                   // Fill: shapes paint rose/lavender/sage depending on range;
                   // unshaped cells are transparent so SVG month bg shows through.
                   cls += ' ' + cellFillClass(shape, isFertile, isPredicted, isSafe, monthTint, shapeOrigin)
+                  // User-pickable colors (BLOOM-0022) — inline styles replace
+                  // the old fixed Tailwind color utilities.
+                  const fillStyle = cellFillStyle(shape, isFertile, isPredicted, isSafe, monthTint, calStyle, shapeOrigin)
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Today: small ink dot below number — distinct from rose period
@@ -723,12 +728,14 @@ export default function Calendar({
                         onSelect(cell.iso)
                       }}
                       className={`${cls} relative`}
+                      style={fillStyle}
                       aria-label={cell.iso}
                     >
                       {shape && monthTint && isPeriodVisual ? (
                         <span
                           aria-hidden
-                          className={`pointer-events-none absolute inset-0 bg-rose-400 ${
+                          style={{ backgroundColor: calStyle.period }}
+                          className={`pointer-events-none absolute inset-0 ${
                             shape === 'single' ? 'rounded-full' : shape === 'start' ? 'rounded-l-full' : shape === 'end' ? 'rounded-r-full' : ''
                           }`}
                         />
@@ -748,7 +755,13 @@ export default function Calendar({
                           aria-hidden
                           className="pointer-events-none absolute inset-0 flex items-center justify-center"
                         >
-                          <span className="h-2 w-2 rounded-full bg-lavender-400 ring-2 ring-lavender-100" />
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{
+                              backgroundColor: calStyle.ovulation,
+                              boxShadow: `0 0 0 2px ${ovulationRing(calStyle)}`,
+                            }}
+                          />
                         </span>
                       )}
                       {isToday && (
@@ -823,31 +836,43 @@ export default function Calendar({
         </div>
       )}
       {!showLegend ? null : (
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-rose-50 pt-3 text-xs text-ink-soft">
+        <div
+          data-testid="calendar-legend"
+          className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-rose-50 pt-3 text-xs text-ink-soft"
+        >
           <span className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-rose-400" /> period
+            <span data-legend="period" className="h-3 w-3 rounded-full" style={{ backgroundColor: calStyle.period }} /> period
           </span>
           {predictedDays.length > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-full border border-dashed border-rose-300" /> predicted
+              <span
+                data-legend="predicted"
+                className="h-3 w-3 rounded-full border border-dashed"
+                style={{ borderColor: calStyle.predicted }}
+              />{' '}
+              predicted
             </span>
           )}
           {prediction.fertileWindow !== null && (
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-lavender-100" /> fertile
+              <span data-legend="fertile" className="h-3 w-3 rounded-full" style={{ backgroundColor: calStyle.fertile }} /> fertile
             </span>
           )}
           {prediction.ovulationDay && (
             <span className="flex items-center gap-1.5">
-              <span className="flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-lavender-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-lavender-400" />
+              <span
+                data-legend="ovulation"
+                className="flex h-3 w-3 items-center justify-center rounded-full bg-white"
+                style={{ boxShadow: `0 0 0 2px ${calStyle.ovulation}` }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: calStyle.ovulation }} />
               </span>
               ovulation
             </span>
           )}
           {safeDays.length > 0 && (
             <span className="flex items-center gap-1.5">
-              <span className="h-3 w-3 rounded-full bg-sage-100" /> safe
+              <span data-legend="safe" className="h-3 w-3 rounded-full" style={{ backgroundColor: calStyle.safe }} /> safe
             </span>
           )}
         </div>

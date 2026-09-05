@@ -11,6 +11,8 @@
  */
 import { addDays } from './dates'
 import type { MonthCell } from './dates'
+import type { CalendarStyle } from '../types'
+import { darken, lighten } from './color'
 
 export type DayShape = 'single' | 'start' | 'middle' | 'end'
 
@@ -87,11 +89,12 @@ export function cellLayoutClass(shape: DayShape | null): string {
 }
 
 /**
- * Border classes for a predicted-day strip. The dashed outline wraps the
- * whole run, not each cell — middle cells skip left/right borders.
+ * Border-side classes for a predicted-day strip — width/dash only; the color
+ * lives in `cellFillStyle` (user-pickable, BLOOM-0022). The dashed outline
+ * wraps the whole run, not each cell — middle cells skip left/right borders.
  */
 function predictedStripBorder(shape: DayShape): string {
-  const base = 'border-dashed border-rose-300'
+  const base = 'border-dashed'
   if (shape === 'single') return `border ${base}`
   if (shape === 'start') return `border-y border-l ${base}`
   if (shape === 'end') return `border-y border-r ${base}`
@@ -99,13 +102,14 @@ function predictedStripBorder(shape: DayShape): string {
 }
 
 /**
- * Fill/text classes for a day cell. Month backgrounds are now rendered as
- * unified SVG shapes behind the grid, so unshaped cells are transparent.
- * Shaped period cells paint rose directly (on non-tinted months) or show
- * the tint through rounded cap corners (on tinted months).
+ * Fill/text classes for a day cell. COLOR utilities live in `cellFillStyle`
+ * (they are user-pickable inline styles); this helper only carries geometric
+ * classes: border side/width for the predicted strip, and font weights/tone.
+ * Month backgrounds are rendered as unified SVG shapes behind the grid, so
+ * unshaped cells are transparent.
  *
  * @param shapeOrigin — which range type produced the shape, so the fill
- *   color matches. undefined = period (default rose).
+ *   treatment matches. undefined = period (default rose).
  */
 export function cellFillClass(
   shape: DayShape | null,
@@ -116,18 +120,57 @@ export function cellFillClass(
   shapeOrigin?: 'period' | 'fertile' | 'predicted' | 'safe',
 ): string {
   if (shape) {
-    if (shapeOrigin === 'fertile') return 'bg-lavender-100 font-semibold text-lavender-700'
-    if (shapeOrigin === 'safe') return 'bg-sage-100 font-semibold text-sage-400'
-    if (shapeOrigin === 'predicted') return `${predictedStripBorder(shape)} text-rose-400 font-semibold`
-    // Period shape (or drag preview) — rose fill.
-    return monthTint
-      ? 'font-bold text-white'
-      : 'bg-rose-400 font-bold text-white'
+    if (shapeOrigin === 'fertile') return 'font-semibold'
+    if (shapeOrigin === 'safe') return 'font-semibold'
+    if (shapeOrigin === 'predicted') return `${predictedStripBorder(shape)} font-semibold`
+    // Period shape (or drag preview) — white text on the color fill.
+    return monthTint ? 'font-bold text-white' : 'font-bold text-white'
   }
-  if (fertile) return 'bg-lavender-100 font-semibold text-lavender-700'
-  if (safe) return 'bg-sage-100 font-semibold text-sage-400'
-  if (predicted) return 'border border-dashed border-rose-300 text-rose-400'
+  if (fertile) return 'font-semibold'
+  if (safe) return 'font-semibold'
+  if (predicted) return 'border border-dashed'
   return ''
+}
+
+/**
+ * Inline color styles for a day cell — the user-pickable CalendarStyle
+ * (BLOOM-0022) replaces the old hard-coded Tailwind color utilities.
+ * Derived shades: fertile/safe text = darken(fill), ovulation ring handled
+ * in Calendar (needs a lighter ring + dot pair).
+ */
+export interface CellFillStyle {
+  backgroundColor?: string
+  color?: string
+  borderColor?: string
+}
+
+export function cellFillStyle(
+  shape: DayShape | null,
+  fertile: boolean,
+  predicted: boolean,
+  safe: boolean,
+  monthTint: boolean,
+  style: CalendarStyle,
+  shapeOrigin?: 'period' | 'fertile' | 'predicted' | 'safe',
+): CellFillStyle {
+  if (shape) {
+    if (shapeOrigin === 'fertile') return { backgroundColor: style.fertile, color: darken(style.fertile, 0.42) }
+    if (shapeOrigin === 'safe') return { backgroundColor: style.safe, color: darken(style.safe, 0.35) }
+    if (shapeOrigin === 'predicted') return { borderColor: style.predicted, color: style.predicted }
+    // Period shape (or drag preview) — rose fill; on tinted months the SVG
+    // month shape shows through the transparent cell, and Calendar paints
+    // the solid fill as a child overlay span.
+    return monthTint ? {} : { backgroundColor: style.period }
+  }
+  if (fertile) return { backgroundColor: style.fertile, color: darken(style.fertile, 0.42) }
+  if (safe) return { backgroundColor: style.safe, color: darken(style.safe, 0.35) }
+  if (predicted) return { borderColor: style.predicted, color: style.predicted }
+  return {}
+}
+
+/** Soft ring shade for the ovulation dot — the fill lightened ~55% to white. */
+export function ovulationRing(style: CalendarStyle): string {
+  return lighten(style.ovulation, 0.55)
 }
 
 /**

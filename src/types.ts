@@ -8,6 +8,20 @@ export interface DayEntry {
   notes?: string
 }
 
+/** User-customizable calendar colors (BLOOM-0022) — lowercase #rrggbb hex. */
+export interface CalendarStyle {
+  /** Period days fill (cells + legend swatch). */
+  period: string
+  /** Predicted period — dashed outline + day text. */
+  predicted: string
+  /** Fertile window days fill. */
+  fertile: string
+  /** Ovulation day dot. */
+  ovulation: string
+  /** Safe days fill. */
+  safe: string
+}
+
 /** User-customizable prediction defaults (BLOOM-0002). */
 export interface Settings {
   /** Fallback cycle length (days): seeds predictions until 2+ completed cycles are logged. */
@@ -16,6 +30,8 @@ export interface Settings {
   periodLength: number
   /** Show safe days (post-fertile luteal phase) on the calendar. */
   showSafeDays: boolean
+  /** Calendar + legend colors (BLOOM-0022). */
+  style: CalendarStyle
 }
 
 /** Versioned blob — the whole app state. Serializes to one JSON string (sync-ready). */

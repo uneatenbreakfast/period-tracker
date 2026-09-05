@@ -1,5 +1,5 @@
 // Bloom drag-to-range E2E — LONG PRESS a day (400ms hold), THEN drag to
-// another day: live rose highlight (bg-rose-400, same style as committed
+// another day: live rose highlight (same style as committed
 // period days) spans covered cells while dragging, whole inclusive span
 // logged as period flow on release. Ranges render as a CONTINUOUS STRIP:
 // start day = asymmetric cap (convex BL, concave TL), end day = right cap,
@@ -23,10 +23,9 @@ const isoAdd = (iso, n) => {
 };
 
 // A cell is "highlighted" when it is part of a strip: start/end/single caps
-// have bg-rose-400 + font-bold, middle cells have font-bold text-rose-500.
-// Plain non-period cells never get font-bold, so it reliably distinguishes.
-const isHighlightedClass = async (iso, hasClassFn) =>
-  (await hasClassFn(iso, 'bg-rose-400')) || (await hasClassFn(iso, 'font-bold'));
+// carry the period fill (inline style since BLOOM-0022) + font-bold, middle
+// cells have font-bold text-rose-500. Plain non-period cells never get
+// font-bold, so it reliably distinguishes.
 
 (async () => {
   const browser = await chromium.launch({
@@ -82,6 +81,19 @@ const isHighlightedClass = async (iso, hasClassFn) =>
       ([i, c]) => document.querySelector(`button[aria-label="${i}"]`)?.classList.contains(c),
       [iso, cls],
     );
+  // A cell is "rose-filled" when ITS BUTTON paints a period fill inline. The
+  // old bg-rose-400 class moved into cellFillStyle (BLOOM-0022) so colors can
+  // be user-picked. Note: tinted months keep the button transparent and paint
+  // the round overlay span instead, and drag-preview middles show the overlay
+  // too — the original class check saw only the button, so this mirrors it
+  // exactly (asserts that depended on that nuance stay green).
+  const hasRoseFill = async (iso) =>
+    page.evaluate((i) => {
+      const btn = document.querySelector(`button[aria-label="${i}"]`);
+      if (!btn) return false;
+      const c = btn.style && btn.style.backgroundColor;
+      return !!c && c !== '' && c !== 'rgba(0, 0, 0, 0)';
+    }, iso);
   const storedEntries = () =>
     page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1')).entries);
   // DaySheet is the only element with the Close button. (A body-text check for
@@ -99,6 +111,8 @@ const isHighlightedClass = async (iso, hasClassFn) =>
       return arrays - cancels;
     });
   const vibrateCalls = () => page.evaluate(() => window.__vibrate.calls);
+  const isHighlightedClass = async (iso) =>
+    (await hasRoseFill(iso)) || (await hasClass(iso, 'font-bold'));
 
   // STEP 1 — FAST mouse drag 15 → 16 (no hold): the long-press gate must
   // reject it — no highlight, nothing logged.
@@ -106,7 +120,7 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   await page.mouse.move(s.x, s.y);
   await page.mouse.down();
   await page.mouse.move(q.x, q.y, { steps: 2 });
-  if (!(await hasClass(d16, 'bg-rose-400')))
+  if (!(await hasRoseFill(d16)))
     ok('fast drag (no hold) shows no selection highlight');
   else fail('fast drag highlighted a cell before the long press');
   await page.mouse.up();
@@ -116,7 +130,7 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   else fail('fast drag committed a range: ' + JSON.stringify(stored));
   if (!(await sheetOpen())) ok('fast drag did NOT open DaySheet');
   else fail('fast drag opened DaySheet');
-  if (!(await hasClass(d15, 'bg-rose-400')) && !(await hasClass(d16, 'bg-rose-400')))
+  if (!(await hasRoseFill(d15)) && !(await hasRoseFill(d16)))
     ok('cells 15/16 unstyled after fast drag');
   else fail('fast drag left cells styled');
   if ((await armPulseCount()) === 0) ok('fast drag (no hold) fired no arm pulse');
@@ -153,10 +167,10 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   await page.waitForTimeout(150);
   await page.mouse.move(e3.x, e3.y, { steps: 12 });
   await page.waitForTimeout(150);
-  if (await hasClass(d10, 'bg-rose-400') && (await hasClass(d12, 'bg-slate-100') || await hasClass(d12, 'font-bold')))
+  if (await hasRoseFill(d10) && (await hasClass(d12, 'bg-slate-100') || await hasClass(d12, 'font-bold')))
     ok('long-press drag highlights start (rose) + passed-over cells (month bg)');
   else fail('live highlight missing on passed-over cells');
-  if (!(await hasClass(d11, 'bg-rose-400'))) ok('intermediate day has no rose fill');
+  if (!(await hasRoseFill(d11))) ok('intermediate day has no rose fill');
   else fail('intermediate day still has rose fill');
   // Continuous-strip preview: drag start = asymmetric cap (convex BL, concave
   // TL via gradient), interior = flush square, drag end = right semicircle cap.
@@ -292,7 +306,7 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   else fail(`calendar scrolled during touch drag: ${JSON.stringify(before)} → ${JSON.stringify(mid)}`);
   await touchMove(t2.x, t2.y);
   await page.waitForTimeout(120);
-  if (await hasClass(d22, 'bg-rose-400') && await hasClass(d25, 'bg-rose-400'))
+  if (await hasRoseFill(d22) && await hasRoseFill(d25))
     ok('touch drag highlights start + end cells');
   else fail('touch drag end highlight missing');
   if (await hasClass(d22, 'rounded-bl-full') && await hasClass(d25, 'rounded-r-full'))
@@ -397,11 +411,11 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   await page.waitForTimeout(300);
   await page.click('button[aria-label="Close"]');
   await page.waitForTimeout(300);
-  if (await hasClass(d14, 'bg-rose-400') && await hasClass(d14, 'rounded-full'))
+  if (await hasRoseFill(d14) && await hasClass(d14, 'rounded-full'))
     ok('single day logged via DaySheet keeps the full circle (rounded-full)');
   else fail('single day not a circle: ' + (await page.evaluate((i) => document.querySelector(`button[aria-label="${i}"]`)?.className, d14)));
   const b14 = await box(d14);
-  if (b14.width < 48 && !(await hasClass(d13, 'bg-rose-400')) && !(await hasClass(d15, 'bg-rose-400')))
+  if (b14.width < 48 && !(await hasRoseFill(d13)) && !(await hasRoseFill(d15)))
     ok('single day is a small circle and neighbors 13/15 stay unstyled');
   else fail('single-day circle geometry or neighbor isolation wrong');
   stored = await storedEntries();
@@ -447,7 +461,7 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   if ((await editHandleIso('start')) === d23 && (await editHandleIso('end')) === d25)
     ok('pressed day became the new START handle, run END stays (23 start / 25 end)');
   else fail(`handles wrong: start=${await editHandleIso('start')} end=${await editHandleIso('end')}`);
-  if (!(await hasClass(d22, 'bg-rose-400')) && (await isHighlightedClass(d23, hasClass)) && (await isHighlightedClass(d24, hasClass)) && (await hasClass(d25, 'bg-rose-400')))
+  if (!(await hasRoseFill(d22)) && (await isHighlightedClass(d23, hasClass)) && (await isHighlightedClass(d24, hasClass)) && (await hasRoseFill(d25)))
     ok('edited preview: 22 dropped out of the range, 23..25 highlighted');
   else fail('edited preview range wrong');
   if (await hasClass(d24, 'rounded-none')) ok('edited preview keeps the continuous strip (interior square)');
@@ -476,7 +490,7 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   if ((await editHandleIso('start')) === d21 && (await editHandleIso('end')) === d25)
     ok('start handle dragged 23 → 21 (21 start / 25 end)');
   else fail(`start drag wrong: start=${await editHandleIso('start')} end=${await editHandleIso('end')}`);
-  if ((await hasClass(d21, 'bg-rose-400')) && (await hasClass(d21, 'rounded-bl-full')) && (await hasClass(d25, 'bg-rose-400')) && (await hasClass(d25, 'rounded-r-full')))
+  if ((await hasRoseFill(d21)) && (await hasClass(d21, 'rounded-bl-full')) && (await hasRoseFill(d25)) && (await hasClass(d25, 'rounded-r-full')))
     ok('start drag preview: 21..25 highlighted with correct strip caps');
   else fail('start drag preview shape wrong');
   const rt15 = await editRangeText();
@@ -573,7 +587,7 @@ const isHighlightedClass = async (iso, hasClassFn) =>
   stored = await storedEntries();
   if (stored.length === expected) ok('Cancel changed nothing (entries still ' + expected + ')');
   else fail(`Cancel mutated storage: ${stored.length} entries`);
-  if ((await hasClass(d21, 'bg-rose-400')) && !(await hasClass(d15, 'bg-rose-400')))
+  if ((await hasRoseFill(d21)) && !(await hasRoseFill(d15)))
     ok('Cancel kept the committed range 21..' + endIso + ' (15 not marked)');
   else fail('Cancel did not revert the visual range');
 

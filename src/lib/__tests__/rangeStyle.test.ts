@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   cellFillClass,
+  cellFillStyle,
   cellLayoutClass,
   dragShape,
   monthScoopClass,
+  ovulationRing,
   runShape,
 } from '../rangeStyle'
+import { DEFAULT_CALENDAR_STYLE } from '../settings'
+import { darken } from '../color'
 
 describe('runShape', () => {
   const flowDays = new Set(['2025-07-15', '2025-07-16', '2025-07-17', '2025-07-18'])
@@ -128,42 +132,38 @@ describe('cellFillClass', () => {
     expect(cellFillClass('single', false, false, false, true)).toBe('font-bold text-white')
   })
 
-  it('untinted months: cell paints solid rose directly', () => {
-    expect(cellFillClass('start', false, false, false, false)).toBe('bg-rose-400 font-bold text-white')
-    expect(cellFillClass('end', false, false, false, false)).toBe('bg-rose-400 font-bold text-white')
-    expect(cellFillClass('middle', false, false, false, false)).toBe('bg-rose-400 font-bold text-white')
-    expect(cellFillClass('single', false, false, false, false)).toBe('bg-rose-400 font-bold text-white')
+  it('untinted months: shaped period cells keep white text (fill moved to style)', () => {
+    expect(cellFillClass('start', false, false, false, false)).toBe('font-bold text-white')
+    expect(cellFillClass('end', false, false, false, false)).toBe('font-bold text-white')
+    expect(cellFillClass('middle', false, false, false, false)).toBe('font-bold text-white')
+    expect(cellFillClass('single', false, false, false, false)).toBe('font-bold text-white')
   })
 
-  it('fertile window: bg-lavender-100', () => {
-    expect(cellFillClass(null, true, false, false, false)).toContain('bg-lavender-100')
-    expect(cellFillClass(null, true, false, false, true)).toContain('bg-lavender-100')
+  it('fertile window: no color utilities (they moved to cellFillStyle)', () => {
+    expect(cellFillClass(null, true, false, false, false)).toBe('font-semibold')
+    expect(cellFillClass(null, true, false, false, true)).toBe('font-semibold')
   })
 
-  it('safe days: bg-sage-100', () => {
-    expect(cellFillClass(null, false, false, true, false)).toContain('bg-sage-100')
-    expect(cellFillClass(null, false, false, true, true)).toContain('bg-sage-100')
+  it('safe days: no color utilities (they moved to cellFillStyle)', () => {
+    expect(cellFillClass(null, false, false, true, false)).toBe('font-semibold')
+    expect(cellFillClass(null, false, false, true, true)).toBe('font-semibold')
   })
 
-  it('predicted days: dashed border', () => {
-    expect(cellFillClass(null, false, true, false, true)).toBe(
-      'border border-dashed border-rose-300 text-rose-400',
-    )
-    expect(cellFillClass(null, false, true, false, false)).toBe(
-      'border border-dashed border-rose-300 text-rose-400',
-    )
+  it('predicted days: dashed border geometry only, no color classes', () => {
+    expect(cellFillClass(null, false, true, false, true)).toBe('border border-dashed')
+    expect(cellFillClass(null, false, true, false, false)).toBe('border border-dashed')
   })
 
   it('predicted shaped strip: dashed outline only, NO fill (matches legend swatch)', () => {
-    // Shaped predicted cells must NOT carry a bg fill — the rose-50 block read as
+    // Shaped predicted cells must NOT carry a bg fill — a solid block read as
     // a solid pink strip against month tints, contradicting the legend's empty
     // dashed circle. Outline-only: dashes let the month background show through.
     for (const shape of ['start', 'middle', 'end', 'single'] as const) {
       const cls = cellFillClass(shape, false, true, false, true, 'predicted')
       expect(cls).toContain('border-dashed')
-      expect(cls).toContain('border-rose-300')
       expect(cls).not.toContain('bg-')
-      expect(cls).toContain('text-rose-400')
+      expect(cls).not.toContain('rose')
+      expect(cls).not.toContain('text-white')
     }
     // Shape-aware border sides still apply
     expect(cellFillClass('start', false, true, false, true, 'predicted')).toContain('border-l')
@@ -178,9 +178,92 @@ describe('cellFillClass', () => {
   })
 
   it('period fill wins over fertile/predicted/safe markers', () => {
-    expect(cellFillClass('middle', true, true, true, false)).toContain('bg-rose-400')
-    expect(cellFillClass('middle', true, true, true, false)).not.toContain('lavender')
-    expect(cellFillClass('middle', true, true, true, false)).not.toContain('sage')
-    expect(cellFillClass('middle', false, true, false, false)).toContain('bg-rose-400')
+    expect(cellFillClass('middle', true, true, true, false)).toBe('font-bold text-white')
+    expect(cellFillClass('middle', false, true, false, false)).toBe('font-bold text-white')
+  })
+})
+
+describe('cellFillStyle', () => {
+  const style = DEFAULT_CALENDAR_STYLE
+
+  it('period shape on untinted month: solid period fill, no text color', () => {
+    expect(cellFillStyle('start', false, false, false, false, style)).toEqual({
+      backgroundColor: '#e58aa8',
+    })
+  })
+
+  it('period shape on tinted month: transparent (Calendar paints child overlay)', () => {
+    expect(cellFillStyle('middle', false, false, false, true, style)).toEqual({})
+  })
+
+  it('fertile: fill + darkened text shade', () => {
+    expect(cellFillStyle(null, true, false, false, false, style)).toEqual({
+      backgroundColor: '#e4dcf3',
+      color: '#84808d',
+    })
+    expect(cellFillStyle('start', false, false, false, true, style, 'fertile')).toEqual({
+      backgroundColor: '#e4dcf3',
+      color: '#84808d',
+    })
+  })
+
+  it('safe: fill + darkened text shade', () => {
+    expect(cellFillStyle(null, false, false, true, false, style)).toEqual({
+      backgroundColor: '#e3eddd',
+      color: '#949a90',
+    })
+    expect(cellFillStyle('end', false, false, false, true, style, 'safe')).toEqual({
+      backgroundColor: '#e3eddd',
+      color: '#949a90',
+    })
+  })
+
+  it('predicted: dashed border + text in the predicted color, no fill', () => {
+    expect(cellFillStyle(null, false, true, false, true, style)).toEqual({
+      borderColor: '#e89db9',
+      color: '#e89db9',
+    })
+    expect(cellFillStyle('middle', false, true, false, true, style, 'predicted')).toEqual({
+      borderColor: '#e89db9',
+      color: '#e89db9',
+    })
+  })
+
+  it('custom colors flow through (user-picked)', () => {
+    const custom = {
+      ...DEFAULT_CALENDAR_STYLE,
+      period: '#123456',
+      predicted: '#abcdef',
+      fertile: '#0f0f0f',
+      ovulation: '#112233',
+      safe: '#445566',
+    }
+    expect(cellFillStyle('single', false, false, false, false, custom)).toEqual({
+      backgroundColor: '#123456',
+    })
+    expect(cellFillStyle(null, false, true, false, false, custom)).toEqual({
+      borderColor: '#abcdef',
+      color: '#abcdef',
+    })
+    expect(cellFillStyle(null, true, false, false, false, custom)).toEqual({
+      backgroundColor: '#0f0f0f',
+      color: darken('#0f0f0f', 0.42),
+    })
+    expect(cellFillStyle(null, false, false, true, false, custom)).toEqual({
+      backgroundColor: '#445566',
+      color: darken('#445566', 0.35),
+    })
+  })
+
+  it('unmarked cells get no styles', () => {
+    expect(cellFillStyle(null, false, false, false, true, style)).toEqual({})
+    expect(cellFillStyle(null, false, false, false, false, style)).toEqual({})
+  })
+})
+
+describe('ovulationRing', () => {
+  it('lightens the ovulation color ~55% toward white', () => {
+    expect(ovulationRing(DEFAULT_CALENDAR_STYLE)).toBe('#e0d7ee')
+    expect(ovulationRing({ ...DEFAULT_CALENDAR_STYLE, ovulation: '#000000' })).toBe('#8c8c8c')
   })
 })
