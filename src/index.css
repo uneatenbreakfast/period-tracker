@@ -39,6 +39,13 @@ body {
   @apply bg-cream font-sans text-ink antialiased;
 }
 
+html,
+body {
+  /* In-app tab swipes must not trigger browser-level back/forward
+     edge gestures (Android Chrome / Samsung Internet). */
+  overscroll-behavior-x: none;
+}
+
 ::selection {
   @apply bg-rose-100;
 }

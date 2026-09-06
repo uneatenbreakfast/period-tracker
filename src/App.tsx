@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FlowLevel, Snapshot } from './types'
 import Calendar from './components/Calendar'
 import DaySheet from './components/DaySheet'
@@ -9,6 +9,7 @@ import TrendsCard from './components/TrendsCard'
 import { addDays, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
 import { DEFAULT_FLOW } from './lib/symptoms'
+import { nextTab, prevTab, swipeDirection } from './lib/swipeTabs'
 import {
   captureDeletedEntries,
   createLocalStorageAdapter,
@@ -199,6 +200,52 @@ export default function App() {
     }
   }
 
+  // Horizontal swipe on tab content switches tabs. Gestures that START inside
+  // the calendar component never navigate — the calendar owns its touches
+  // (vertical scroll, long-press range drag).
+  const gestureRef = useRef<{ x0: number; y0: number; x: number; y: number } | null>(null)
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) {
+      gestureRef.current = null
+      return
+    }
+    if ((e.target as HTMLElement).closest('[data-calendar]')) {
+      gestureRef.current = null
+      return
+    }
+    const t = e.touches[0]
+    gestureRef.current = { x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY }
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    const g = gestureRef.current
+    if (!g) return
+    const t = e.touches[0]
+    g.x = t.clientX
+    g.y = t.clientY
+  }
+
+  const onTouchEnd = () => {
+    const g = gestureRef.current
+    gestureRef.current = null
+    if (!g) return
+    const dir = swipeDirection(g.x - g.x0, g.y - g.y0)
+    if (dir === 'left') setTab((t) => nextTab(t))
+    else if (dir === 'right') setTab((t) => prevTab(t))
+  }
+
+  const onTouchCancel = () => {
+    gestureRef.current = null
+  }
+
+  const swipeProps = {
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd,
+    onTouchCancel,
+  }
+
   useEffect(() => {
     // land on the current month when the calendar first renders
     const id = requestAnimationFrame(() => scrollToMonth(now.getFullYear(), now.getMonth()))
@@ -270,14 +317,14 @@ export default function App() {
       </nav>
 
       {tab === 'trends' ? (
-        <main className="flex flex-col gap-4">
+        <main {...swipeProps} className="flex flex-col gap-4">
           <TrendsCard snap={snap} settings={snap.settings} />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
           </footer>
         </main>
       ) : tab === 'settings' ? (
-        <main className="flex flex-col gap-4">
+        <main {...swipeProps} className="flex flex-col gap-4">
           <SettingsCard
             settings={snap.settings}
             onChange={(settings) => setSnap((s) => ({ ...s, settings }))}
@@ -289,7 +336,7 @@ export default function App() {
           </footer>
         </main>
       ) : tab === 'health' ? (
-        <main className="flex flex-col gap-4">
+        <main {...swipeProps} className="flex flex-col gap-4">
           <MenstrualHealthCard
             prediction={prediction}
             entryCount={snap.entries.length}
@@ -303,7 +350,7 @@ export default function App() {
           </footer>
         </main>
       ) : (
-        <main className="flex min-h-0 flex-1 flex-col gap-4">
+        <main {...swipeProps} className="flex min-h-0 flex-1 flex-col gap-4">
           <Calendar
             snap={snap}
             prediction={prediction}
