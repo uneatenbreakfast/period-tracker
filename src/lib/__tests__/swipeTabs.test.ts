@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { nextTab, prevTab, swipeDirection, SWIPE_THRESHOLD_PX } from '../swipeTabs'
+import {
+  FOLLOW_MAX_PX,
+  FOLLOW_SLOP_PX,
+  followOffset,
+  nextTab,
+  prevTab,
+  swipeDirection,
+  SWIPE_THRESHOLD_PX,
+  tabDelta,
+} from '../swipeTabs'
 
 describe('swipeDirection', () => {
   it('returns null for a tap (no movement)', () => {
@@ -53,5 +62,50 @@ describe('nextTab / prevTab', () => {
   it('prevTab wraps from the first tab to the last', () => {
     expect(prevTab('settings')).toBe('trends')
     expect(prevTab('calendar')).toBe('settings')
+  })
+})
+
+describe('tabDelta', () => {
+  it('is +1 moving forward through the nav order', () => {
+    expect(tabDelta('calendar', 'health')).toBe(1)
+    expect(tabDelta('health', 'trends')).toBe(1)
+    expect(tabDelta('trends', 'settings')).toBe(1)
+  })
+
+  it('is -1 moving backward through the nav order', () => {
+    expect(tabDelta('health', 'calendar')).toBe(-1)
+    expect(tabDelta('settings', 'trends')).toBe(-1)
+  })
+
+  it('maps wrap-around to the short way (settings → calendar = backward)', () => {
+    expect(tabDelta('settings', 'calendar')).toBe(-1)
+    expect(tabDelta('calendar', 'settings')).toBe(1)
+  })
+
+  it('is 0 for the same tab', () => {
+    expect(tabDelta('trends', 'trends')).toBe(0)
+  })
+})
+
+describe('followOffset', () => {
+  it('returns null below the slop (taps, tiny jitter)', () => {
+    expect(followOffset(0, 0)).toBeNull()
+    expect(followOffset(5, 2)).toBeNull()
+    expect(followOffset(FOLLOW_SLOP_PX - 1, 0)).toBeNull()
+  })
+
+  it('returns null for vertical and diagonal drift (scroll owns those)', () => {
+    expect(followOffset(10, 200)).toBeNull()
+    expect(followOffset(-60, -55)).toBeNull()
+  })
+
+  it('returns raw horizontal travel once the slop is beaten', () => {
+    expect(followOffset(-48, 0)).toBe(-48)
+    expect(followOffset(90, 40)).toBe(90)
+  })
+
+  it('clamps to ±FOLLOW_MAX_PX so long swipes settle fast', () => {
+    expect(followOffset(-300, 0)).toBe(-FOLLOW_MAX_PX)
+    expect(followOffset(250, -5)).toBe(FOLLOW_MAX_PX)
   })
 })

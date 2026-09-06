@@ -69,3 +69,34 @@ textarea {
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
+
+/* ── Tab navigation motion (design-eng) ──────────────────────────────── */
+/* Sliding underline indicator — glides between tabs via transform+width. */
+.tab-indicator {
+  transition:
+    transform 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    width 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Tab button press feedback — pressable elements feel responsive. */
+.tab-btn {
+  transition:
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 160ms ease;
+}
+.tab-btn:active {
+  transform: scale(0.97);
+}
+
+/* Respect motion preferences — no slide, no press scale, no indicator glide. */
+@media (prefers-reduced-motion: reduce) {
+  .tab-indicator {
+    transition: none;
+  }
+  .tab-btn {
+    transition: color 160ms ease;
+  }
+  .tab-btn:active {
+    transform: none;
+  }
+}

@@ -1,6 +1,7 @@
 // Bloom swipe-to-switch-tabs E2E — real touch gestures via CDP.
 // Left swipe = next tab, right swipe = previous tab; gestures that START
-// inside the calendar component never navigate.
+// inside the calendar component never navigate. Content follows the finger
+// mid-swipe; indicator pill glides to the active tab.
 // Prereq: dev server (npx vite --host 0.0.0.0 --port 5196), then:
 //   NODE_PATH=$(pwd)/node_modules node scripts/bloom-swipe-tabs-e2e.cjs
 // Port override: BLOOM_BASE_URL=http://localhost:5196/
@@ -46,9 +47,25 @@ async function swipe(cdp, x0, y0, dx, dy, { steps = 12, hold = 0 } = {}) {
 
   const activeTab = () =>
     page.evaluate(() => {
-      const active = document.querySelector('nav[aria-label="Views"] button.border-rose-500');
+      const active = document.querySelector('nav[aria-label="Views"] button[data-active="true"]');
       return active ? active.textContent.trim().toLowerCase() : null;
     });
+
+  // Sliding underline — where the .tab-indicator pill currently sits (x px).
+  const indicatorX = () =>
+    page.evaluate(() => {
+      const pill = document.querySelector('.tab-indicator');
+      if (!pill || pill.classList.contains('hidden')) return null;
+      return pill.getBoundingClientRect().x;
+    });
+  const tabButtonX = (label) =>
+    page.evaluate(
+      (l) => {
+        const b = document.querySelector(`nav[aria-label="Views"] button[data-tab="${l}"]`);
+        return b ? b.getBoundingClientRect().x : null;
+      },
+      label,
+    );
 
   await page.goto(BASE, { waitUntil: 'networkidle0' });
   await page.evaluate(() => localStorage.clear());
@@ -73,6 +90,14 @@ async function swipe(cdp, x0, y0, dx, dy, { steps = 12, hold = 0 } = {}) {
   // STEP 1 — initial tab
   if ((await activeTab()) === 'calendar') ok('initial tab = calendar');
   else fail('expected calendar, got ' + (await activeTab()));
+
+  // STEP 1b — sliding indicator under the calendar tab at first paint
+  const calX = await tabButtonX('calendar');
+  if (calX !== null && Math.abs((await indicatorX()) - calX) < 2) {
+    ok('indicator sits under calendar tab');
+  } else {
+    fail('indicator at ' + (await indicatorX()) + ', calendar button at ' + calX);
+  }
 
   // STEP 2 — calendar exclusion: fast left/right on calendar content
   let y = await contentY();
@@ -99,6 +124,12 @@ async function swipe(cdp, x0, y0, dx, dy, { steps = 12, hold = 0 } = {}) {
   await page.waitForTimeout(100);
   if ((await activeTab()) === 'health') ok('nav click → health');
   else fail('expected health, got ' + (await activeTab()));
+  const healthX = await tabButtonX('health');
+  if (healthX !== null && (await indicatorX()) > calX + 5) {
+    ok('indicator glided right onto health tab');
+  } else {
+    fail('indicator did not move to health (x=' + (await indicatorX()) + ', health button at ' + healthX + ')');
+  }
 
   y = await contentY();
   await swipe(cdp, 350, y, -250, 0, { steps: 6 });

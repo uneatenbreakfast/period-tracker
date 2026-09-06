@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FlowLevel, Snapshot } from './types'
 import Calendar from './components/Calendar'
 import DaySheet from './components/DaySheet'
@@ -9,7 +9,15 @@ import TrendsCard from './components/TrendsCard'
 import { addDays, todayISO } from './lib/dates'
 import { detectCycles, predictNext } from './lib/cycle'
 import { DEFAULT_FLOW } from './lib/symptoms'
-import { nextTab, prevTab, swipeDirection } from './lib/swipeTabs'
+import {
+  FOLLOW_MAX_PX,
+  Tab,
+  followOffset,
+  nextTab,
+  prevTab,
+  swipeDirection,
+  tabDelta,
+} from './lib/swipeTabs'
 import {
   captureDeletedEntries,
   createLocalStorageAdapter,
@@ -33,8 +41,80 @@ declare const __APP_VERSION__: number
 export default function App() {
   const [snap, setSnap] = useState<Snapshot>(() => loadSnapshot(storage))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [tab, setTab] = useState<'calendar' | 'health' | 'trends' | 'settings'>('calendar')
+  const [tab, setTab] = useState<Tab>('calendar')
   const now = new Date()
+
+  // ── Tab-navigation motion (design-eng: glide, follow, settle) ──────────
+  // Sliding underline: absolutely-positioned pill that glides between tabs
+  // instead of each tab's border fading in/out.
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null)
+  const navRef = useRef<HTMLElement | null>(null)
+  const mainRef = useRef<HTMLElement | null>(null)
+  const enterAnimRef = useRef<Animation | null>(null)
+  // Where the NEXT tab's content enters from (px). Set by the tab-change
+  // initiator — click (±ENTER_SLIDE_PX by direction) or swipe end (finger's
+  // clamped travel) — consumed by the [tab] layout effect.
+  const pendingEnterRef = useRef<number | null>(null)
+
+  const prefersReducedMotion = () =>
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  const measureIndicator = useCallback(() => {
+    const nav = navRef.current
+    if (!nav) return
+    const btn = nav.querySelector<HTMLElement>(`[data-tab="${tab}"]`)
+    if (!btn) return
+    setIndicator({ left: btn.offsetLeft, width: btn.offsetWidth })
+  }, [tab])
+
+  useLayoutEffect(() => {
+    measureIndicator()
+    const onResize = () => measureIndicator()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [measureIndicator])
+
+  // Glide the incoming tab content in from its starting offset (WAAPI —
+  // interruptible + GPU, no layout). Opacity starts where the finger left it.
+  const animateMainFrom = (offset: number) => {
+    const el = mainRef.current
+    if (!el || prefersReducedMotion()) return
+    enterAnimRef.current?.cancel()
+    enterAnimRef.current = el.animate(
+      [
+        { opacity: 1 - Math.min(Math.abs(offset) / 240, 0.55), transform: `translateX(${offset}px)` },
+        { opacity: 1, transform: 'translateX(0px)' },
+      ],
+      { duration: 220, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'both' },
+    )
+  }
+
+  // Release a mid-drag position back to rest (non-navigating swipe).
+  const settleMain = () => {
+    const el = mainRef.current
+    if (!el || prefersReducedMotion()) return
+    const t = el.style.transform
+    if (!t) return
+    const o = el.style.opacity || '1'
+    enterAnimRef.current?.cancel()
+    enterAnimRef.current = el.animate(
+      [
+        { transform: t, opacity: o },
+        { transform: 'translateX(0px)', opacity: '1' },
+      ],
+      { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'both' },
+    )
+  }
+
+  const cancelMainMotion = () => {
+    enterAnimRef.current?.cancel()
+    enterAnimRef.current = null
+    const el = mainRef.current
+    if (el) {
+      el.style.transform = ''
+      el.style.opacity = ''
+    }
+  }
 
   useEffect(() => saveSnapshot(snap, storage), [snap])
 
@@ -202,7 +282,9 @@ export default function App() {
 
   // Horizontal swipe on tab content switches tabs. Gestures that START inside
   // the calendar component never navigate — the calendar owns its touches
-  // (vertical scroll, long-press range drag).
+  // (vertical scroll, long-press range drag). During a horizontal gesture the
+  // content FOLLOWS the finger (live transform — no layout); release either
+  // glides the next tab in from the finger's position, or settles back.
   const gestureRef = useRef<{ x0: number; y0: number; x: number; y: number } | null>(null)
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -214,6 +296,7 @@ export default function App() {
       gestureRef.current = null
       return
     }
+    cancelMainMotion()
     const t = e.touches[0]
     gestureRef.current = { x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY }
   }
@@ -224,19 +307,55 @@ export default function App() {
     const t = e.touches[0]
     g.x = t.clientX
     g.y = t.clientY
+    // Horizontal dominance → content tracks the finger (clamped, GPU-only).
+    const off = followOffset(g.x - g.x0, g.y - g.y0)
+    const el = mainRef.current
+    if (off === null || !el || prefersReducedMotion()) return
+    el.style.transform = `translateX(${off}px)`
+    el.style.opacity = String(1 - Math.min(Math.abs(g.x - g.x0) / 240, 0.55))
   }
 
   const onTouchEnd = () => {
     const g = gestureRef.current
     gestureRef.current = null
     if (!g) return
-    const dir = swipeDirection(g.x - g.x0, g.y - g.y0)
-    if (dir === 'left') setTab((t) => nextTab(t))
-    else if (dir === 'right') setTab((t) => prevTab(t))
+    const dx = g.x - g.x0
+    const dy = g.y - g.y0
+    const dir = swipeDirection(dx, dy)
+    if (dir === 'left') {
+      pendingEnterRef.current = Math.max(-FOLLOW_MAX_PX, dx)
+      setTab((t) => nextTab(t))
+    } else if (dir === 'right') {
+      pendingEnterRef.current = Math.min(FOLLOW_MAX_PX, dx)
+      setTab((t) => prevTab(t))
+    } else {
+      settleMain()
+    }
   }
 
   const onTouchCancel = () => {
     gestureRef.current = null
+    cancelMainMotion()
+  }
+
+  // Change tabs (nav clicks). The next content enters from the direction of
+  // travel; wrap-around counts as backward since calendar sits left.
+  const switchTab = (next: Tab) => {
+    if (next === tab) return
+    pendingEnterRef.current = tabDelta(tab, next) * 20
+    setTab(next)
+  }
+
+  // Consume the pending enter offset once the new tab's content is mounted.
+  useLayoutEffect(() => {
+    const from = pendingEnterRef.current
+    pendingEnterRef.current = null
+    if (from === null) return
+    animateMainFrom(from)
+  }, [tab])
+
+  const setMainRef = (el: HTMLElement | null) => {
+    mainRef.current = el
   }
 
   const swipeProps = {
@@ -277,54 +396,50 @@ export default function App() {
         )}
       </header>
 
-      <nav className="mb-5 flex gap-8 border-b border-rose-100" aria-label="Views">
-        <button
-          type="button"
-          onClick={() => setTab('calendar')}
-          className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
-            tab === 'calendar' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
+      <nav
+        ref={navRef}
+        className="relative mb-5 flex gap-8 border-b border-rose-100"
+        aria-label="Views"
+      >
+        {(['calendar', 'health', 'trends', 'settings'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            data-tab={t}
+            data-active={tab === t ? 'true' : 'false'}
+            onClick={() => switchTab(t)}
+            className={`tab-btn -mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider ${
+              tab === t
+                ? 'border-transparent text-ink'
+                : 'border-transparent text-ink-soft hover:text-rose-500'
+            }`}
+          >
+            {t[0].toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+        {/* Glides to the active tab — transform+width only, 220ms ease-out */}
+        <span
+          aria-hidden="true"
+          className={`tab-indicator absolute -bottom-px left-0 h-0.5 rounded-full bg-rose-500 ${
+            indicator ? '' : 'hidden'
           }`}
-        >
-          Calendar
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('health')}
-          className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
-            tab === 'health' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
-          }`}
-        >
-          Health
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('trends')}
-          className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
-            tab === 'trends' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
-          }`}
-        >
-          Trends
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('settings')}
-          className={`-mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider transition-colors ${
-            tab === 'settings' ? 'border-rose-500 text-ink' : 'border-transparent text-ink-soft hover:text-rose-500'
-          }`}
-        >
-          Settings
-        </button>
+          style={
+            indicator
+              ? { transform: `translateX(${indicator.left}px)`, width: `${indicator.width}px` }
+              : undefined
+          }
+        />
       </nav>
 
       {tab === 'trends' ? (
-        <main {...swipeProps} className="flex flex-col gap-4">
+        <main ref={setMainRef} {...swipeProps} className="flex flex-col gap-4">
           <TrendsCard snap={snap} settings={snap.settings} />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
           </footer>
         </main>
       ) : tab === 'settings' ? (
-        <main {...swipeProps} className="flex flex-col gap-4">
+        <main ref={setMainRef} {...swipeProps} className="flex flex-col gap-4">
           <SettingsCard
             settings={snap.settings}
             onChange={(settings) => setSnap((s) => ({ ...s, settings }))}
@@ -336,7 +451,7 @@ export default function App() {
           </footer>
         </main>
       ) : tab === 'health' ? (
-        <main {...swipeProps} className="flex flex-col gap-4">
+        <main ref={setMainRef} {...swipeProps} className="flex flex-col gap-4">
           <MenstrualHealthCard
             prediction={prediction}
             entryCount={snap.entries.length}
@@ -350,7 +465,7 @@ export default function App() {
           </footer>
         </main>
       ) : (
-        <main {...swipeProps} className="flex min-h-0 flex-1 flex-col gap-4">
+        <main ref={setMainRef} {...swipeProps} className="flex min-h-0 flex-1 flex-col gap-4">
           <Calendar
             snap={snap}
             prediction={prediction}

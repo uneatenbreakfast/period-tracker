@@ -36,3 +36,31 @@ export function swipeDirection(
   if (Math.abs(dy) > Math.abs(dx) / SWIPE_DIAGONAL_RATIO) return null
   return dx < 0 ? 'left' : 'right'
 }
+
+/** Direction of travel between two tabs in the nav order: -1 (backward),
+ *  0 (same tab), or +1 (forward). Wrap-around maps to the SHORT way (-1:
+ *  settings → calendar counts as backward because calendar sits left of
+ *  settings in the nav). */
+export function tabDelta(from: Tab, to: Tab): -1 | 0 | 1 {
+  const d = TABS.indexOf(to) - TABS.indexOf(from)
+  if (d === 0) return 0
+  return d > 0 ? 1 : -1
+}
+
+/** Max px the tab content may travel with a finger mid-swipe (and therefore
+ *  the max px it glides from when the new tab enters). Longer swipes settle
+ *  from the clamp so the landing always feels snappy. */
+export const FOLLOW_MAX_PX = 100
+
+/** Horizontal travel (px) before content starts following the finger. */
+export const FOLLOW_SLOP_PX = 8
+
+/** Live drag-follow offset for an in-progress gesture: horizontal travel once
+ *  it beats the slop AND vertical drift is within the diagonal ratio, clamped
+ *  to ±FOLLOW_MAX_PX. Returns null when the gesture should not move content
+ *  (below slop, or vertical/diagonal — those belong to scrolling). */
+export function followOffset(dx: number, dy: number): number | null {
+  if (Math.abs(dx) < FOLLOW_SLOP_PX) return null
+  if (Math.abs(dy) > Math.abs(dx) / SWIPE_DIAGONAL_RATIO) return null
+  return Math.max(-FOLLOW_MAX_PX, Math.min(FOLLOW_MAX_PX, dx))
+}
