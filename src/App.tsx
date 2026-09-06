@@ -289,7 +289,7 @@ export default function App() {
       gestureRef.current = null
       return
     }
-    if ((e.target as HTMLElement).closest('[data-calendar]')) {
+    if ((e.target as HTMLElement).closest('[data-calendar], [data-sheet]')) {
       gestureRef.current = null
       return
     }
@@ -369,11 +369,14 @@ export default function App() {
   }, [])
 
   return (
+    // Full-viewport wrapper: tab swipes work anywhere outside the interactive
+    // surfaces (calendar range drag, day sheet) — on wide screens that means
+    // the empty left/right margins of the centered max-w-md column.
     <div
-      className={`mx-auto w-full max-w-md px-4 py-6 ${
-        tab === 'calendar' ? 'flex h-dvh flex-col' : 'min-h-dvh'
-      }`}
+      className={tab === 'calendar' ? 'flex h-dvh flex-col' : 'min-h-dvh'}
+      {...swipeProps}
     >
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
       <header className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-ink">
@@ -429,14 +432,14 @@ export default function App() {
       </nav>
 
       {tab === 'trends' ? (
-        <main ref={setMainRef} {...swipeProps} className="flex flex-col gap-4">
+        <main ref={setMainRef} className="flex flex-col gap-4">
           <TrendsCard snap={snap} settings={snap.settings} />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
           </footer>
         </main>
       ) : tab === 'settings' ? (
-        <main ref={setMainRef} {...swipeProps} className="flex flex-col gap-4">
+        <main ref={setMainRef} className="flex flex-col gap-4">
           <SettingsCard
             settings={snap.settings}
             onChange={(settings) => setSnap((s) => ({ ...s, settings }))}
@@ -448,7 +451,7 @@ export default function App() {
           </footer>
         </main>
       ) : tab === 'health' ? (
-        <main ref={setMainRef} {...swipeProps} className="flex flex-col gap-4">
+        <main ref={setMainRef} className="flex flex-col gap-4">
           <MenstrualHealthCard
             prediction={prediction}
             entryCount={snap.entries.length}
@@ -462,7 +465,7 @@ export default function App() {
           </footer>
         </main>
       ) : (
-        <main ref={setMainRef} {...swipeProps} className="flex min-h-0 flex-1 flex-col gap-4">
+        <main ref={setMainRef} className="flex min-h-0 flex-1 flex-col gap-4">
           <Calendar
             snap={snap}
             prediction={prediction}
@@ -502,6 +505,7 @@ export default function App() {
       <span className="pointer-events-none fixed bottom-1 left-2 z-50 font-mono text-[10px] text-ink-soft">
         v{__APP_VERSION__}
       </span>
+      </div>
     </div>
   )
 }
