@@ -36,7 +36,7 @@ export default function DaySheet({
   const hasEntry = entry !== undefined
 
   return (
-    <div className="fixed inset-0 z-20 flex items-end justify-center bg-ink/30 backdrop-blur-[2px]" onClick={onClose}>
+    <div data-sheet className="fixed inset-0 z-20 flex items-end justify-center bg-ink/30 backdrop-blur-[2px]" onClick={onClose}>
       <div
         className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 pb-8 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
