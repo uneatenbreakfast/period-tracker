@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Prediction, Snapshot } from '../types'
 import {
   continuousGrid,
@@ -103,6 +103,32 @@ export default function Calendar({
   // the pointer jitters within the same day cell during a drag.
   const lastTickISORef = useRef<string | null>(null)
   const scrollElRef = useRef<HTMLDivElement | null>(null)
+  const tintBoxRef = useRef<HTMLDivElement | null>(null)
+  const [tintBox, setTintBox] = useState<{ w: number; h: number } | null>(null)
+  // Measure the month-tint overlay's containing box in real pixels. The SVG
+  // is absolutely positioned inside a height-auto wrapper, so a percentage
+  // height can resolve against the wrong box (or fall back to the intrinsic
+  // 7:36 ratio) on some engines, which drifts the tint away from the cells.
+  // Explicit px sizing makes the overlay track the rows exactly, always.
+  useLayoutEffect(() => {
+    const el = tintBoxRef.current
+    if (!el) return
+    const measure = () => {
+      const r = el.getBoundingClientRect()
+      setTintBox((prev) =>
+        prev && Math.abs(prev.w - r.width) < 0.5 && Math.abs(prev.h - r.height) < 0.5
+          ? prev
+          : { w: r.width, h: r.height },
+      )
+    }
+    measure()
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure)
+      ro.observe(el)
+      return () => ro.disconnect()
+    }
+    return undefined
+  }, [weeks.length])
   const lastPointerRef = useRef({ x: 0, y: 0 })
   const clearHold = () => {
     if (holdTimer.current !== null) {
@@ -577,11 +603,12 @@ export default function Calendar({
         }}
       >
       {/* Positioning wrapper: SVG fills exactly the grid content area */}
-      <div className="relative">
+      <div ref={tintBoxRef} className="relative">
       {/* SVG month background layer: one continuous path per month, rounded
           on convex outer corners, flush on interior edges. */}
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
+        style={tintBox ? { width: `${tintBox.w}px`, height: `${tintBox.h}px` } : undefined}
         viewBox={`0 0 7 ${weeks.length}`}
         preserveAspectRatio="none"
         aria-hidden
