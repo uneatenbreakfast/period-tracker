@@ -179,20 +179,58 @@ export function ovulationRing(style: CalendarStyle): string {
  * corners. Interior edges between same-month cells are invisible — the shape
  * reads as one organic blob with smooth curves on all corners.
  *
+ * Two coordinate spaces:
+ * - No `geom` (legacy): paths are in GRID units — one column = 1 x-unit, one
+ *   week row = 1 y-unit, corner radius R = 0.35 grid units. The SVG stretch
+ *   maps these onto the day grid via viewBox "0 0 7 N" + preserveAspectRatio.
+ * - With `geom`: paths are in PIXEL units — column c spans
+ *   [c*cellW, (c+1)*cellW], row r spans [rowTops[r], rowTops[r]+rowHeights[r]].
+ *   This is the accurate mode: it tracks the ACTUAL measured row geometry, so
+ *   the tint aligns even when rows are non-uniform (font scaling, zoom,
+ *   month-start labels growing rows, any viewport/DPR). Rows MUST equal
+ *   `weeks.length`.
+ *
  * @param weeks — the continuousGrid output (MonthCell[][])
+ * @param geom — optional real-pixel geometry (cellW + per-row tops/heights)
  * @returns Array of { monthKey (YYYY-MM), pathD (SVG path data), color }[]
  */
+export interface MonthGeom {
+  /** Pixel width of one day column (container width / 7). */
+  cellW: number
+  /** Pixel top offset of each week row, relative to the tint wrapper. */
+  rowTops: number[]
+  /** Pixel height of each week row. Same length as rowTops. */
+  rowHeights: number[]
+}
+
 export interface MonthBgPath {
   monthKey: string
   pathD: string
   color: string
 }
 
-export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
+const r2 = (n: number) => Math.round(n * 100) / 100
+
+export function monthBackgroundPaths(weeks: MonthCell[][], geom?: MonthGeom): MonthBgPath[] {
   if (weeks.length === 0) return []
 
-  // Corner radius in grid units (0.35 = ~35% of cell size)
-  const R = 0.35
+  const px = !!geom && geom.rowTops.length === weeks.length && geom.rowHeights.length === weeks.length
+  // Column x in units (c) or pixels (c * cellW)
+  const colX = (c: number) => (px ? c * (geom as MonthGeom).cellW : c)
+  // Row top edge y: unit row r → r; px row r → measured top
+  const rowTop = (r: number) => (px ? (geom as MonthGeom).rowTops[r] : r)
+  // Row bottom edge y: unit → r+1; px → top + measured height
+  const rowBot = (r: number) => (px ? (geom as MonthGeom).rowTops[r] + (geom as MonthGeom).rowHeights[r] : r + 1)
+
+  // Corner radius: keep it proportional to the cell; clamp so a very short
+  // row can't get arcs taller than itself (degenerate font-scale cases).
+  let R = 0.35
+  if (px) {
+    const g = geom as MonthGeom
+    const minRowH = Math.min(...g.rowHeights)
+    R = 0.35 * Math.min(g.cellW, minRowH)
+  }
+  const Rr = r2(R)
 
   // Group cells by month (YYYY-MM)
   const groups = new Map<string, { r: number; c: number }[]>()
@@ -214,7 +252,8 @@ export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
 
     const inMonth = new Set(cells.map((c) => `${c.r},${c.c}`))
 
-    // Collect exterior edges as SVG line segments (x=col, y=row)
+    // Collect exterior edges as SVG line segments — coordinates in the
+    // active space (grid units or real pixels)
     interface Seg {
       x1: number; y1: number; x2: number; y2: number
       dir: 'right' | 'down' | 'left' | 'up'
@@ -222,18 +261,20 @@ export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
     const segs: Seg[] = []
 
     for (const { r, c } of cells) {
+      const x0 = colX(c), x1 = colX(c + 1)
+      const y0 = rowTop(r), y1 = rowBot(r)
       // Top edge: exterior if no cell above
       if (!inMonth.has(`${r - 1},${c}`))
-        segs.push({ x1: c, y1: r, x2: c + 1, y2: r, dir: 'right' })
+        segs.push({ x1: x0, y1: y0, x2: x1, y2: y0, dir: 'right' })
       // Right edge: exterior if no cell to right
       if (!inMonth.has(`${r},${c + 1}`))
-        segs.push({ x1: c + 1, y1: r, x2: c + 1, y2: r + 1, dir: 'down' })
+        segs.push({ x1: x1, y1: y0, x2: x1, y2: y1, dir: 'down' })
       // Bottom edge: exterior if no cell below
       if (!inMonth.has(`${r + 1},${c}`))
-        segs.push({ x1: c + 1, y1: r + 1, x2: c, y2: r + 1, dir: 'left' })
+        segs.push({ x1: x1, y1: y1, x2: x0, y2: y1, dir: 'left' })
       // Left edge: exterior if no cell to left
       if (!inMonth.has(`${r},${c - 1}`))
-        segs.push({ x1: c, y1: r + 1, x2: c, y2: r, dir: 'up' })
+        segs.push({ x1: x0, y1: y1, x2: x0, y2: y0, dir: 'up' })
     }
 
     if (segs.length === 0) continue
@@ -294,18 +335,18 @@ export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
       }
 
       if (i === 0) {
-        d.push(`M ${sx} ${sy}`)
+        d.push(`M ${r2(sx)} ${r2(sy)}`)
       } else if (turnIn === 'convex') {
         // Arc from previous segment's shortened end to this start (outward curve)
-        d.push(`A ${R} ${R} 0 0 1 ${sx} ${sy}`)
+        d.push(`A ${Rr} ${Rr} 0 0 1 ${r2(sx)} ${r2(sy)}`)
       } else if (turnIn === 'concave') {
         // Arc from previous segment's shortened end to this start (inward curve)
-        d.push(`A ${R} ${R} 0 0 0 ${sx} ${sy}`)
+        d.push(`A ${Rr} ${Rr} 0 0 0 ${r2(sx)} ${r2(sy)}`)
       } else {
-        d.push(`L ${sx} ${sy}`)
+        d.push(`L ${r2(sx)} ${r2(sy)}`)
       }
 
-      d.push(`L ${ex} ${ey}`)
+      d.push(`L ${r2(ex)} ${r2(ey)}`)
     }
 
     // Closing corner: arc from last segment end to first segment start
@@ -315,7 +356,7 @@ export function monthBackgroundPaths(weeks: MonthCell[][]): MonthBgPath[] {
       const fx = first.dir === 'right' ? first.x1 + R : first.dir === 'left' ? first.x1 - R : first.x1
       const fy = first.dir === 'down' ? first.y1 + R : first.dir === 'up' ? first.y1 - R : first.y1
       const sweep = lastTurn === 'convex' ? 1 : 0
-      d.push(`A ${R} ${R} 0 0 ${sweep} ${fx} ${fy}`)
+      d.push(`A ${Rr} ${Rr} 0 0 ${sweep} ${r2(fx)} ${r2(fy)}`)
     }
 
     d.push('Z')

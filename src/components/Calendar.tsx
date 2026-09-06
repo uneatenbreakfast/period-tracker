@@ -20,7 +20,7 @@ import {
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
 import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, monthBackgroundPaths, ovulationRing, runShape } from '../lib/rangeStyle'
-import type { DayShape } from '../lib/rangeStyle'
+import type { DayShape, MonthGeom } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -82,8 +82,59 @@ export default function Calendar({
   // ONE flowing week strip across the whole month window — weeks span month
   // boundaries (a month ending Tue 31 continues same-row into Wed 1).
   const weeks = useMemo(() => continuousGrid(months), [months])
+  // Measure the month-tint overlay's containing box AND each week row in
+  // real pixels. The SVG is absolutely positioned inside a height-auto
+  // wrapper, so a percentage height can resolve against the wrong box (or
+  // fall back to the intrinsic 7:36 ratio) on some engines. More important:
+  // rows are NOT uniformly pitched on every viewport — month-start labels,
+  // font scaling and zoom can grow some rows taller than others. The SVG
+  // paths are therefore generated in PIXEL space from the measured row
+  // tops/heights, so the tint tracks the cells exactly at any screen size.
+  const tintBoxRef = useRef<HTMLDivElement | null>(null)
+  const rowElsRef = useRef<(HTMLDivElement | null)[]>([])
+  const [tintGeom, setTintGeom] = useState<MonthGeom | null>(null)
+  useLayoutEffect(() => {
+    const el = tintBoxRef.current
+    if (!el) return
+    const measure = () => {
+      const r = el.getBoundingClientRect()
+      const rows = rowElsRef.current
+      const tops: number[] = []
+      const heights: number[] = []
+      for (const rowEl of rows) {
+        if (!rowEl) return
+        const rr = rowEl.getBoundingClientRect()
+        tops.push(rr.top - r.top)
+        heights.push(rr.height)
+      }
+      setTintGeom((prev) => {
+        const same =
+          prev &&
+          Math.abs(prev.cellW - r.width / 7) < 0.5 &&
+          prev.rowTops.length === tops.length &&
+          prev.rowTops.every((v, i) => Math.abs(v - tops[i]) < 0.5) &&
+          prev.rowHeights.every((v, i) => Math.abs(v - heights[i]) < 0.5)
+        return same
+          ? prev
+          : { cellW: r.width / 7, rowTops: tops, rowHeights: heights }
+      })
+    }
+    measure()
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure)
+      ro.observe(el)
+      for (const rowEl of rowElsRef.current) {
+        if (rowEl) ro.observe(rowEl)
+      }
+      return () => ro.disconnect()
+    }
+    return undefined
+  }, [weeks.length])
   // Unified SVG month background paths — replaces per-cell rounded corners + tint
-  const monthBgPaths = useMemo(() => monthBackgroundPaths(weeks), [weeks])
+  const monthBgPaths = useMemo(
+    () => monthBackgroundPaths(weeks, tintGeom ?? undefined),
+    [weeks, tintGeom],
+  )
   // Edit mode for an existing committed run: drag the start/end handles,
   // confirm with the Save/Cancel modal.
   const [edit, setEdit] = useState<EditRange | null>(null)
@@ -103,32 +154,6 @@ export default function Calendar({
   // the pointer jitters within the same day cell during a drag.
   const lastTickISORef = useRef<string | null>(null)
   const scrollElRef = useRef<HTMLDivElement | null>(null)
-  const tintBoxRef = useRef<HTMLDivElement | null>(null)
-  const [tintBox, setTintBox] = useState<{ w: number; h: number } | null>(null)
-  // Measure the month-tint overlay's containing box in real pixels. The SVG
-  // is absolutely positioned inside a height-auto wrapper, so a percentage
-  // height can resolve against the wrong box (or fall back to the intrinsic
-  // 7:36 ratio) on some engines, which drifts the tint away from the cells.
-  // Explicit px sizing makes the overlay track the rows exactly, always.
-  useLayoutEffect(() => {
-    const el = tintBoxRef.current
-    if (!el) return
-    const measure = () => {
-      const r = el.getBoundingClientRect()
-      setTintBox((prev) =>
-        prev && Math.abs(prev.w - r.width) < 0.5 && Math.abs(prev.h - r.height) < 0.5
-          ? prev
-          : { w: r.width, h: r.height },
-      )
-    }
-    measure()
-    if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(measure)
-      ro.observe(el)
-      return () => ro.disconnect()
-    }
-    return undefined
-  }, [weeks.length])
   const lastPointerRef = useRef({ x: 0, y: 0 })
   const clearHold = () => {
     if (holdTimer.current !== null) {
@@ -605,11 +630,20 @@ export default function Calendar({
       {/* Positioning wrapper: SVG fills exactly the grid content area */}
       <div ref={tintBoxRef} className="relative">
       {/* SVG month background layer: one continuous path per month, rounded
-          on convex outer corners, flush on interior edges. */}
+          on convex outer corners, flush on interior edges. When `tintGeom`
+          has been measured, viewBox + paths are in REAL pixel coordinates
+          (identity map), so the tint sits exactly on the cells regardless of
+          row pitch. Pre-measure fallback: unit viewBox + h-full w-full. */}
+      {(() => {
+        const totalH = tintGeom && tintGeom.rowTops.length > 0
+          ? tintGeom.rowTops[tintGeom.rowTops.length - 1] + tintGeom.rowHeights[tintGeom.rowHeights.length - 1]
+          : 0
+        const totalW = tintGeom ? tintGeom.cellW * 7 : 0
+        return (
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
-        style={tintBox ? { width: `${tintBox.w}px`, height: `${tintBox.h}px` } : undefined}
-        viewBox={`0 0 7 ${weeks.length}`}
+        style={tintGeom ? { width: `${totalW}px`, height: `${totalH}px` } : undefined}
+        viewBox={tintGeom ? `0 0 ${totalW} ${totalH}` : `0 0 7 ${weeks.length}`}
         preserveAspectRatio="none"
         aria-hidden
       >
@@ -621,6 +655,8 @@ export default function Calendar({
           ) : null
         })}
       </svg>
+        )
+      })()}
       {weeks.map((week, wi) => {
         // Anchor for the month whose 1st falls in this row — App's Today pill
         // and the initial scroll bring the row containing the 1st to the top.
@@ -631,7 +667,14 @@ export default function Calendar({
         const isAnchor = edit !== null && editAnchorWeek(weeks, edit) === wi
         const isLastWeek = wi === weeks.length - 1
         return (
-          <div key={`w${wi}`} data-month={monthRef} className="relative grid grid-cols-7">
+          <div
+          key={`w${wi}`}
+          ref={(el) => {
+            rowElsRef.current[wi] = el
+          }}
+          data-month={monthRef}
+          className="relative grid grid-cols-7"
+        >
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
