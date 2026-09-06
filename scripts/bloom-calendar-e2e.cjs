@@ -103,8 +103,10 @@ const isoAdd = (iso, n) => {
       scrollH: s.scrollHeight,
     };
   });
-  if (box.height >= 300 && box.height <= 400) ok(`calendar box ≈ one month tall (${box.height}px)`);
-  else fail('calendar box height not ~1 month: ' + box.height);
+  // Box flexes to fill ALL viewport-remaining height (taller screen = more
+  // calendar). At the 430×932 test viewport that's well over half the screen.
+  if (box.height >= 500 && box.height <= 932) ok(`calendar box fills viewport remainder (${box.height}px @ 932px viewport)`);
+  else fail('calendar box not viewport-filling: ' + box.height);
   if (box.overflowY === 'auto') ok('calendar box overflow-y auto (inner scroll)');
   else fail('calendar box overflowY=' + box.overflowY);
   if (box.scrollH > box.clientH) ok(`box is scrollable (client ${box.clientH}px < content ${box.scrollH}px)`);
@@ -120,19 +122,43 @@ const isoAdd = (iso, n) => {
   if (docRange.docH - docRange.innerH === 0) ok(`calendar tab has NO root scroll range (doc ${docRange.docH} == viewport ${docRange.innerH})`);
   else fail('calendar tab root scroll range: doc=' + docRange.docH + ' viewport=' + docRange.innerH);
 
+  // STEP 3c — taller viewport must show MORE calendar: the box grows with the
+  // screen, and the root must STAY unscrollable (slack absorbed by the box).
+  await page.setViewportSize({ width: 430, height: 1300 });
+  await page.waitForTimeout(300);
+  const tall = await page.evaluate(() => {
+    const s = document.querySelector('[data-calendar-scroll]');
+    const de = document.documentElement;
+    return { height: Math.round(s.getBoundingClientRect().height), docH: de.scrollHeight, innerH: window.innerHeight };
+  });
+  if (tall.height > box.height + 100 && tall.docH - tall.innerH === 0)
+    ok(`box grows with viewport (${box.height}px @ 932 → ${tall.height}px @ 1300) and root stays unscrollable`);
+  else fail('box did not grow with viewport / root scrolled: ' + JSON.stringify(tall));
+  await page.setViewportSize({ width: 430, height: 932 });
+  await page.waitForTimeout(300);
+
   const pos = await page.evaluate(({ todayY, todayM }) => {
     const scroller = document.querySelector('[data-calendar-scroll]');
     const el = document.querySelector(`[data-month="${todayY}-${todayM}"]`);
     const sr = scroller.getBoundingClientRect();
     const r = el.getBoundingClientRect();
-    return { scrollY: Math.round(window.scrollY), scrollTop: Math.round(scroller.scrollTop), monthTop: Math.round(r.top - sr.top) };
+    return {
+      scrollY: Math.round(window.scrollY),
+      scrollTop: Math.round(scroller.scrollTop),
+      monthTop: Math.round(r.top - sr.top),
+      boxH: Math.round(sr.height),
+      maxScroll: scroller.scrollHeight - scroller.clientHeight,
+    };
   }, { todayY, todayM });
   if (pos.scrollY < 100) ok('page did NOT scroll (scrollY=' + pos.scrollY + ')');
   else fail('page scrolled for calendar: scrollY=' + pos.scrollY);
   if (pos.scrollTop > 500) ok('calendar box scrolled to current month (scrollTop=' + pos.scrollTop + ')');
   else fail('calendar box not scrolled: scrollTop=' + pos.scrollTop);
-  if (pos.monthTop >= -10 && pos.monthTop < 120) ok('current month at top of calendar box (top=' + pos.monthTop + ')');
-  else fail('current month not at box top: top=' + pos.monthTop);
+  // Viewport-filling box: the anchor lands as high as content allows — flush
+  // at the top, or bottom-clamped when the preceding months are shorter than
+  // the box. Either way the current month must be VISIBLE inside the box.
+  if (pos.monthTop >= -10 && pos.monthTop < pos.boxH) ok('current month visible in calendar box (top=' + pos.monthTop + ' of ' + pos.boxH + 'px box, maxScroll ' + pos.maxScroll + ')');
+  else fail('current month not visible in box: top=' + pos.monthTop + ' boxH=' + pos.boxH);
 
   // STEP 4 — tap old period day (scrolled away) → DaySheet for that date
   await page.click(`button[aria-label="${oldDay}"]`);
@@ -152,9 +178,9 @@ const isoAdd = (iso, n) => {
     const scroller = document.querySelector('[data-calendar-scroll]');
     const el = document.querySelector(`[data-month="${todayY}-${todayM}"]`);
     const sr = scroller.getBoundingClientRect();
-    return { monthTop: Math.round(el.getBoundingClientRect().top - sr.top), scrollY: Math.round(window.scrollY) };
+    return { monthTop: Math.round(el.getBoundingClientRect().top - sr.top), boxH: Math.round(sr.height), scrollY: Math.round(window.scrollY) };
   }, { todayY, todayM });
-  if (back.monthTop >= -10 && back.monthTop < 120) ok('Today pill re-scrolls box to current month (top=' + back.monthTop + ')');
+  if (back.monthTop >= -10 && back.monthTop < back.boxH) ok('Today pill re-scrolls box to current month (top=' + back.monthTop + ' of ' + back.boxH + 'px box)');
   else fail('Today pill scroll failed: top=' + back.monthTop + ' scrollY=' + back.scrollY);
   if (back.scrollY < 100) ok('page still not scrolled by Today pill (scrollY=' + back.scrollY + ')');
   else fail('Today pill scrolled page: scrollY=' + back.scrollY);

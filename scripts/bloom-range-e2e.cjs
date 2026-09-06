@@ -385,6 +385,16 @@ const isoAdd = (iso, n) => {
   // STEP 12b — BLOOM-0015: a REGULAR vertical swipe ON A DAY CELL scrolls the
   // calendar (cells are touch-pan-y; only an ARMED gesture hands the touch to
   // the selection). Quick swipe = no long press = no veto = browser pan.
+  // BLOOM-0023 note: with the viewport-filling box the Today-pill scroll can
+  // bottom-clamp (current month as high as content allows = max scroll) — an
+  // up-swipe then has nowhere to go. Back off 220px (guaranteed swipe room,
+  // target cell stays inside the box: it sits 2 rows below the clamped anchor).
+  await page.evaluate(() => {
+    const s = document.querySelector('[data-calendar-scroll]');
+    if (s.scrollTop >= s.scrollHeight - s.clientHeight - 200)
+      s.scrollTop = Math.max(0, s.scrollTop - 220);
+  });
+  await page.waitForTimeout(150);
   const sc0 = await scrollTop();
   const cellPt = center(await box(d22));
   await touchStart(cellPt.x, cellPt.y);

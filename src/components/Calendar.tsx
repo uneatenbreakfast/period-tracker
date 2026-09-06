@@ -523,7 +523,10 @@ export default function Calendar({
           ))}
         </div>
       </div>
-      {/* Months scroll inside this fixed-height box (≈ one month), not the page */}
+      {/* Months scroll inside this box, which flexes to fill ALL remaining
+          viewport height (taller screen = more calendar visible). CRITICAL:
+          must stay flex-1 min-h-0 — the box absorbs the slack so the page
+          itself never scrolls (no root scrollbar). */}
       {/* Day cells are touch-pan-y: a REGULAR vertical swipe over the grid
           scrolls the calendar (BLOOM-0015). A quick swipe never arms — the
           browser takes the pan — and once a long press arms (or an edit
@@ -537,7 +540,7 @@ export default function Calendar({
           const t = e.currentTarget.scrollTop
           setAtTop(t < 20)
         }}
-        className={`relative -mx-5 min-h-0 flex-1 max-h-[21rem] overscroll-contain px-5 select-none touch-none ${
+        className={`relative -mx-5 min-h-0 flex-1 overscroll-contain px-5 select-none touch-none ${
           drag?.armed ? 'overflow-hidden' : 'overflow-y-auto'
         }`}
         onPointerMove={(e) => {
