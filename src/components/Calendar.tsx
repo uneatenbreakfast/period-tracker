@@ -155,6 +155,7 @@ export default function Calendar({
   const lastTickISORef = useRef<string | null>(null)
   const scrollElRef = useRef<HTMLDivElement | null>(null)
   const lastPointerRef = useRef({ x: 0, y: 0 })
+
   const clearHold = () => {
     if (holdTimer.current !== null) {
       window.clearTimeout(holdTimer.current)
@@ -210,8 +211,8 @@ export default function Calendar({
   // Touch handling: day cells are touch-none so ALL touch events stay on the
   // main thread (BLOOM-0015 — touch-pan-y let the compositor steal gestures
   // before our veto could fire). Two modes:
-  //   1. Drag armed OR edit active → preventDefault blocks scroll, gesture
-  //      owns vertical movement.
+  //   1. Drag pending/armed OR edit active → preventDefault blocks scroll,
+  //      gesture owns vertical movement.
   //   2. Neither → JS-driven scroll: track last touch Y, apply delta to
   //      scrollTop. Native scroll impossible because touch-none kills it.
   // Non-passive NATIVE listener — React's onTouchMove is passive and cannot
@@ -313,11 +314,11 @@ export default function Calendar({
     }
   }, [])
 
-  // Window-level scroll lock: when drag ARMED (or edit active), prevent ANY
-  // page scroll. Calendar scroll box is locked via CSS + capture listeners,
+  // Window-level scroll lock: when drag pending/armed (or edit active), prevent
+  // ANY page scroll. Calendar scroll box is locked via CSS + capture listeners,
   // but touches on weekday strip, header, or body padding can still scroll
-  // the page itself. Pre-arm hold must NOT lock — user may be starting a
-  // regular scroll swipe, not a range gesture.
+  // the page itself. Viewport freezes from the moment the long press starts
+  // (Airbnb style) — not just after the 400ms arm threshold.
   //
   // Listener attached IMMEDIATELY (not conditionally) — gating inside the
   // handler via refs avoids the re-render delay that left a gap where the
@@ -337,7 +338,7 @@ export default function Calendar({
     }
   }, [])
 
-  // PAGE-level scroll lock: when armed, set touch-action: none + overflow:
+  // PAGE-level scroll lock: when pending/armed, set touch-action: none + overflow:
   // hidden on html AND body. preventDefault on touchmove alone is NOT enough
   // — the browser commits to a scroll gesture based on touch-action at
   // touchstart time, before our JS can react. Setting CSS touch-action: none
