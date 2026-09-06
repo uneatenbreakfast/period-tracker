@@ -107,6 +107,31 @@ describe('sanitizeCalendarStyle', () => {
     expect(sanitizeCalendarStyle({ period: 42 as unknown as string }).period).toBe(DEFAULT_CALENDAR_STYLE.period)
   })
 
+  it('sanitizes the trend/ring/month-tint fields (BLOOM-0023)', () => {
+    expect(sanitizeCalendarStyle({ monthTint: '#AA11BB' }).monthTint).toBe('#aa11bb')
+    expect(sanitizeCalendarStyle({ trendFertile: '#888' }).trendFertile).toBe('#888888')
+    expect(sanitizeCalendarStyle({ trendOvulation: '#12345' }).trendOvulation).toBe(
+      DEFAULT_CALENDAR_STYLE.trendOvulation,
+    )
+    expect(sanitizeCalendarStyle({ ringFollicular: '#00ff00', ringLuteal: 'nope' })).toEqual({
+      ...DEFAULT_CALENDAR_STYLE,
+      ringFollicular: '#00ff00',
+    })
+    // A legacy blob with only the original 5 calendar fields keeps new defaults.
+    expect(
+      sanitizeCalendarStyle({
+        period: '#3366ff',
+        predicted: DEFAULT_CALENDAR_STYLE.predicted,
+        fertile: DEFAULT_CALENDAR_STYLE.fertile,
+        ovulation: DEFAULT_CALENDAR_STYLE.ovulation,
+        safe: DEFAULT_CALENDAR_STYLE.safe,
+      }),
+    ).toEqual({
+      ...DEFAULT_CALENDAR_STYLE,
+      period: '#3366ff',
+    })
+  })
+
   it('survives the full settings sanitize path (legacy blob → defaults)', () => {
     const legacy = JSON.parse('{"cycleLength":"28","periodLength":null}')
     expect(sanitizeSettings(legacy).style).toEqual(DEFAULT_CALENDAR_STYLE)

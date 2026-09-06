@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { Settings, Snapshot } from '../types'
+import type { CalendarStyle, Settings, Snapshot } from '../types'
 import { FERTILE_RANGE, cycleTrends, type CycleTrendRow } from '../lib/cycle'
 import { formatDayShort, formatRange, ordinal } from '../lib/ui'
 
@@ -50,7 +50,7 @@ function StatTile({ icon, iconClass, value, unit, label, testId }: StatTileProps
   )
 }
 
-function CycleBar({ row }: { row: CycleTrendRow }) {
+function CycleBar({ row, style }: { row: CycleTrendRow; style: CalendarStyle }) {
   const len = row.cycleLength
   const ovulIdx = row.ovulationDay === null ? null : row.ovulationDay - 1 // 0-based
   const periodFrac = len ? row.periodLength / len : 1
@@ -62,26 +62,26 @@ function CycleBar({ row }: { row: CycleTrendRow }) {
   return (
     <div className="relative mt-2 h-2.5 rounded-full bg-cream-deep" data-testid={`cycle-bar-${row.start}`}>
       <div
-        className="absolute inset-y-0 left-0 rounded-full bg-rose-400"
-        style={{ width: `${periodFrac * 100}%` }}
+        className="absolute inset-y-0 left-0 rounded-full"
+        style={{ width: `${periodFrac * 100}%`, backgroundColor: style.period }}
         data-testid="cycle-bar-period"
       />
       {showFertile && (
         <div
-          className="absolute inset-y-0 rounded-full bg-lavender-200"
-          style={{ left: `${fertileStartFrac! * 100}%`, width: `${(fertileEndFrac! - fertileStartFrac!) * 100}%` }}
+          className="absolute inset-y-0 rounded-full"
+          style={{ left: `${fertileStartFrac! * 100}%`, width: `${(fertileEndFrac! - fertileStartFrac!) * 100}%`, backgroundColor: style.trendFertile }}
           data-testid="cycle-bar-fertile"
         />
       )}
       <DropletIcon
-        className="absolute h-4 w-4 text-rose-500"
-        style={{ left: '0%', top: '50%', transform: 'translateY(-50%)' }}
+        className="absolute h-4 w-4"
+        style={{ left: '0%', top: '50%', transform: 'translateY(-50%)', color: style.period }}
         aria-label="Period start"
       />
       {len && ovulIdx !== null && (
         <HeartIcon
-          className="absolute h-4 w-4 text-peach-400"
-          style={{ left: `${(ovulIdx / len) * 100}%`, top: '50%', transform: 'translate(-50%, -50%)' }}
+          className="absolute h-4 w-4"
+          style={{ left: `${(ovulIdx / len) * 100}%`, top: '50%', transform: 'translate(-50%, -50%)', color: style.trendOvulation }}
           aria-label="Ovulation day"
         />
       )}
@@ -177,7 +177,7 @@ export default function TrendsCard({ snap, settings }: TrendsCardProps) {
                 Period: {row.periodLength} Days | Ovulation: {row.ovulationDay === null ? '—' : `${ordinal(row.ovulationDay)} Day`} |
                 Cycle length: {row.cycleLength === null ? '—' : `${row.cycleLength} Days`}
               </span>
-              <CycleBar row={row} />
+              <CycleBar row={row} style={settings.style} />
             </button>
             {openStart === row.start && row.nextStart && (
               <div

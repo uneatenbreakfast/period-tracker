@@ -1,5 +1,5 @@
 import type { CalendarStyle, Settings } from '../types'
-import { DEFAULT_CALENDAR_STYLE, SETTINGS_LIMITS } from '../lib/settings'
+import { SETTINGS_LIMITS } from '../lib/settings'
 
 interface StepperProps {
   label: string
@@ -63,13 +63,75 @@ interface StyleField {
   hint: string
 }
 
-const STYLE_FIELDS: StyleField[] = [
-  { key: 'period', label: 'Period', hint: 'Period days on the calendar' },
-  { key: 'predicted', label: 'Predicted', hint: 'Dashed outline for the predicted period' },
-  { key: 'fertile', label: 'Fertile', hint: 'Fertile window days' },
-  { key: 'ovulation', label: 'Ovulation', hint: 'Ovulation day dot' },
-  { key: 'safe', label: 'Safe', hint: 'Safe days after the fertile window' },
+/** Style picker groups (BLOOM-0022 + BLOOM-0023) — each maps to a visual. */
+interface StyleGroup {
+  title: string
+  hint?: string
+  fields: StyleField[]
+}
+
+const STYLE_GROUPS: StyleGroup[] = [
+  {
+    title: 'Calendar',
+    hint: 'Cells, strips and legend swatches.',
+    fields: [
+      { key: 'period', label: 'Period', hint: 'Period days on the calendar' },
+      { key: 'predicted', label: 'Predicted', hint: 'Dashed outline for the predicted period' },
+      { key: 'fertile', label: 'Fertile', hint: 'Fertile window days' },
+      { key: 'ovulation', label: 'Ovulation', hint: 'Ovulation day dot' },
+      { key: 'safe', label: 'Safe', hint: 'Safe days after the fertile window' },
+    ],
+  },
+  {
+    title: 'Month background',
+    hint: 'The soft tint behind alternating months.',
+    fields: [{ key: 'monthTint', label: 'Month tint', hint: 'Background tint of odd months' }],
+  },
+  {
+    title: 'Trend bars',
+    hint: 'Cycle chart in the Trends tab — period segment follows the Period color.',
+    fields: [
+      { key: 'trendFertile', label: 'Fertile bar', hint: 'Fertile window segment in cycle bars' },
+      { key: 'trendOvulation', label: 'Ovulation mark', hint: 'Heart marker at ovulation day' },
+    ],
+  },
+  {
+    title: 'Health ring',
+    hint: 'Phase ring on the Health tab — period phase follows the Period color.',
+    fields: [
+      { key: 'ringFollicular', label: 'Follicular', hint: 'Pre-ovulation phase of the ring' },
+      { key: 'ringOvulation', label: 'Ovulation', hint: 'Ovulation phase of the ring' },
+      { key: 'ringLuteal', label: 'Luteal', hint: 'Post-ovulation phase of the ring' },
+    ],
+  },
 ]
+
+function StyleRow({ field, value, onChange }: { field: StyleField; value: string; onChange: (v: string) => void }) {
+  return (
+    <div
+      className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3"
+      data-testid={`settings-style-${field.key}`}
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-ink">{field.label}</p>
+        <p className="text-[11px] font-semibold leading-tight text-ink-soft">{field.hint}</p>
+      </div>
+      <label
+        className="relative h-9 w-9 shrink-0 cursor-pointer rounded-full shadow-[0_2px_8px_rgba(87,66,78,0.2)] transition-transform hover:scale-105"
+        style={{ backgroundColor: value }}
+        aria-label={`${field.label} color`}
+      >
+        <input
+          type="color"
+          value={value}
+          data-testid={`settings-style-${field.key}-input`}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </label>
+    </div>
+  )
+}
 
 export default function SettingsCard({ settings, onChange, onExport, onImport }: SettingsCardProps) {
   return (
@@ -122,39 +184,26 @@ export default function SettingsCard({ settings, onChange, onExport, onImport }:
       <div className="mt-5 flex flex-col gap-3 border-t border-rose-100 pt-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-ink-soft">Style</h3>
         <p className="text-[11px] font-semibold text-ink-soft">
-          Calendar cell + legend colors. Tap a circle to pick a color.
+          Tap a circle to set a color — calendar, trends and the health ring all follow.
         </p>
-        {STYLE_FIELDS.map(({ key, label, hint }) => (
-          <div
-            key={key}
-            className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3"
-            data-testid={`settings-style-${key}`}
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-ink">{label}</p>
-              <p className="text-[11px] font-semibold leading-tight text-ink-soft">{hint}</p>
-            </div>
-            <label
-              className="relative h-9 w-9 shrink-0 cursor-pointer rounded-full shadow-[0_2px_8px_rgba(87,66,78,0.2)] transition-transform hover:scale-105"
-              style={{ backgroundColor: settings.style[key] }}
-              aria-label={`${label} color`}
-            >
-              <input
-                type="color"
-                value={settings.style[key]}
-                data-testid={`settings-style-${key}-input`}
-                onChange={(e) =>
-                  onChange({ ...settings, style: { ...settings.style, [key]: e.target.value } })
-                }
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        {STYLE_GROUPS.map((group) => (
+          <div key={group.title} className="flex flex-col gap-3">
+            <p className="mt-2 text-[11px] font-extrabold uppercase tracking-wider text-ink-soft/80">
+              {group.title}
+              {group.hint ? <span className="ml-1 font-semibold normal-case tracking-normal text-ink-soft/60">— {group.hint}</span> : null}
+            </p>
+            {group.fields.map((field) => (
+              <StyleRow
+                key={field.key}
+                field={field}
+                value={settings.style[field.key]}
+                onChange={(v) => onChange({ ...settings, style: { ...settings.style, [field.key]: v } })}
               />
-            </label>
+            ))}
           </div>
         ))}
         <p className="text-[11px] font-semibold text-ink-soft/70">
-          Defaults: {DEFAULT_CALENDAR_STYLE.period} period · {DEFAULT_CALENDAR_STYLE.predicted} predicted ·{' '}
-          {DEFAULT_CALENDAR_STYLE.fertile} fertile · {DEFAULT_CALENDAR_STYLE.ovulation} ovulation ·{' '}
-          {DEFAULT_CALENDAR_STYLE.safe} safe
+          Defaults: Bloom&apos;s pastel rose · lavender · peach · sage palette.
         </p>
       </div>
       <div className="mt-5 flex flex-col gap-2 border-t border-rose-100 pt-4">

@@ -7,6 +7,12 @@ export const DEFAULT_CALENDAR_STYLE: CalendarStyle = {
   fertile: '#e4dcf3', // lavender-100
   ovulation: '#b9a7d9', // lavender-400
   safe: '#e3eddd', // sage-100
+  monthTint: '#dfe3e8', // month tint
+  trendFertile: '#c9b8e3', // lavender-200
+  trendOvulation: '#f4a88e', // peach-400
+  ringFollicular: '#e4dcf3', // lavender-100
+  ringOvulation: '#f4a88e', // peach-400
+  ringLuteal: '#8fae8b', // sage-400
 }
 
 /** Fitbit-style defaults until the user customizes them (BLOOM-0002). */
@@ -38,7 +44,19 @@ function expandHex(short: string): string {
 export function sanitizeCalendarStyle(raw: Partial<CalendarStyle> | null | undefined): CalendarStyle {
   const out: CalendarStyle = { ...DEFAULT_CALENDAR_STYLE }
   if (!raw || typeof raw !== 'object') return out
-  for (const key of ['period', 'predicted', 'fertile', 'ovulation', 'safe'] as const) {
+  for (const key of [
+    'period',
+    'predicted',
+    'fertile',
+    'ovulation',
+    'safe',
+    'monthTint',
+    'trendFertile',
+    'trendOvulation',
+    'ringFollicular',
+    'ringOvulation',
+    'ringLuteal',
+  ] as const) {
     const v = raw[key]
     if (typeof v === 'string' && HEX_RE.test(v)) {
       out[key] = v.length === 4 ? expandHex(v.toLowerCase()) : v.toLowerCase()

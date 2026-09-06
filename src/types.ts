@@ -8,9 +8,9 @@ export interface DayEntry {
   notes?: string
 }
 
-/** User-customizable calendar colors (BLOOM-0022) — lowercase #rrggbb hex. */
+/** User-customizable app colors (BLOOM-0022 + BLOOM-0023) — lowercase #rrggbb hex. */
 export interface CalendarStyle {
-  /** Period days fill (cells + legend swatch). */
+  /** Period days fill (cells + legend swatch). Also drives the trend-bar period segment and ring period phase. */
   period: string
   /** Predicted period — dashed outline + day text. */
   predicted: string
@@ -20,6 +20,18 @@ export interface CalendarStyle {
   ovulation: string
   /** Safe days fill. */
   safe: string
+  /** Calendar month background tint (odd months in the continuous window). */
+  monthTint: string
+  /** Trend bar: fertile window segment. */
+  trendFertile: string
+  /** Trend bar: ovulation day marker. */
+  trendOvulation: string
+  /** Health ring: follicular phase stroke. */
+  ringFollicular: string
+  /** Health ring: ovulation phase stroke. */
+  ringOvulation: string
+  /** Health ring: luteal phase stroke. */
+  ringLuteal: string
 }
 
 /** User-customizable prediction defaults (BLOOM-0002). */

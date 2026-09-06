@@ -1,16 +1,12 @@
 import { useMemo } from 'react'
-import type { Prediction, Settings, Snapshot } from '../types'
+import type { CalendarStyle, Prediction, Settings, Snapshot } from '../types'
 import { cycleDayInfo, type CycleDayInfo, type CyclePhase } from '../lib/cycle'
 import { diffDays, todayISO } from '../lib/dates'
 import { getEntry } from '../lib/storage'
 import { formatShort } from '../lib/ui'
 
-const PHASE_COLORS: Record<CyclePhase, string> = {
-  period: '#e58aa8', // rose-400
-  follicular: '#e4dcf3', // lavender-100
-  ovulation: '#f4a88e', // peach-400
-  luteal: '#8fae8b', // sage-400
-}
+// Phase strokes are user-pickable (BLOOM-0023) — mapped from CalendarStyle.
+// Track + position dot stay fixed chrome.
 const TRACK_COLOR = '#f2e7e3' // unfilled ring track
 
 const SIZE = 120
@@ -19,7 +15,21 @@ const RADIUS = 46
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 const SEGMENT_GAP = 2.5
 
-function CycleRing({ info }: { info: CycleDayInfo | null }) {
+/** Map a cycle phase to its user-pickable color. Period reuses the calendar period color. */
+function phaseColor(phase: CyclePhase, style: CalendarStyle): string {
+  switch (phase) {
+    case 'period':
+      return style.period
+    case 'follicular':
+      return style.ringFollicular
+    case 'ovulation':
+      return style.ringOvulation
+    case 'luteal':
+      return style.ringLuteal
+  }
+}
+
+function CycleRing({ info, style }: { info: CycleDayInfo | null; style: CalendarStyle }) {
   const total = info?.cycleLength ?? 1
   const segments = info?.segments ?? []
 
@@ -34,7 +44,7 @@ function CycleRing({ info }: { info: CycleDayInfo | null }) {
         cy={CENTER}
         r={RADIUS}
         fill="none"
-        stroke={PHASE_COLORS[s.phase]}
+        stroke={phaseColor(s.phase, style)}
         strokeWidth={10}
         strokeLinecap="round"
         strokeDasharray={`${dash} ${CIRCUMFERENCE - dash}`}
@@ -146,7 +156,7 @@ export default function MenstrualHealthCard({
             </button>
           )}
         </div>
-        <CycleRing info={info} />
+        <CycleRing info={info} style={settings.style} />
       </div>
 
       <div className="mt-4 flex flex-col gap-2 border-t border-rose-50 pt-3">

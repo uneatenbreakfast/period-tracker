@@ -585,8 +585,9 @@ export default function Calendar({
       >
         {monthBgPaths.map(({ monthKey, pathD }) => {
           const m = Number(monthKey.slice(5, 7))
+          // Odd months get the user-pickable tint (BLOOM-0023); even months stay plain.
           return m % 2 !== 0 ? (
-            <path key={monthKey} d={pathD} style={{ fill: '#dfe3e8' }} />
+            <path key={monthKey} d={pathD} style={{ fill: calStyle.monthTint }} />
           ) : null
         })}
       </svg>
