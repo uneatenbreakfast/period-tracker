@@ -3,6 +3,8 @@
 // Prereq: dev server on :5174 (bun run dev --port 5174), then:
 //   NODE_PATH=/mnt/c/Repos/bookmarker/node_modules node bloom-trends-e2e.js
 const { chromium } = require('playwright');
+const fs = require('fs');
+const path = require('path');
 const BASE = process.env.BLOOM_BASE_URL || 'http://localhost:5174/';
 
 const cycles = [
@@ -84,6 +86,9 @@ const cycles = [
   else fail('oldest row wrong: ' + JSON.stringify(oldest));
   if (rows[1].includes('23 Jun - 20 Jul') && rows[1].includes('Ovulation: 15th Day') && rows[1].includes('Cycle length: 28 Days')) ok('second row: 23 Jun - 20 Jul | Ovul 15 | 28 days');
   else fail('second row wrong: ' + JSON.stringify(rows[1]));
+  const badgeCount = await page.evaluate(() => document.querySelectorAll('[data-testid^="cycle-outlier-"]').length);
+  if (badgeCount === 0) ok('no outlier badges on normal 6-cycle data');
+  else fail('unexpected outlier badges on normal data: ' + badgeCount);
 
   // STEP 4 — bar segments + icons on newest row (26-day cycle: pink 5d, blue window d7–13, gray tail)
   const bar = await page.evaluate(() => {
@@ -183,6 +188,59 @@ const cycles = [
   else fail('health tab broken: cycle history missing');
   if (!healthText.includes('Calendar')) ok('health tab has no calendar');
   else fail('health tab still shows calendar');
+
+  // STEP 8 — real user data (bloom-backup.json): 2012 + 2026-06 periods → the
+  // 5237-day gap is an outlier: row marked, omitted from averages, no fake prediction
+  const backup = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'bloom-backup.json'), 'utf8'));
+  await page.evaluate((snap) => localStorage.setItem('bloom.snapshot.v1', JSON.stringify(snap)), backup);
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.click('nav[aria-label="Views"] button:has-text("Trends")');
+  await page.waitForTimeout(250);
+
+  const outlier = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-testid^="cycle-row-"]')].map((r) => r.innerText.replace(/\n/g, ' '));
+    const badges = [...document.querySelectorAll('[data-testid^="cycle-outlier-"]')].map((b) => ({
+      id: b.getAttribute('data-testid'),
+      text: b.innerText.replace(/\n/g, ' '),
+    }));
+    const bar = (start) => {
+      const el = document.querySelector(`[data-testid="cycle-bar-${start}"]`);
+      if (!el) return null;
+      return {
+        period: !!el.querySelector('[data-testid="cycle-bar-period"]'),
+        fertile: !!el.querySelector('[data-testid="cycle-bar-fertile"]'),
+        heart: !!el.querySelector('svg[aria-label="Ovulation day"]'),
+        trackWpc: parseFloat(el.style.width),
+      };
+    };
+    const get = (id) => {
+      const el = document.querySelector(`[data-testid="${id}"]`);
+      return el ? el.innerText.replace(/\n/g, ' ') : null;
+    };
+    return { rows, badges, bar2012: bar('2012-02-14'), bar2026: bar('2026-06-17'), stats: { period: get('stat-period'), ovulation: get('stat-ovulation'), cycle: get('stat-cycle') } };
+  });
+
+  if (outlier.rows.length === 2) ok('real data → 2 cycle rows (2012 + 2026-06)');
+  else fail('real data row count wrong: ' + outlier.rows.length);
+  const oldRow = outlier.rows[1] || '';
+  if (oldRow.includes('Period: 5 Days') && oldRow.includes('Ovulation: —') && oldRow.includes('Cycle length: —'))
+    ok('outlier row: Period 5 | Ovulation — | Cycle length — (data omitted)');
+  else fail('outlier row payload wrong: ' + JSON.stringify(oldRow));
+  if (outlier.badges.length === 1 && outlier.badges[0].id === 'cycle-outlier-2012-02-14' && /outlier[\s·]+omitted from averages/i.test(outlier.badges[0].text))
+    ok('outlier badge on 2012 row: ' + outlier.badges[0].text);
+  else fail('outlier badge wrong: ' + JSON.stringify(outlier.badges));
+  if (outlier.bar2012 && outlier.bar2012.period && !outlier.bar2012.fertile && !outlier.bar2012.heart)
+    ok('outlier bar: period segment only (no fabricated fertile/heart)');
+  else fail('outlier bar wrong: ' + JSON.stringify(outlier.bar2012));
+  if (outlier.bar2026 && outlier.bar2026.fertile && outlier.bar2026.heart)
+    ok('2026-06 row (latest, not outlier) keeps predicted fertile bar');
+  else fail('2026-06 bar wrong: ' + JSON.stringify(outlier.bar2026));
+  if (outlier.stats.cycle && outlier.stats.cycle.includes('28') && outlier.stats.cycle.includes('Days'))
+    ok('avg cycle length falls back to 28 (5237-day gap excluded)');
+  else fail('stat-cycle wrong with real data: ' + JSON.stringify(outlier.stats.cycle));
+  if (outlier.stats.ovulation && outlier.stats.ovulation.includes('15th'))
+    ok('avg ovulation 15th Day (only the non-outlier row counts)');
+  else fail('stat-ovulation wrong with real data: ' + JSON.stringify(outlier.stats.ovulation));
 
   console.log('JS ERRORS:', errors.length ? errors.join(' | ') : 'none');
   if (errors.length) fail('page errors present');

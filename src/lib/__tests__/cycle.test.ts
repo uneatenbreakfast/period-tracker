@@ -313,7 +313,7 @@ describe('cycleTrends', () => {
   it('single cycle → predicted row at default 28 (Fitbit), not end-of-period', () => {
     const { rows, stats } = cycleTrends(['2026-01-03', '2026-01-04', '2026-01-05'].map((d) => day(d)))
     expect(rows).toEqual([
-      { start: '2026-01-03', end: '2026-01-30', periodLength: 3, ovulationDay: 15, cycleLength: 28, nextStart: '2026-01-31', fertileWindow: { start: '2026-01-12', end: '2026-01-18' } },
+      { start: '2026-01-03', end: '2026-01-30', periodLength: 3, ovulationDay: 15, cycleLength: 28, nextStart: '2026-01-31', fertileWindow: { start: '2026-01-12', end: '2026-01-18' }, isOutlier: false },
     ])
     expect(stats).toEqual({ avgPeriodLength: 3, avgOvulationDay: 15, avgCycleLength: 28 })
   })
@@ -321,13 +321,13 @@ describe('cycleTrends', () => {
   it('six cycles → spans, ovulation days and predicted latest match reference rows', () => {
     const { rows, stats } = cycleTrends(sixCycles())
     expect(rows).toEqual([
-      { start: '2026-03-15', end: '2026-04-09', periodLength: 6, ovulationDay: 13, cycleLength: 26, nextStart: '2026-04-10', fertileWindow: { start: '2026-03-22', end: '2026-03-28' } },
-      { start: '2026-04-10', end: '2026-05-04', periodLength: 5, ovulationDay: 12, cycleLength: 25, nextStart: '2026-05-05', fertileWindow: { start: '2026-04-16', end: '2026-04-22' } },
-      { start: '2026-05-05', end: '2026-05-30', periodLength: 6, ovulationDay: 13, cycleLength: 26, nextStart: '2026-05-31', fertileWindow: { start: '2026-05-12', end: '2026-05-18' } },
-      { start: '2026-05-31', end: '2026-06-22', periodLength: 5, ovulationDay: 10, cycleLength: 23, nextStart: '2026-06-23', fertileWindow: { start: '2026-06-04', end: '2026-06-10' } },
-      { start: '2026-06-23', end: '2026-07-20', periodLength: 5, ovulationDay: 15, cycleLength: 28, nextStart: '2026-07-21', fertileWindow: { start: '2026-07-02', end: '2026-07-08' } },
+      { start: '2026-03-15', end: '2026-04-09', periodLength: 6, ovulationDay: 13, cycleLength: 26, nextStart: '2026-04-10', fertileWindow: { start: '2026-03-22', end: '2026-03-28' }, isOutlier: false },
+      { start: '2026-04-10', end: '2026-05-04', periodLength: 5, ovulationDay: 12, cycleLength: 25, nextStart: '2026-05-05', fertileWindow: { start: '2026-04-16', end: '2026-04-22' }, isOutlier: false },
+      { start: '2026-05-05', end: '2026-05-30', periodLength: 6, ovulationDay: 13, cycleLength: 26, nextStart: '2026-05-31', fertileWindow: { start: '2026-05-12', end: '2026-05-18' }, isOutlier: false },
+      { start: '2026-05-31', end: '2026-06-22', periodLength: 5, ovulationDay: 10, cycleLength: 23, nextStart: '2026-06-23', fertileWindow: { start: '2026-06-04', end: '2026-06-10' }, isOutlier: false },
+      { start: '2026-06-23', end: '2026-07-20', periodLength: 5, ovulationDay: 15, cycleLength: 28, nextStart: '2026-07-21', fertileWindow: { start: '2026-07-02', end: '2026-07-08' }, isOutlier: false },
       // latest cycle: length from the average (prediction), not yet observed
-      { start: '2026-07-21', end: '2026-08-15', periodLength: 5, ovulationDay: 13, cycleLength: 26, nextStart: '2026-08-16', fertileWindow: { start: '2026-07-28', end: '2026-08-03' } },
+      { start: '2026-07-21', end: '2026-08-15', periodLength: 5, ovulationDay: 13, cycleLength: 26, nextStart: '2026-08-16', fertileWindow: { start: '2026-07-28', end: '2026-08-03' }, isOutlier: false },
     ])
     expect(stats).toEqual({ avgPeriodLength: 5, avgOvulationDay: 13, avgCycleLength: 26 })
   })
@@ -414,7 +414,7 @@ describe('outlier + future date filtering', () => {
     expect(averageCycleLength(cycles)).toBe(30)
   })
 
-  it('cycleTrends rows never carry an outlier gap as cycleLength (bar geometry must stay sane)', () => {
+  it('outlier gap rows are marked isOutlier and get no fabricated predictions (bar geometry stays sane)', () => {
     // Mirrors real-user data: an old 2012 period, a 2026-06 period, and future
     // dates that detectCycles drops. start-to-start gap 2012→2026 = 5237 days.
     const entries = [
@@ -425,19 +425,35 @@ describe('outlier + future date filtering', () => {
     ].map((d) => day(d))
     const { rows } = cycleTrends(entries, DEFAULT_SETTINGS)
     expect(rows.map((r) => r.start)).toEqual(['2012-02-14', '2026-06-17'])
-    for (const row of rows) {
-      // Outlier gap must NOT become the row length (5237) — falls back to the avg.
-      expect(row.cycleLength).not.toBeGreaterThan(MAX_CYCLE_LENGTH_DAYS)
-      expect(row.cycleLength).toBe(28) // avg fallback: default cycle length
-    }
-    // With sane lengths the Fitbit bar geometry is visible, not sub-pixel slivers.
+
+    const [old, recent] = rows
+    // 5237-day gap → the row is marked as an outlier; length falls back to the
+    // avg purely to keep bar geometry sane (never the raw 5237).
+    expect(old.isOutlier).toBe(true)
+    expect(old.cycleLength).toBe(28) // avg fallback: default cycle length
+    expect(old.cycleLength).not.toBeGreaterThan(MAX_CYCLE_LENGTH_DAYS)
+    // No prediction math fabricated from a fallback length
+    expect(old.ovulationDay).toBeNull()
+    expect(old.nextStart).toBeNull()
+    expect(old.fertileWindow).toBeNull()
+    expect(old.end).toBe('2012-02-18') // last logged period day, not a fake span
+
+    // The 2026-06 row is the latest (rawLen null) → normal predicted row, NOT an outlier
+    expect(recent.isOutlier).toBe(false)
+    expect(recent.cycleLength).toBe(28)
+    expect(recent.ovulationDay).toBe(15)
+    expect(recent.nextStart).toBe('2026-07-15') // 06-17 + 28
+
+    // Bar geometry: outlier row keeps a visible period segment but no fertile
+    // (no ovulation); the normal row keeps its full Fitbit bar.
     const maxLen = rows.reduce((m, r) => Math.max(m, r.cycleLength ?? r.periodLength), 0)
-    for (const row of rows) {
-      const l = cycleBarLayout(row, maxLen)
-      expect(l.periodEnd).toBeGreaterThan(0.05)
-      expect(l.showFertile).toBe(true)
-      expect(l.fertileEnd - l.fertileStart).toBeGreaterThan(0.05)
-    }
+    const lOld = cycleBarLayout(old, maxLen)
+    expect(lOld.periodEnd).toBeGreaterThan(0.05)
+    expect(lOld.showFertile).toBe(false)
+    const lRecent = cycleBarLayout(recent, maxLen)
+    expect(lRecent.periodEnd).toBeGreaterThan(0.05)
+    expect(lRecent.showFertile).toBe(true)
+    expect(lRecent.fertileEnd - lRecent.fertileStart).toBeGreaterThan(0.05)
   })
 
   it('falls back to default when all gaps are outliers', () => {
@@ -463,6 +479,38 @@ describe('outlier + future date filtering', () => {
     expect(cycles[1].start).toBe('2026-02-02')
   })
 
+  it('marks only the row a broken gap lands on; latest predicted row is not an outlier', () => {
+    // cycle1 → cycle2 gap = 149 (outlier) → row for cycle1 is marked;
+    // cycle2 → cycle3 gap = 30 (normal) → that row stays normal.
+    const entries = [
+      '2026-01-03', '2026-01-05',
+      '2026-06-01', '2026-06-03', // +149 from 01-03
+      '2026-07-01', '2026-07-03', // +30 from 06-01
+    ].map((d) => day(d))
+    const { rows } = cycleTrends(entries, DEFAULT_SETTINGS)
+    expect(rows.map((r) => r.isOutlier)).toEqual([true, false, false])
+    // avg excludes the 149-day gap → only 30 counts
+    expect(rows[0].cycleLength).toBe(30) // fallback to the avg, never 149
+    expect(rows[0].nextStart).toBeNull()
+    expect(rows[1].cycleLength).toBe(30) // real gap kept
+    expect(rows[1].nextStart).toBe('2026-07-01') // 06-01 + 30
+    expect(rows[2].isOutlier).toBe(false) // latest row: predicted, not outlier
+    expect(rows[2].nextStart).toBe('2026-07-31') // 07-01 + 30
+  })
+
+  it('avg ovulation day excludes outlier rows (no synthetic days in the mean)', () => {
+    const entries = [
+      ...['2012-02-14', '2012-02-15', '2012-02-16', '2012-02-17', '2012-02-18'],
+      ...['2026-06-17', '2026-06-18'], // +5237 from 2012 → outlier row
+      ...['2026-07-17', '2026-07-18', '2026-07-19'], // +30 → normal row
+    ].map((d) => day(d))
+    const { rows, stats } = cycleTrends(entries, DEFAULT_SETTINGS)
+    expect(rows.map((r) => r.isOutlier)).toEqual([true, false, false])
+    // ovulation days: [null (outlier), 17, 17] → mean over the two real rows only
+    expect(stats.avgOvulationDay).toBe(17)
+    expect(stats.avgCycleLength).toBe(30) // 5237-day gap excluded
+  })
+
   it('predictNext uses filtered average, not poisoned by outliers', () => {
     const entries = [
       '2026-01-03', '2026-01-05',
@@ -485,6 +533,7 @@ describe('cycleBarLayout', () => {
     cycleLength: 26,
     nextStart: '2026-08-16',
     fertileWindow: null,
+    isOutlier: false,
     ...overrides,
   })
 

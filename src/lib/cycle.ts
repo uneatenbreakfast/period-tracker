@@ -118,6 +118,13 @@ export interface CycleTrendRow {
   nextStart: string | null
   /** Fertile window around ovulation (calendar method); null when no prediction */
   fertileWindow: { start: string; end: string } | null
+  /**
+   * True when this row's start-to-start gap exceeds MAX_CYCLE_LENGTH_DAYS
+   * (logging break, pregnancy, or data error — not a real cycle). The gap is
+   * excluded from the averages, and the row is marked as such in the UI; its
+   * prediction fields are null because they'd be fabricated from the fallback.
+   */
+  isOutlier: boolean
 }
 
 export interface CycleTrendStats {
@@ -186,12 +193,16 @@ export function cycleTrends(entries: DayEntry[], settings?: Settings): { rows: C
   // Fitbit default 28 until 2+ cycles — user-settable since BLOOM-0002
   const avg = averageCycleLength(cycles, settings?.cycleLength)
   const rows: CycleTrendRow[] = cycles.map((c, i) => {
-    // Outlier gaps (> 90 days = logging break) must not become a row's length —
-    // they'd explode the cycle span, ovulation math, and trend-bar geometry.
-    // Same filter averageCycleLength applies; a broken gap falls back to the avg.
+    // Outlier gaps (> 90 days = logging break, pregnancy, data error) must not
+    // become a row's length — they'd explode the cycle span, ovulation math, and
+    // trend-bar geometry. Same filter averageCycleLength applies; a broken gap
+    // falls back to the avg for geometry, and the row is MARKED as an outlier.
+    // Its predictions are withheld too: ovulation/next-period math derived from
+    // a fallback length would be fabricated data, not the user's.
     const rawLen = i < lens.length ? lens[i] : null
+    const isOutlier = rawLen !== null && rawLen > MAX_CYCLE_LENGTH_DAYS
     const cycleLength = rawLen !== null && rawLen <= MAX_CYCLE_LENGTH_DAYS ? rawLen : avg
-    const nextStart = cycleLength === null ? null : addDays(c.start, cycleLength)
+    const nextStart = isOutlier ? null : cycleLength === null ? null : addDays(c.start, cycleLength)
     const ovulationDay =
       nextStart === null ? null : diffDays(addDays(nextStart, -LUTEAL_PHASE_DAYS), c.start) + 1
     const end = nextStart === null ? c.end : addDays(nextStart, -1)
@@ -202,7 +213,7 @@ export function cycleTrends(entries: DayEntry[], settings?: Settings): { rows: C
             start: addDays(nextStart, -LUTEAL_PHASE_DAYS - FERTILE_RANGE.before),
             end: addDays(nextStart, -LUTEAL_PHASE_DAYS + FERTILE_RANGE.after),
           }
-    return { start: c.start, end, periodLength: c.length, ovulationDay, cycleLength, nextStart, fertileWindow }
+    return { start: c.start, end, periodLength: c.length, ovulationDay, cycleLength, nextStart, fertileWindow, isOutlier }
   })
 
   const ovulationDays = rows

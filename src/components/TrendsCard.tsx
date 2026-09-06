@@ -170,14 +170,24 @@ export default function TrendsCard({ snap, settings }: TrendsCardProps) {
               data-testid={`cycle-row-${row.start}`}
               aria-expanded={openStart === row.start}
             >
-              <span className="block text-[15px] font-bold leading-6 text-[#4b4e57]">
-                {formatRange(row.start, row.end)}
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-[15px] font-bold leading-6 text-[#4b4e57]">
+                  {formatRange(row.start, row.end)}
+                </span>
+                {row.isOutlier && (
+                  <span
+                    className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase leading-4 tracking-wide text-amber-700"
+                    data-testid={`cycle-outlier-${row.start}`}
+                  >
+                    Outlier · omitted from averages
+                  </span>
+                )}
               </span>
               <span className="mt-1 flex items-center justify-between gap-2">
                 <span className="min-w-0 flex-1 truncate text-[11px] font-semibold leading-5 text-[#4a4e58]">
                   Period: {row.periodLength} Days | Ovulation:{' '}
                   {row.ovulationDay === null ? '—' : `${ordinal(row.ovulationDay)} Day`} | Cycle length:{' '}
-                  {row.cycleLength === null ? '—' : `${row.cycleLength} Days`}
+                  {row.isOutlier ? '—' : row.cycleLength === null ? '—' : `${row.cycleLength} Days`}
                 </span>
                 <span
                   className={`shrink-0 text-lg leading-none text-[#878787] transition-transform duration-150 ${
