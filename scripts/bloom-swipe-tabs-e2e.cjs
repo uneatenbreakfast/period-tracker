@@ -172,6 +172,74 @@ async function swipe(cdp, x0, y0, dx, dy, { steps = 12, hold = 0 } = {}) {
   if ((await activeTab()) === 'health') ok('vertical swipe (scroll) stays');
   else fail('vertical swipe navigated to ' + (await activeTab()));
 
+  // STEP 7 — wide screens: swipes in the empty left/right margins switch tabs.
+  // The content column is max-w-md (448px) centered; on a 1400px viewport the
+  // margins span x < ~476 and x > ~924. Gestures STARTING there must navigate.
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.waitForTimeout(200);
+  const col = await page.evaluate(() => {
+    const main = document.querySelector('main');
+    const r = main.getBoundingClientRect();
+    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  });
+  const midY = col.top + (col.bottom - col.top) / 2;
+  if (col.left > 200 && 1400 - col.right > 200) {
+    ok('wide viewport: content column centered with empty margins');
+  } else {
+    fail('column not centered as expected: ' + JSON.stringify(col));
+  }
+
+  // left margin swipe → next tab (health → trends)
+  await swipe(cdp, 60, midY, -250, 0, { steps: 6 });
+  await page.waitForTimeout(100);
+  if ((await activeTab()) === 'trends') ok('left-margin swipe → next tab');
+  else fail('left-margin swipe gave ' + (await activeTab()));
+
+  // right margin swipe → prev tab
+  await swipe(cdp, 1340, midY, 250, 0, { steps: 6 });
+  await page.waitForTimeout(100);
+  if ((await activeTab()) === 'health') ok('right-margin swipe → prev tab');
+  else fail('right-margin swipe gave ' + (await activeTab()));
+
+  // margin swipe on the CALENDAR tab still navigates — the margin is not the
+  // calendar surface, so the calendar exclusion does not apply there.
+  await page.click('nav[aria-label="Views"] button:text("Calendar")');
+  await page.waitForTimeout(100);
+  await swipe(cdp, 60, midY, -250, 0, { steps: 6 });
+  await page.waitForTimeout(100);
+  if ((await activeTab()) === 'health') ok('left-margin swipe on calendar tab → health');
+  else fail('calendar-tab margin swipe gave ' + (await activeTab()));
+
+  // in-column swipe on a wide screen still works (regression guard)
+  await swipe(cdp, 700, midY, -250, 0, { steps: 6 });
+  await page.waitForTimeout(100);
+  if ((await activeTab()) === 'trends') ok('in-column swipe on wide screen → next tab');
+  else fail('in-column wide swipe gave ' + (await activeTab()));
+
+  // day sheet exclusion: swiping on the open sheet must not switch tabs
+  await page.click('nav[aria-label="Views"] button:text("Calendar")');
+  await page.waitForTimeout(100);
+  const sheetCell = await page.evaluate(() => {
+    const cell = document.querySelector('[data-calendar-scroll] button');
+    const cr = cell ? cell.getBoundingClientRect() : null;
+    return cr ? { x: cr.left + cr.width / 2, y: cr.top + cr.height / 2 } : null;
+  });
+  if (sheetCell) {
+    await page.touchscreen.tap(sheetCell.x, sheetCell.y);
+    await page.waitForTimeout(200);
+    if (await page.evaluate(() => !!document.querySelector('[data-sheet]'))) {
+      await swipe(cdp, 700, 300, -250, 0, { steps: 6 });
+      await page.waitForTimeout(100);
+      if ((await activeTab()) === 'calendar') ok('swipe on open day sheet stays on calendar');
+      else fail('day-sheet swipe navigated to ' + (await activeTab()));
+      // dismiss the sheet
+      await page.evaluate(() => document.querySelector('[data-sheet]').click());
+      await page.waitForTimeout(100);
+    } else {
+      fail('day sheet did not open for exclusion test');
+    }
+  }
+
   if (errors.length) {
     errors.forEach((e) => console.error('ERROR EVENT:', e));
     fail('page errors detected');
