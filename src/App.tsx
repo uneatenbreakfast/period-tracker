@@ -398,7 +398,7 @@ export default function App() {
 
       <nav
         ref={navRef}
-        className="relative mb-5 flex gap-8 border-b border-rose-100"
+        className="relative mb-5 flex gap-0.5 border-b border-rose-100 sm:gap-8"
         aria-label="Views"
       >
         {(['calendar', 'health', 'trends', 'settings'] as const).map((t) => (
@@ -408,7 +408,7 @@ export default function App() {
             data-tab={t}
             data-active={tab === t ? 'true' : 'false'}
             onClick={() => switchTab(t)}
-            className={`tab-btn -mb-px border-b-2 pb-2.5 text-sm font-extrabold uppercase tracking-wider ${
+            className={`tab-btn -mb-px flex-1 whitespace-nowrap border-b-2 pb-2.5 text-center text-[11px] font-extrabold uppercase tracking-wide sm:flex-none sm:text-sm sm:tracking-wider ${
               tab === t
                 ? 'border-transparent text-ink'
                 : 'border-transparent text-ink-soft hover:text-rose-500'
