@@ -186,7 +186,11 @@ export function cycleTrends(entries: DayEntry[], settings?: Settings): { rows: C
   // Fitbit default 28 until 2+ cycles — user-settable since BLOOM-0002
   const avg = averageCycleLength(cycles, settings?.cycleLength)
   const rows: CycleTrendRow[] = cycles.map((c, i) => {
-    const cycleLength = i < lens.length ? lens[i] : avg
+    // Outlier gaps (> 90 days = logging break) must not become a row's length —
+    // they'd explode the cycle span, ovulation math, and trend-bar geometry.
+    // Same filter averageCycleLength applies; a broken gap falls back to the avg.
+    const rawLen = i < lens.length ? lens[i] : null
+    const cycleLength = rawLen !== null && rawLen <= MAX_CYCLE_LENGTH_DAYS ? rawLen : avg
     const nextStart = cycleLength === null ? null : addDays(c.start, cycleLength)
     const ovulationDay =
       nextStart === null ? null : diffDays(addDays(nextStart, -LUTEAL_PHASE_DAYS), c.start) + 1

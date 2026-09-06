@@ -7,6 +7,7 @@ import {
   DEFAULT_PERIOD_LENGTH,
   FERTILE_RANGE,
   LUTEAL_PHASE_DAYS,
+  MAX_CYCLE_LENGTH_DAYS,
   averageCycleLength,
   averagePeriodLength,
   cycleDayInfo,
@@ -411,6 +412,32 @@ describe('outlier + future date filtering', () => {
     expect(cycleLengths(cycles)).toEqual([30, 119, 30])
     // Only the two 30-day gaps count; 119 is filtered out
     expect(averageCycleLength(cycles)).toBe(30)
+  })
+
+  it('cycleTrends rows never carry an outlier gap as cycleLength (bar geometry must stay sane)', () => {
+    // Mirrors real-user data: an old 2012 period, a 2026-06 period, and future
+    // dates that detectCycles drops. start-to-start gap 2012→2026 = 5237 days.
+    const entries = [
+      ...['2012-02-14', '2012-02-15', '2012-02-16', '2012-02-17', '2012-02-18'],
+      ...['2026-06-17', '2026-06-18'],
+      // future-dated — excluded by detectCycles
+      ...['2026-12-23', '2026-12-30'],
+    ].map((d) => day(d))
+    const { rows } = cycleTrends(entries, DEFAULT_SETTINGS)
+    expect(rows.map((r) => r.start)).toEqual(['2012-02-14', '2026-06-17'])
+    for (const row of rows) {
+      // Outlier gap must NOT become the row length (5237) — falls back to the avg.
+      expect(row.cycleLength).not.toBeGreaterThan(MAX_CYCLE_LENGTH_DAYS)
+      expect(row.cycleLength).toBe(28) // avg fallback: default cycle length
+    }
+    // With sane lengths the Fitbit bar geometry is visible, not sub-pixel slivers.
+    const maxLen = rows.reduce((m, r) => Math.max(m, r.cycleLength ?? r.periodLength), 0)
+    for (const row of rows) {
+      const l = cycleBarLayout(row, maxLen)
+      expect(l.periodEnd).toBeGreaterThan(0.05)
+      expect(l.showFertile).toBe(true)
+      expect(l.fertileEnd - l.fertileStart).toBeGreaterThan(0.05)
+    }
   })
 
   it('falls back to default when all gaps are outliers', () => {
