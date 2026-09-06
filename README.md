@@ -14,3 +14,5 @@ bun run build   # tsc + vite build
 ```
 
 Docs: `.scratch/PRD.md` (product decisions), `.scratch/issues.md` (issue tracker, local markdown).
+
+https://uneatenbreakfast.github.io/period-tracker/
