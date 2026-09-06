@@ -206,7 +206,11 @@ export default function App() {
   }, [])
 
   return (
-    <div className="mx-auto min-h-dvh w-full max-w-md px-4 py-6">
+    <div
+      className={`mx-auto w-full max-w-md px-4 py-6 ${
+        tab === 'calendar' ? 'flex h-dvh flex-col' : 'min-h-dvh'
+      }`}
+    >
       <header className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-ink">
@@ -299,7 +303,7 @@ export default function App() {
           </footer>
         </main>
       ) : (
-        <main className="flex flex-col gap-4">
+        <main className="flex min-h-0 flex-1 flex-col gap-4">
           <Calendar
             snap={snap}
             prediction={prediction}
@@ -315,7 +319,7 @@ export default function App() {
             onUndo={performUndo}
             onDismissUndo={dismissUndo}
           />
-          <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
+          <footer className="shrink-0 pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
           </footer>
         </main>

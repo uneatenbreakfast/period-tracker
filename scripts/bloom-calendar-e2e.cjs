@@ -110,6 +110,16 @@ const isoAdd = (iso, n) => {
   if (box.scrollH > box.clientH) ok(`box is scrollable (client ${box.clientH}px < content ${box.scrollH}px)`);
   else fail('box not scrollable: client=' + box.clientH + ' scroll=' + box.scrollH);
 
+  // STEP 3b — calendar-only tab must NEVER overflow the document: the page
+  // itself has no vertical scrollbar (root scroll range 0); the calendar
+  // box absorbs the slack. Regression guard for root-level scrollbar bug.
+  const docRange = await page.evaluate(() => {
+    const de = document.documentElement;
+    return { docH: de.scrollHeight, innerH: window.innerHeight };
+  });
+  if (docRange.docH - docRange.innerH === 0) ok(`calendar tab has NO root scroll range (doc ${docRange.docH} == viewport ${docRange.innerH})`);
+  else fail('calendar tab root scroll range: doc=' + docRange.docH + ' viewport=' + docRange.innerH);
+
   const pos = await page.evaluate(({ todayY, todayM }) => {
     const scroller = document.querySelector('[data-calendar-scroll]');
     const el = document.querySelector(`[data-month="${todayY}-${todayM}"]`);
