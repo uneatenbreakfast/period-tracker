@@ -56,9 +56,6 @@ export default function App() {
   // clamped travel) — consumed by the [tab] layout effect.
   const pendingEnterRef = useRef<number | null>(null)
 
-  const prefersReducedMotion = () =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
   const measureIndicator = useCallback(() => {
     const nav = navRef.current
     if (!nav) return
@@ -78,7 +75,7 @@ export default function App() {
   // interruptible + GPU, no layout). Opacity starts where the finger left it.
   const animateMainFrom = (offset: number) => {
     const el = mainRef.current
-    if (!el || prefersReducedMotion()) return
+    if (!el) return
     enterAnimRef.current?.cancel()
     enterAnimRef.current = el.animate(
       [
@@ -92,7 +89,7 @@ export default function App() {
   // Release a mid-drag position back to rest (non-navigating swipe).
   const settleMain = () => {
     const el = mainRef.current
-    if (!el || prefersReducedMotion()) return
+    if (!el) return
     const t = el.style.transform
     if (!t) return
     const o = el.style.opacity || '1'
@@ -310,7 +307,7 @@ export default function App() {
     // Horizontal dominance → content tracks the finger (clamped, GPU-only).
     const off = followOffset(g.x - g.x0, g.y - g.y0)
     const el = mainRef.current
-    if (off === null || !el || prefersReducedMotion()) return
+    if (off === null || !el) return
     el.style.transform = `translateX(${off}px)`
     el.style.opacity = String(1 - Math.min(Math.abs(g.x - g.x0) / 240, 0.55))
   }
