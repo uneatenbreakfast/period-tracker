@@ -2,13 +2,13 @@ import type { CalendarStyle, Settings } from '../types'
 
 /** Bloom's PRD pastel palette (index.css @theme) — the shipped defaults. */
 export const DEFAULT_CALENDAR_STYLE: CalendarStyle = {
-  period: '#e58aa8', // rose-400
+  period: '#f2318c', // Fitbit period pink (calendar + trends bars)
   predicted: '#e89db9', // rose-300 (dashed outline)
   fertile: '#e4dcf3', // lavender-100
   ovulation: '#b9a7d9', // lavender-400
   safe: '#e3eddd', // sage-100
   monthTint: '#dfe3e8', // month tint
-  trendFertile: '#c9b8e3', // lavender-200
+  trendFertile: '#99d6f2', // Fitbit fertile-window blue (trends bars)
   trendOvulation: '#f4a88e', // peach-400
   ringFollicular: '#e4dcf3', // lavender-100
   ringOvulation: '#f4a88e', // peach-400

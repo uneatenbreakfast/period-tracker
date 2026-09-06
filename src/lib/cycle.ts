@@ -127,6 +127,52 @@ export interface CycleTrendStats {
 }
 
 /**
+ * Segment fractions for one cycle row's Fitbit-style trends bar (BLOOM-0026).
+ * All fractions are relative to the row's own cycle length; trackWidth is
+ * relative to the longest bar on screen (bars scale with cycle length).
+ */
+export interface CycleBarLayout {
+  /** Period segment end (segment starts at the left edge, so this is its width). */
+  periodEnd: number
+  /** Fertile segment start; clamped to periodEnd when the window overlaps the period. */
+  fertileStart: number
+  /** Fertile segment end (0..1) — ovulation day cap, the heart's anchor. */
+  fertileEnd: number
+  /** Whole-bar width vs the longest row on screen (0..1). */
+  trackWidth: number
+  /** Whether the fertile segment (and heart marker) should be drawn. */
+  showFertile: boolean
+  /** 0-based ovulation index within the cycle; null when unpredicted. */
+  ovulationIdx: number | null
+}
+
+/**
+ * Fitbit draws the bar's blue segment from the fertile-window start up to AND
+ * INCLUDING the ovulation day (sperm-survival window), with the heart capping
+ * its right edge. Predictions keep the +1 day after ovulation (FERTILE_RANGE)
+ * for calendar/highlight purposes, but the bar ends at ovulation day — the
+ * visual reference's geometry.
+ */
+export function cycleBarLayout(row: CycleTrendRow, maxCycleLength: number): CycleBarLayout {
+  const len = row.cycleLength ?? row.periodLength
+  const ovulationIdx = row.ovulationDay === null ? null : row.ovulationDay - 1
+  const periodEnd = len > 0 ? Math.min(1, row.periodLength / len) : 1
+  const fertileStart =
+    len > 0 && ovulationIdx !== null
+      ? Math.min(1, Math.max(periodEnd, (ovulationIdx - FERTILE_RANGE.before) / len))
+      : 1
+  const fertileEnd = len > 0 && ovulationIdx !== null ? Math.min(1, (ovulationIdx + 1) / len) : 1
+  return {
+    periodEnd,
+    fertileStart,
+    fertileEnd,
+    trackWidth: maxCycleLength > 0 ? Math.min(1, len / maxCycleLength) : 1,
+    showFertile: ovulationIdx !== null && fertileEnd > fertileStart,
+    ovulationIdx,
+  }
+}
+
+/**
  * Rows + averages for the trends screen. For the latest cycle there is no
  * actual next start yet, so its length (and the row's span end + ovulation)
  * come from the average prediction — mirrors predictNext.

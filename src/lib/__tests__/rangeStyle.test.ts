@@ -188,7 +188,7 @@ describe('cellFillStyle', () => {
 
   it('period shape on untinted month: solid period fill, no text color', () => {
     expect(cellFillStyle('start', false, false, false, false, style)).toEqual({
-      backgroundColor: '#e58aa8',
+      backgroundColor: '#f2318c',
     })
   })
 

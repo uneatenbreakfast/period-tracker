@@ -15,6 +15,8 @@ import {
   detectCycles,
   isPeriodDay,
   predictNext,
+  cycleBarLayout,
+  type CycleTrendRow,
 } from '../cycle'
 import { addDays } from '../dates'
 
@@ -444,5 +446,62 @@ describe('outlier + future date filtering', () => {
     const p = predictNext(entries)
     expect(p.avgCycleLength).toBe(30)
     expect(p.nextPeriodStart).toBe(addDays('2026-07-01', 30))
+  })
+})
+
+describe('cycleBarLayout', () => {
+  const refRow = (overrides: Partial<CycleTrendRow> = {}): CycleTrendRow => ({
+    start: '2026-07-21',
+    end: '2026-08-15',
+    periodLength: 5,
+    ovulationDay: 13,
+    cycleLength: 26,
+    nextStart: '2026-08-16',
+    fertileWindow: null,
+    ...overrides,
+  })
+
+  it('reference row: 26-day cycle, 5-day period, ovulation day 13, max track 28', () => {
+    const l = cycleBarLayout(refRow(), 28)
+    expect(l.periodEnd).toBeCloseTo(5 / 26, 6)
+    // window starts 5 days before ovulation (sperm-survival), clamped past the period
+    expect(l.fertileStart).toBeCloseTo(7 / 26, 6)
+    // window ends ON the ovulation day (heart caps the blue segment)
+    expect(l.fertileEnd).toBeCloseTo(13 / 26, 6)
+    expect(l.trackWidth).toBeCloseTo(26 / 28, 6)
+    expect(l.showFertile).toBe(true)
+    expect(l.ovulationIdx).toBe(12)
+  })
+
+  it('window start clamps to period end when ovulation sits right after the period', () => {
+    // 23-day cycle, 5-day period, ovulation day 10 → raw start 5/23 == periodEnd anyway
+    const l1 = cycleBarLayout(refRow({ periodLength: 5, ovulationDay: 10, cycleLength: 23 }), 28)
+    expect(l1.fertileStart).toBeCloseTo(5 / 23, 6)
+    expect(l1.fertileEnd).toBeCloseTo(10 / 23, 6)
+    // ovulation day 6 → raw window start 1/23 would overlap the period: clamp to periodEnd 5/23
+    const l2 = cycleBarLayout(refRow({ periodLength: 5, ovulationDay: 6, cycleLength: 23 }), 28)
+    expect(l2.fertileStart).toBeCloseTo(5 / 23, 6)
+    expect(l2.fertileEnd).toBeCloseTo(6 / 23, 6)
+    expect(l2.showFertile).toBe(true)
+  })
+
+  it('no predicted ovulation → no fertile segment and null index', () => {
+    const l = cycleBarLayout(refRow({ ovulationDay: null }), 28)
+    expect(l.ovulationIdx).toBeNull()
+    expect(l.showFertile).toBe(false)
+    expect(l.periodEnd).toBeCloseTo(5 / 26, 6)
+  })
+
+  it('track width scales against the longest row and caps at 1', () => {
+    expect(cycleBarLayout(refRow(), 30).trackWidth).toBeCloseTo(26 / 30, 6)
+    expect(cycleBarLayout(refRow(), 20).trackWidth).toBe(1)
+    expect(cycleBarLayout(refRow(), 26).trackWidth).toBe(1)
+  })
+
+  it('single-record row falls back to period length for the track', () => {
+    const l = cycleBarLayout(refRow({ cycleLength: null }), 5)
+    expect(l.trackWidth).toBe(1)
+    expect(l.periodEnd).toBe(1)
+    expect(l.showFertile).toBe(false)
   })
 })

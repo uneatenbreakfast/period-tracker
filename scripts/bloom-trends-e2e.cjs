@@ -85,7 +85,7 @@ const cycles = [
   if (rows[1].includes('23 Jun - 20 Jul') && rows[1].includes('Ovulation: 15th Day') && rows[1].includes('Cycle length: 28 Days')) ok('second row: 23 Jun - 20 Jul | Ovul 15 | 28 days');
   else fail('second row wrong: ' + JSON.stringify(rows[1]));
 
-  // STEP 4 — bar segments + icons on newest row
+  // STEP 4 — bar segments + icons on newest row (26-day cycle: pink 5d, blue window d7–13, gray tail)
   const bar = await page.evaluate(() => {
     const container = document.querySelector('[data-testid="cycle-bar-2026-07-21"]');
     if (!container) return null;
@@ -93,29 +93,56 @@ const cycles = [
     const fertile = container.querySelector('[data-testid="cycle-bar-fertile"]');
     const droplet = container.querySelector('svg[aria-label="Period start"]');
     const heart = container.querySelector('svg[aria-label="Ovulation day"]');
-    const heartLeft = heart ? parseFloat(heart.style.left) : null;
+    const r = container.getBoundingClientRect();
+    const pr = period.getBoundingClientRect();
+    const fr = fertile.getBoundingClientRect();
+    const dr = droplet.getBoundingClientRect();
+    const hr = heart.getBoundingClientRect();
     return {
-      periodW: period ? parseFloat(period.style.width) : null,
+      trackW: r.width,
+      trackWpc: parseFloat(container.style.width),
+      trackTop: r.top,
+      trackH: r.height,
+      periodW: parseFloat(period.style.width),
+      periodLeftPx: pr.left - r.left,
+      periodRightPx: pr.right - r.left,
       fertile: !!fertile,
-      fertileLeft: fertile ? parseFloat(fertile.style.left) : null,
+      fertileLeft: parseFloat(fertile.style.left),
+      fertileW: parseFloat(fertile.style.width),
+      fertileLeftPx: fr.left - r.left,
+      fertileRightPx: fr.right - r.left,
       droplet: !!droplet,
       heart: !!heart,
-      heartLeft
+      dropletCx: dr.left + dr.width / 2 - r.left,
+      dropletCy: dr.top + dr.height / 2 - (r.top + r.height / 2),
+      heartCx: hr.left + hr.width / 2 - r.left,
+      heartCy: hr.top + hr.height / 2 - (r.top + r.height / 2),
     };
   });
   if (!bar) fail('newest cycle bar missing');
   else {
+    // rows scale against the longest visible cycle (28d → 26/28 = 92.857%)
+    if (Math.abs(bar.trackWpc - (26 / 28) * 100) < 0.5) ok(`track ${bar.trackWpc.toFixed(1)}% of max 28d row`);
+    else fail('track width wrong: ' + bar.trackWpc);
     if (Math.abs(bar.periodW - (5 / 26) * 100) < 0.5) ok(`period segment ${bar.periodW.toFixed(1)}% ≈ 5/26`);
     else fail('period segment width wrong: ' + bar.periodW);
-    if (bar.fertile) ok('fertile window segment present (clarified as lavender in Bloom)');
-    else fail('fertile segment missing');
-    if (bar.droplet) ok('droplet icon at period start');
-    else fail('droplet missing');
-    if (bar.heart) ok('heart icon at ovulation day');
-    else fail('heart missing');
-    // ovulation day 13 -> 0-based idx 12 -> 12/26 = 46.15%
-    if (bar.heartLeft !== null && Math.abs(bar.heartLeft - (12 / 26) * 100) < 0.5) ok(`heart at ovulation 46.2% of bar`);
-    else fail('heart position wrong: ' + bar.heartLeft);
+    if (bar.fertile) {
+      const expectLeft = (7 / 26) * 100;
+      const expectW = ((13 - 7) / 26) * 100;
+      if (Math.abs(bar.fertileLeft - expectLeft) < 0.5 && Math.abs(bar.fertileW - expectW) < 0.5)
+        ok(`fertile segment d7–d13: left ${bar.fertileLeft.toFixed(1)}% width ${bar.fertileW.toFixed(1)}% (Fitbit blue)`);
+      else fail(`fertile segment wrong: left ${bar.fertileLeft} width ${bar.fertileW}`);
+    } else fail('fertile segment missing');
+    if (bar.droplet) {
+      // droplet caps the pink segment start, vertically centered on the track
+      if (Math.abs(bar.dropletCx - bar.periodLeftPx) < 6 && Math.abs(bar.dropletCy) < 6) ok('droplet at period start, centered on track');
+      else fail(`droplet misplaced: cx ${bar.dropletCx.toFixed(1)} cy ${bar.dropletCy.toFixed(1)}`);
+    } else fail('droplet missing');
+    if (bar.heart) {
+      // heart caps the blue segment end (ovulation day 13 = 50% of this 26d track)
+      if (Math.abs(bar.heartCx - bar.fertileRightPx) < 6 && Math.abs(bar.heartCy) < 6) ok(`heart at ovulation day (right edge of blue), centered`);
+      else fail(`heart misplaced: cx ${bar.heartCx.toFixed(1)} cy ${bar.heartCy.toFixed(1)}`);
+    } else fail('heart missing');
   }
 
   // STEP 5 — expand detail: fertile window + next period
