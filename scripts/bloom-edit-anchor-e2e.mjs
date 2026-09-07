@@ -60,6 +60,9 @@ async function run(tag, width, height) {
   await page.waitForTimeout(550)
   const armedModal = await rect('[data-edit-modal]')
   const armedCell = await cellRect(d(1))
+  const modalCount = await page.evaluate(() => document.querySelectorAll('[data-edit-modal]').length)
+  if (modalCount === 1) ok(tag + ' exactly one edit modal rendered (' + modalCount + ')')
+  else fail(tag + ' expected ONE edit modal, got ' + modalCount)
   if (armedModal) {
     const cellBottom = armedCell.y + armedCell.h
     if (armedModal.y >= cellBottom - 2 && armedModal.y <= cellBottom + 40)
@@ -72,6 +75,11 @@ async function run(tag, width, height) {
     else fail(tag + ' pressed cell MOVED: ' + before.cellY + ' -> ' + armedCell.y)
     if (armedModal.y + armedModal.h <= height) ok(tag + ' modal fully inside viewport')
     else fail(tag + ' modal bottom exceeds viewport')
+    const vw = await page.evaluate(() => window.innerWidth)
+    if (armedModal.x >= 0) ok(tag + ' modal left edge inside viewport (x=' + armedModal.x + ')')
+    else fail(tag + ' modal hangs off LEFT edge: x=' + armedModal.x)
+    if (armedModal.x + armedModal.w <= vw) ok(tag + ' modal right edge inside viewport')
+    else fail(tag + ' modal hangs off RIGHT edge: right=' + (armedModal.x + armedModal.w))
   } else fail(tag + ' no modal after long press')
 
   // 2) Drag THROUGH the modal to day 7 — range must extend live (Sep 1-7).
