@@ -606,47 +606,6 @@ export default function Calendar({
 
   return (
     <div data-calendar className="relative flex min-h-0 flex-1 flex-col rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
-      {edit && (
-        <div
-          data-edit-modal
-          className="absolute bottom-2 left-1/2 z-30 w-[calc(100%-1.5rem)] -translate-x-1/2 animate-slide-up rounded-2xl border border-rose-100 bg-white/95 p-3 shadow-xl backdrop-blur-sm"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-soft">Edit period</p>
-              <p data-edit-range className="truncate text-sm font-extrabold text-ink">
-                {fmtDay(edit.start)} – {fmtDay(edit.end)}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                aria-label="Delete period"
-                onClick={deleteEdit}
-                className="rounded-full bg-rose-100 px-3 py-1.5 text-xs font-bold text-rose-500 transition-colors hover:bg-rose-200"
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                aria-label="Cancel edit"
-                onClick={cancelEdit}
-                className="rounded-full bg-cream px-4 py-1.5 text-xs font-bold text-ink-soft transition-colors hover:bg-rose-50 hover:text-rose-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                aria-label="Save edit"
-                onClick={saveEdit}
-                className="rounded-full bg-rose-400 px-4 py-1.5 text-xs font-bold text-white shadow-[0_3px_10px_rgba(217,111,147,0.4)] transition-colors hover:bg-rose-500"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* The history grows automatically when scroll reaches the top —
           no "Load older" button. */}
       {/* Weekday labels sit ABOVE the scroll box — always fully visible,
