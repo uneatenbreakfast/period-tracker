@@ -8,6 +8,7 @@ import {
   futureLimitMonth,
   fromISODate,
   initialMonths,
+  loadNewerMonths,
   loadOlderMonths,
   FUTURE_MONTHS,
   PAST_MONTHS,
@@ -206,5 +207,33 @@ describe('load older periods (button-driven, 6 at a time)', () => {
     expect(added.length).toBe(3)
     expect(added[0]).toEqual({ year: 2026, month: 2 })
     expect(added[added.length - 1]).toEqual({ year: 2026, month: 4 })
+  })
+})
+
+describe('load newer periods (forward, infinite future)', () => {
+  it('loadNewerMonths appends LOAD_STEP months after the last, no overlap', () => {
+    const added = loadNewerMonths({ year: 2026, month: 5 }) // June 2026
+    expect(added.length).toBe(LOAD_STEP)
+    expect(added[0]).toEqual({ year: 2026, month: 6 }) // July — one after last
+    expect(added[added.length - 1]).toEqual({ year: 2026, month: 11 }) // Dec
+  })
+
+  it('repeated loadNewerMonths steps forward by LOAD_STEP with no overlap', () => {
+    let last = { year: 2026, month: 5 }
+    const seen: string[] = []
+    for (let i = 0; i < 3; i++) {
+      const added = loadNewerMonths(last)
+      for (const mo of added) seen.push(`${mo.year}-${mo.month}`)
+      last = added[added.length - 1]
+    }
+    expect(seen).toHaveLength(18)
+    expect(new Set(seen).size).toBe(18)
+    expect(last).toEqual({ year: 2027, month: 11 }) // Dec 2027
+  })
+
+  it('loadNewerMonths wraps year boundaries', () => {
+    const added = loadNewerMonths({ year: 2026, month: 10 }, 4) // after Nov 2026
+    expect(added[0]).toEqual({ year: 2026, month: 11 }) // Dec 2026
+    expect(added[added.length - 1]).toEqual({ year: 2027, month: 2 }) // Mar 2027
   })
 })

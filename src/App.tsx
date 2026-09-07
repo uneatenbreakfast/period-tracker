@@ -6,8 +6,8 @@ import HistoryCard from './components/HistoryCard'
 import MenstrualHealthCard from './components/MenstrualHealthCard'
 import SettingsCard from './components/SettingsCard'
 import TrendsCard from './components/TrendsCard'
-import { addDays, todayISO } from './lib/dates'
-import { detectCycles, predictNext } from './lib/cycle'
+import { todayISO } from './lib/dates'
+import { predictNext } from './lib/cycle'
 import { DEFAULT_FLOW } from './lib/symptoms'
 import {
   FOLLOW_MAX_PX,
@@ -116,33 +116,6 @@ export default function App() {
   useEffect(() => saveSnapshot(snap, storage), [snap])
 
   const prediction = useMemo(() => predictNext(snap.entries, snap.settings), [snap.entries, snap.settings])
-
-  const predictedDays = useMemo(() => {
-    const last = detectCycles(snap.entries).at(-1)
-    if (!prediction.nextPeriodStart || !last) return []
-    const days: string[] = []
-    for (let i = 0; i < last.length; i++) days.push(addDays(prediction.nextPeriodStart, i))
-    return days
-  }, [snap.entries, prediction.nextPeriodStart])
-
-  const fertileDays = useMemo(() => {
-    const w = prediction.fertileWindow
-    if (!w) return []
-    const days: string[] = []
-    for (let d = w.start; d <= w.end; d = addDays(d, 1)) days.push(d)
-    return days
-  }, [prediction.fertileWindow])
-
-  // Safe days: luteal phase post-fertile window until predicted period start
-  const safeDays = useMemo(() => {
-    if (!snap.settings.showSafeDays) return []
-    if (!prediction.fertileWindow || !prediction.nextPeriodStart) return []
-    const days: string[] = []
-    for (let d = addDays(prediction.fertileWindow.end, 1); d < prediction.nextPeriodStart; d = addDays(d, 1)) {
-      days.push(d)
-    }
-    return days
-  }, [snap.settings.showSafeDays, prediction.fertileWindow, prediction.nextPeriodStart])
 
   const selectedEntry = selectedDate ? getEntry(snap, selectedDate) : undefined
 
@@ -468,10 +441,6 @@ export default function App() {
         <main ref={setMainRef} className="flex min-h-0 flex-1 flex-col gap-4">
           <Calendar
             snap={snap}
-            prediction={prediction}
-            predictedDays={predictedDays}
-            fertileDays={fertileDays}
-            safeDays={safeDays}
             selectedDate={selectedDate}
             onSelect={setSelectedDate}
             onRangeComplete={commitRange}

@@ -260,6 +260,71 @@ export function predictNext(entries: DayEntry[], settings?: Settings): Predictio
   }
 }
 
+/**
+ * Continuous, window-wide future forecast: for every predicted cycle whose
+ * start falls within [fromISO, toISO], mark the predicted period days, the
+ * fertile window, the ovulation day, and the safe (luteal) days — exactly the
+ * same math as the single-cycle `predictNext`, walked forward start-of-cycle
+ * by average-cycle-length so the calendar can render predictions for any
+ * number of months into the future. Empty when no period has ever been logged
+ * (no anchor to project from). Each set is returned as an ascending ISO array.
+ */
+export interface WindowForecast {
+  predictedDays: string[]
+  fertileDays: string[]
+  safeDays: string[]
+  /** One ovulation day per predicted cycle (the day the ring/dot marks). */
+  ovulationDays: string[]
+}
+
+export function forecastWindow(
+  entries: DayEntry[],
+  settings: Settings | undefined,
+  fromISO: string,
+  toISO: string,
+): WindowForecast {
+  const empty: WindowForecast = { predictedDays: [], fertileDays: [], safeDays: [], ovulationDays: [] }
+  if (toISO < fromISO) return empty
+  const cycles = detectCycles(entries)
+  const last = cycles[cycles.length - 1]
+  if (!last) return empty
+
+  const avg = averageCycleLength(cycles, settings?.cycleLength)
+  // Period span per predicted cycle: the average logged period length (falls
+  // back to the user default when thin), matching the Trends average.
+  const periodLen = averagePeriodLength(cycles, settings?.periodLength) ?? DEFAULT_PERIOD_LENGTH
+  const predictedDays: string[] = []
+  const fertileDays: string[] = []
+  const safeDays: string[] = []
+  const ovulationDays: string[] = []
+
+  // First predicted cycle starts one avg-length after the last logged start;
+  // walk forward cycle-by-cycle until we pass the window's far edge.
+  let nextStart = addDays(last.start, avg)
+  // Guard against pathological avg (shouldn't happen: avg ≥ 1) or a loop
+  // that never advances — cap iterations so a tiny toISO can't hang.
+  let guard = 0
+  while (nextStart <= toISO && guard++ < 5000) {
+    const ovulationDay = addDays(nextStart, -LUTEAL_PHASE_DAYS)
+    const fertileStart = addDays(ovulationDay, -FERTILE_RANGE.before)
+    const fertileEnd = addDays(ovulationDay, FERTILE_RANGE.after)
+    ovulationDays.push(ovulationDay)
+    for (let i = 0; i < periodLen; i++) {
+      const d = addDays(nextStart, i)
+      if (d >= fromISO) predictedDays.push(d)
+    }
+    for (let d = fertileStart; d <= fertileEnd; d = addDays(d, 1)) {
+      if (d >= fromISO) fertileDays.push(d)
+    }
+    // Safe (luteal): the gap after the fertile window up to the next period.
+    for (let d = addDays(fertileEnd, 1); d < nextStart; d = addDays(d, 1)) {
+      if (d >= fromISO) safeDays.push(d)
+    }
+    nextStart = addDays(nextStart, avg)
+  }
+  return { predictedDays, fertileDays, safeDays, ovulationDays }
+}
+
 export type CyclePhase = 'period' | 'follicular' | 'ovulation' | 'luteal'
 
 /** One ring segment: half-open day range [start, end) within a cycle. */

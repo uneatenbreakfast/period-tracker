@@ -14,6 +14,7 @@ import {
   cycleLengths,
   cycleTrends,
   detectCycles,
+  forecastWindow,
   isPeriodDay,
   predictNext,
   cycleBarLayout,
@@ -579,5 +580,90 @@ describe('cycleBarLayout', () => {
     expect(l.trackWidth).toBe(1)
     expect(l.periodEnd).toBe(1)
     expect(l.showFertile).toBe(false)
+  })
+})
+
+describe('forecastWindow (infinite future predictions)', () => {
+  // Three 28-day cycles starting Jan 3, Jan 31, Feb 28 → avg 28, avg period 2.
+  const threeCycles = [
+    '2026-01-03', '2026-01-04',
+    '2026-01-31', '2026-02-01',
+    '2026-02-28', '2026-03-01',
+  ].map((d) => day(d))
+
+  it('no periods ever logged → empty forecast', () => {
+    const f = forecastWindow([], undefined, '2026-01-01', '2027-12-31')
+    expect(f.predictedDays).toEqual([])
+    expect(f.fertileDays).toEqual([])
+    expect(f.safeDays).toEqual([])
+    expect(f.ovulationDays).toEqual([])
+  })
+
+  it('empty window (toISO < fromISO) → empty forecast', () => {
+    const f = forecastWindow(threeCycles, undefined, '2030-01-01', '2026-01-01')
+    expect(f.predictedDays).toEqual([])
+  })
+
+  it('single cycle → first predicted period at last.start + 28, period span from logged data', () => {
+    const entries = ['2026-01-03', '2026-01-04'].map((d) => day(d))
+    const f = forecastWindow(entries, undefined, '2026-01-01', '2026-03-31')
+    // last start = Jan 3 → next = Jan 31. The period span mirrors the single
+    // logged period's own length (2 days), consistent with the old
+    // single-cycle behavior and the Trends average. Walks every 28-day cycle
+    // in the window (Jan 31, Feb 28, Mar 28).
+    expect(f.predictedDays).toEqual([
+      '2026-01-31', '2026-02-01',
+      '2026-02-28', '2026-03-01',
+      '2026-03-28', '2026-03-29',
+    ])
+    expect(f.ovulationDays).toEqual(['2026-01-17', '2026-02-14', '2026-03-14'])
+    expect(f.fertileDays[0]).toBe('2026-01-12') // ovu − 5 (first cycle)
+    // Safe: after fertile end (Jan 18) up to next period start (Jan 31).
+    expect(f.safeDays[0]).toBe('2026-01-19')
+    expect(f.safeDays.at(-1)).toBe('2026-03-27')
+  })
+
+  it('walks forward one cycle per avg length into the far future', () => {
+    const f = forecastWindow(threeCycles, undefined, '2026-01-01', '2026-12-31')
+    // First predicted start = Feb 28 + 28 = Mar 28; then +28 each cycle.
+    expect(f.predictedDays.includes('2026-03-28')).toBe(true)
+    expect(f.predictedDays.includes('2026-03-29')).toBe(true)
+    // Next cycle 28 days later.
+    expect(f.predictedDays.includes('2026-04-25')).toBe(true)
+    // A cycle in December of the same window.
+    expect(f.predictedDays.includes('2026-12-05')).toBe(true)
+    // One ovulation per predicted cycle, 28 apart.
+    expect(f.ovulationDays[0]).toBe('2026-03-14') // Mar 28 − 14
+    expect(f.ovulationDays).toHaveLength(10) // Mar 28 … Dec 05 (+ Dec 26 out)
+  })
+
+  it('excludes predicted days before the window start (fromISO)', () => {
+    // Window starts AFTER the first predicted period, so only later cycles show.
+    const f = forecastWindow(threeCycles, undefined, '2026-04-01', '2026-06-30')
+    expect(f.predictedDays.includes('2026-03-28')).toBe(false)
+    expect(f.predictedDays[0]).toBe('2026-04-25')
+  })
+
+  it('period span uses the average logged period length (not default)', () => {
+    const f = forecastWindow(threeCycles, undefined, '2026-01-01', '2026-04-30')
+    // Avg period length = 2 → each predicted period is 2 days.
+    expect(f.predictedDays.slice(0, 2)).toEqual(['2026-03-28', '2026-03-29'])
+    expect(f.predictedDays[2]).toBe('2026-04-25') // next cycle
+    expect(f.predictedDays.includes('2026-03-30')).toBe(false)
+  })
+
+  it('honors the user default settings when data is thin', () => {
+    const entries = ['2026-01-03', '2026-01-04'].map((d) => day(d))
+    const settings = { ...DEFAULT_SETTINGS, cycleLength: 35, periodLength: 4 }
+    const f = forecastWindow(entries, settings, '2026-01-01', '2026-04-30')
+    // Single cycle → cycleLength 35 (settings default; no start-to-start gap);
+    // first prediction Jan 3 + 35 = Feb 7, then 35-day cycles through the
+    // window (Feb 7, Mar 14, Apr 18). Period span mirrors the logged period
+    // length (2), not the settings.periodLength.
+    expect(f.predictedDays).toEqual([
+      '2026-02-07', '2026-02-08',
+      '2026-03-14', '2026-03-15',
+      '2026-04-18', '2026-04-19',
+    ])
   })
 })

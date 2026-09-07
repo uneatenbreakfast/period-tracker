@@ -1,15 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { Prediction, Snapshot } from '../types'
+import type { Snapshot } from '../types'
 import {
   continuousGrid,
   initialMonths,
+  loadNewerMonths,
   loadOlderMonths,
   MONTH_NAMES,
   todayISO,
   WEEKDAY_LABELS,
+  FUTURE_GROW_PX,
 } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
 import { cancelHaptic, hapticLongPress, hapticTick } from '../lib/haptics'
+import { forecastWindow } from '../lib/cycle'
 import {
   armDrag,
   beginDrag,
@@ -31,11 +34,7 @@ export interface UndoState {
 
 interface CalendarProps {
   snap: Snapshot
-  prediction: Prediction
   /** Dates (ISO) that are predicted period days this month */
-  predictedDays: string[]
-  fertileDays: string[]
-  safeDays: string[]
   selectedDate: string | null
   onSelect: (date: string) => void
   /** Commit a range: creation drag (start → end) or an edited period save. */
@@ -59,10 +58,6 @@ const fmtDay = (iso: string) => {
 
 export default function Calendar({
   snap,
-  prediction,
-  predictedDays,
-  fertileDays,
-  safeDays,
   selectedDate,
   onSelect,
   onRangeComplete,
@@ -75,13 +70,33 @@ export default function Calendar({
   const today = todayISO()
   // User-pickable calendar colors (BLOOM-0022) — drives cells + legend fills.
   const calStyle = snap.settings.style
-  // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead;
-  // older history is revealed on demand via the "Load older periods" button
-  // (loadOlder) — the past never auto-grows on scroll.
+  // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead.
+  // Older history is revealed on demand via the "Load older periods" button
+  // (loadOlder); newer months auto-grow on scroll near the bottom edge
+  // (growFuture) so the calendar scrolls infinitely into the future, with
+  // predictions rendered for every loaded month.
   const [months, setMonths] = useState<MonthRef[]>(() => initialMonths())
   // ONE flowing week strip across the whole month window — weeks span month
   // boundaries (a month ending Tue 31 continues same-row into Wed 1).
   const weeks = useMemo(() => continuousGrid(months), [months])
+  // Window-wide future forecast: predicted/fertile/safe/ovulation days for
+  // EVERY cycle whose predicted start falls within the currently loaded month
+  // window — not just the single next cycle. Recomputes as new future months
+  // are appended by growFuture, keeping predictions continuous and infinite.
+  const forecast = useMemo(() => {
+    if (weeks.length === 0 || weeks[0].length === 0) {
+      return { predictedDays: [], fertileDays: [], safeDays: [], ovulationDays: [] }
+    }
+    const flat = weeks.flat()
+    const fromISO = flat[0].iso
+    const toISO = flat[flat.length - 1].iso
+    return forecastWindow(snap.entries, snap.settings, fromISO, toISO)
+  }, [weeks, snap.entries, snap.settings])
+  const predictedDays = forecast.predictedDays
+  const fertileDays = forecast.fertileDays
+  const safeDays = snap.settings.showSafeDays ? forecast.safeDays : []
+  const ovulationDays = forecast.ovulationDays
+
   // Measure the month-tint overlay's containing box AND each week row in
   // real pixels. The SVG is absolutely positioned inside a height-auto
   // wrapper, so a percentage height can resolve against the wrong box (or
@@ -380,6 +395,23 @@ export default function Calendar({
     })
   }
 
+  // Reveal another LOAD_STEP months of the future after the newest loaded
+  // month (the forward counterpart to loadOlder). Auto-triggered as the user
+  // scrolls near the bottom edge, so the calendar scrolls INFINITELY into the
+  // future. Appending months BELOW the current content doesn't shift what's on
+  // screen, so no scroll adjustment is needed — the view stays anchored.
+  const growingFuture = useRef(false)
+  const growFuture = () => {
+    if (growingFuture.current || months.length === 0) return
+    growingFuture.current = true
+    setMonths((m) => [...m, ...loadNewerMonths(m[m.length - 1])])
+    // Release the guard on the next paint so the freshly-appended months are
+    // laid out before the edge check can fire again.
+    requestAnimationFrame(() => {
+      growingFuture.current = false
+    })
+  }
+
   // Release (or cancel) anywhere ends the drag. Edit mode is entered AT ARM
   // (see the hold timer) — by the time the pointer lifts, an armed press on a
   // committed period day already owns the gesture, so release only commits
@@ -489,7 +521,7 @@ export default function Calendar({
   }
 
   const showLegend =
-    !!prediction && (prediction.fertileWindow !== null || predictedDays.length > 0 || safeDays.length > 0)
+    fertileDays.length > 0 || predictedDays.length > 0 || safeDays.length > 0 || ovulationDays.length > 0
 
   const saveEdit = () => {
     const ed = editRef.current
@@ -589,8 +621,15 @@ export default function Calendar({
         data-calendar-scroll
         ref={scrollElRef}
         onScroll={(e) => {
-          const t = e.currentTarget.scrollTop
+          const el = e.currentTarget
+          const t = el.scrollTop
           setAtTop(t < 20)
+          // Near the bottom edge → append more future months (infinite
+          // forward scroll with predictions). Native wheel AND the JS-driven
+          // touch scroll both mutate scrollTop, so onScroll fires for both.
+          if (el.scrollTop + el.clientHeight >= el.scrollHeight - FUTURE_GROW_PX) {
+            growFuture()
+          }
         }}
         className={`relative -mx-5 min-h-0 flex-1 overscroll-contain px-5 select-none touch-none ${
           drag?.armed ? 'overflow-hidden' : 'overflow-y-auto'
@@ -681,7 +720,7 @@ export default function Calendar({
                   const isPeriod = entry?.flow !== undefined
                   const isPredicted = predictedDays.includes(cell.iso)
                   const isFertile = fertileDays.includes(cell.iso)
-                  const isOvulation = prediction.ovulationDay === cell.iso
+                  const isOvulation = ovulationDays.includes(cell.iso)
                   const isSafe = safeDays.includes(cell.iso)
                   // Calculate shapes for all range types (connected-strip look).
                   // Priority: period > fertile > predicted > safe. Edit mode
@@ -968,12 +1007,12 @@ export default function Calendar({
               predicted
             </span>
           )}
-          {prediction.fertileWindow !== null && (
+          {fertileDays.length > 0 && (
             <span className="flex items-center gap-1.5">
               <span data-legend="fertile" className="h-3 w-3 rounded-full" style={{ backgroundColor: calStyle.fertile }} /> fertile
             </span>
           )}
-          {prediction.ovulationDay && (
+          {ovulationDays.length > 0 && (
             <span className="flex items-center gap-1.5">
               <span
                 data-legend="ovulation"

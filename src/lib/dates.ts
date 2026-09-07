@@ -115,6 +115,23 @@ export function loadOlderMonths(first: MonthRef, step: number = LOAD_STEP): Mont
   return monthList(addMonths(first.year, first.month, -step), addMonths(first.year, first.month, -1))
 }
 
+/** Months to append when the user scrolls near the calendar's bottom edge —
+ *  LOAD_STEP more months of future after the current newest month (the
+ *  forward counterpart to loadOlderMonths, letting the calendar scroll
+ *  infinitely into the future with predictions). */
+export function loadNewerMonths(last: MonthRef, step: number = LOAD_STEP): MonthRef[] {
+  return monthList(addMonths(last.year, last.month, 1), addMonths(last.year, last.month, step))
+}
+
+/** Distance (px) from the scroll box's bottom edge that triggers appending
+ *  more future months (FUTURE_GROW_PX). Mirrors the old edge-scroll growth. */
+export const FUTURE_GROW_PX = 400
+
+/** Added to the forecast the first time the user scrolls into the future —
+ *  renders FUTURE_GROW_MONTHS ahead so earlier screenshots/test taps land in
+ *  an already-predicted region, not an empty one. */
+export const FUTURE_GROW_MONTHS = LOAD_STEP
+
 export const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
