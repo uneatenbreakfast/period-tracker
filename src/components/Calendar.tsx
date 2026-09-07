@@ -56,6 +56,15 @@ const fmtDay = (iso: string) => {
   return `${MONTH_NAMES[m - 1].slice(0, 3)} ${d}`
 }
 
+/** Small pencil glyph marking a day that has a note (BLOOM note symbol). */
+function NoteIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
+      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+    </svg>
+  )
+}
+
 export default function Calendar({
   snap,
   selectedDate,
@@ -902,6 +911,11 @@ export default function Calendar({
                           </span>
                         )}
                         <span>{Number(cell.iso.slice(8))}</span>
+                        {entry?.notes ? (
+                          <NoteIcon
+                            className={shape ? 'h-[9px] w-[9px] text-white/80' : 'h-[9px] w-[9px] text-ink/45'}
+                          />
+                        ) : null}
                       </span>
                       {editHandle === 'end' ? grip : null}
                       {isOvulation && !shape && (

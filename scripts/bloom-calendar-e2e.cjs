@@ -40,13 +40,14 @@ const isoAdd = (iso, n) => {
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle0' });
 
-  // STEP 1 — seed: one old period day + one today entry
+  // STEP 1 — seed: one old period day + one today entry (today carries a note
+  // so we can assert the calendar note symbol; oldDay has none).
   await page.evaluate(({ oldDay, today }) => {
     localStorage.setItem('bloom.snapshot.v1', JSON.stringify({
       version: 1,
       entries: [
         { date: oldDay, flow: 'medium', symptoms: [], notes: '' },
-        { date: today, flow: 'light', symptoms: [], notes: '' }
+        { date: today, flow: 'light', symptoms: [], notes: 'Cramps at noon' }
       ],
       updatedAt: new Date().toISOString()
     }));
@@ -90,6 +91,22 @@ const isoAdd = (iso, n) => {
   if (labels.rows > 0 && labels.sups === labels.rows && labels.todaySup === expectSup && labels.todayTransform === 'uppercase')
     ok(`superscript month labels on every month 1st (${labels.rows} rows; today month = ${labels.todaySup} → ${labels.todayTransform})`);
   else fail('superscript labels wrong: ' + JSON.stringify(labels) + ' expected ' + expectSup);
+
+  // STEP 2c — note symbol: days WITH a note carry a note pen glyph; days
+  // without one don't. Seeded: today has 'Cramps at noon', oldDay has none.
+  const notes = await page.evaluate(({ today, oldDay }) => {
+    const cell = (iso) => document.querySelector(`[data-calendar-scroll] button[aria-label="${iso}"]`);
+    const withNote = cell(today);
+    const without = cell(oldDay);
+    return {
+      todayHasIcon: !!withNote && withNote.querySelector('svg[aria-hidden]') !== null,
+      todayIconCount: withNote ? withNote.querySelectorAll('svg[aria-hidden]').length : 0,
+      oldHasIcon: !!without && without.querySelector('svg[aria-hidden]') !== null,
+    };
+  }, { today, oldDay });
+  if (notes.todayHasIcon && notes.todayIconCount === 1 && !notes.oldHasIcon)
+    ok('note symbol on day with note, absent on day without');
+  else fail('note symbol wrong: ' + JSON.stringify(notes));
 
   // STEP 3 — calendar scrolls inside its own box; the PAGE must not scroll for months
   const box = await page.evaluate(() => {
