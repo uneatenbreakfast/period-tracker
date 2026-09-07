@@ -32,7 +32,7 @@
   --color-sage-100: #e3eddd;
   --color-sage-400: #8fae8b;
 
-  --color-month-tint: #dfe3e8;
+  --color-month-tint: #e0d6f2; /* light lavender: visible wash on cream bg (≠ fertile #e4dcf3) */
 }
 
 body {

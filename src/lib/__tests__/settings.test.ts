@@ -136,4 +136,17 @@ describe('sanitizeCalendarStyle', () => {
     const legacy = JSON.parse('{"cycleLength":"28","periodLength":null}')
     expect(sanitizeSettings(legacy).style).toEqual(DEFAULT_CALENDAR_STYLE)
   })
+
+  it('monthTint default is a visible lavender, distinct from fertile (BLOOM-0026 follow-up)', () => {
+    // The shipped default must read as a tint against the cream page (#fff7f4),
+    // and must NOT equal the fertile fill (#e4dcf3) — an identical tint would
+    // swallow the fertile window on odd (tinted) months.
+    expect(DEFAULT_CALENDAR_STYLE.monthTint).toBe('#e0d6f2')
+    expect(DEFAULT_CALENDAR_STYLE.monthTint).not.toBe(DEFAULT_CALENDAR_STYLE.fertile)
+    // Legacy blobs without the field inherit the new default, not the old gray.
+    expect(sanitizeCalendarStyle({}).monthTint).toBe('#e0d6f2')
+    // Blobs that already stored the old invisible gray default are migrated too.
+    expect(sanitizeCalendarStyle({ monthTint: '#dfe3e8' }).monthTint).toBe('#e0d6f2')
+    expect(sanitizeCalendarStyle({ monthTint: '#DFE3E8' }).monthTint).toBe('#e0d6f2')
+  })
 })

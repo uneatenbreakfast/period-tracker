@@ -105,13 +105,13 @@ const isoAdd = (iso, n) => {
   // STEP 6 — Style section exists with the color pickers, all showing the
   // shipped pastel defaults (BLOOM-0022 + BLOOM-0023).
   const DEFAULTS = {
-    period: '#e58aa8',
+    period: '#f2318c',
     predicted: '#e89db9',
     fertile: '#e4dcf3',
     ovulation: '#b9a7d9',
     safe: '#e3eddd',
-    monthTint: '#dfe3e8',
-    trendFertile: '#c9b8e3',
+    monthTint: '#e0d6f2',
+    trendFertile: '#99d6f2',
     trendOvulation: '#f4a88e',
     ringFollicular: '#e4dcf3',
     ringOvulation: '#f4a88e',
