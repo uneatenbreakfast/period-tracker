@@ -33,7 +33,10 @@ if git remote | grep -q .; then
   git fetch --all --prune
 fi
 TARGET=main
-if git rev-parse --verify -q origin/main >/dev/null; then
+# Prefer the NEWER of main / origin/main: dash merges land on LOCAL main
+# (which can run ahead of GitHub), but a manual push may race ahead too.
+# Pick origin/main only when local main is its ancestor (origin ahead/equal).
+if git rev-parse --verify -q origin/main >/dev/null && git merge-base --is-ancestor main origin/main 2>/dev/null; then
   TARGET=origin/main
 fi
 echo "== resetting main-serve to $TARGET ($(git log -1 --format='%h %s' "$TARGET"))"
