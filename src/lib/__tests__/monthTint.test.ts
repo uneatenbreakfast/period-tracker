@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { monthBackgroundPaths } from '../rangeStyle'
+import { monthBackgroundPaths, tintGeomMatches } from '../rangeStyle'
 import type { MonthCell } from '../dates'
 
 // Hand-built week grid where a single "month" occupies a rectangle of cells:
@@ -96,5 +96,32 @@ describe('monthBackgroundPaths px geom — NON-uniform rows (the bug)', () => {
     expect(p.pathD).toBe(
       'M 0.35 0 L 0.65 0 A 0.35 0.35 0 0 1 1 0.35 L 1 0.65 A 0.35 0.35 0 0 1 0.65 1 L 0.35 1 A 0.35 0.35 0 0 1 0 0.65 L 0 0.35 A 0.35 0.35 0 0 1 0.35 0 Z',
     )
+  })
+})
+
+describe('tintGeomMatches', () => {
+  it('true when rowTops/rowHeights lengths equal weeks length', () => {
+    const geom = { cellW: 40, rowTops: [0, 44, 88], rowHeights: [44, 44, 44] }
+    expect(tintGeomMatches(geom, 3)).toBe(true)
+  })
+
+  it('false when geom is null/undefined (pre-measure)', () => {
+    expect(tintGeomMatches(null, 3)).toBe(false)
+    expect(tintGeomMatches(undefined, 3)).toBe(false)
+  })
+
+  it('false when rowTops length differs (stale geom after window prepend/append)', () => {
+    const geom = { cellW: 40, rowTops: [0, 44], rowHeights: [44, 44] }
+    expect(tintGeomMatches(geom, 3)).toBe(false)
+  })
+
+  it('false when rowHeights length differs from rowTops', () => {
+    const geom = { cellW: 40, rowTops: [0, 44], rowHeights: [44] }
+    expect(tintGeomMatches(geom, 2)).toBe(false)
+  })
+
+  it('true for an empty geom against zero weeks', () => {
+    const geom = { cellW: 40, rowTops: [], rowHeights: [] }
+    expect(tintGeomMatches(geom, 0)).toBe(true)
   })
 })

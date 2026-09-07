@@ -223,10 +223,26 @@ export function isTintMonth(monthKey: string): boolean {
   return Number(monthKey.slice(5, 7)) % 2 === 0
 }
 
+/**
+ * Whether a measured pixel geometry covers EXACTLY the current week grid.
+ * The month-tint SVG switches coordinate spaces on this predicate: pixel
+ * space (viewBox `0 0 W H` + identity paths) when true, unit space (viewBox
+ * `0 0 7 N` + grid-unit paths) when false. Passing a stale geom — measured
+ * against a DIFFERENT number of weeks after a window prepend/append — makes
+ * `monthBackgroundPaths` emit unit paths while the SVG keeps a pixel viewBox;
+ * `preserveAspectRatio="none"` then stretches them into the pixel box
+ * (elliptical corner arcs + ~1 row drift). Callers must gate BOTH the paths
+ * and the SVG viewBox/style on this helper so that mismatch renders no tint
+ * at all instead of a malformed band.
+ */
+export function tintGeomMatches(geom: MonthGeom | null | undefined, weeksLength: number): boolean {
+  return !!geom && geom.rowTops.length === weeksLength && geom.rowHeights.length === weeksLength
+}
+
 export function monthBackgroundPaths(weeks: MonthCell[][], geom?: MonthGeom): MonthBgPath[] {
   if (weeks.length === 0) return []
 
-  const px = !!geom && geom.rowTops.length === weeks.length && geom.rowHeights.length === weeks.length
+  const px = tintGeomMatches(geom, weeks.length)
   // Column x in units (c) or pixels (c * cellW)
   const colX = (c: number) => (px ? c * (geom as MonthGeom).cellW : c)
   // Row top edge y: unit row r → r; px row r → measured top

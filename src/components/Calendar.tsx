@@ -23,7 +23,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthBackgroundPaths, ovulationRing, runShape } from '../lib/rangeStyle'
+import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthBackgroundPaths, ovulationRing, runShape, tintGeomMatches } from '../lib/rangeStyle'
 import type { DayShape, MonthGeom } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -146,20 +146,50 @@ export default function Calendar({
   const tintBoxRef = useRef<HTMLDivElement | null>(null)
   const rowElsRef = useRef<(HTMLDivElement | null)[]>([])
   const [tintGeom, setTintGeom] = useState<MonthGeom | null>(null)
+  // Strict gate: pixel-space paths are only valid while the measured geometry
+  // covers EXACTLY the current weeks. After a window prepend/append the old
+  // geom has a stale length; using it would stretch unit-coordinate paths
+  // into a pixel viewBox (preserveAspectRatio="none") → elliptical corners +
+  // one-row drift. Until a fresh measure lands, render NO tint at all rather
+  // than a malformed one.
+  const tintGeomOk = useMemo(
+    () => tintGeomMatches(tintGeom, weeks.length),
+    [tintGeom, weeks],
+  )
   useLayoutEffect(() => {
     const el = tintBoxRef.current
     if (!el) return
+    let cancelled = false
+    let retries = 0
     const measure = () => {
       const r = el.getBoundingClientRect()
       const rows = rowElsRef.current
       const tops: number[] = []
       const heights: number[] = []
+      // A null rowEl means a row ref hasn't been attached yet (rows remount
+      // when the keyed window prepends/appends). Never abort the whole
+      // measurement on it — collect what we have and retry on the next
+      // frame; aborting here permanently froze tintGeom to a stale length.
+      let missing = false
       for (const rowEl of rows) {
-        if (!rowEl) return
+        if (!rowEl) {
+          missing = true
+          continue
+        }
         const rr = rowEl.getBoundingClientRect()
         tops.push(rr.top - r.top)
         heights.push(rr.height)
       }
+      if (missing) {
+        // Retry a few frames for rows that are mid-remount (window prepends
+        // re-key all rows). Bounded so a permanently-null ref can't spin.
+        if (!cancelled && retries < 6 && typeof requestAnimationFrame !== 'undefined') {
+          retries += 1
+          requestAnimationFrame(measure)
+        }
+        return
+      }
+      if (tops.length === 0) return
       setTintGeom((prev) => {
         const same =
           prev &&
@@ -179,14 +209,19 @@ export default function Calendar({
       for (const rowEl of rowElsRef.current) {
         if (rowEl) ro.observe(rowEl)
       }
-      return () => ro.disconnect()
+      return () => {
+        cancelled = true
+        ro.disconnect()
+      }
     }
-    return undefined
+    return () => {
+      cancelled = true
+    }
   }, [weeks.length])
   // Unified SVG month background paths — replaces per-cell rounded corners + tint
   const monthBgPaths = useMemo(
-    () => monthBackgroundPaths(weeks, tintGeom ?? undefined),
-    [weeks, tintGeom],
+    () => (tintGeomOk ? monthBackgroundPaths(weeks, tintGeom ?? undefined) : []),
+    [weeks, tintGeom, tintGeomOk],
   )
   // Edit mode for an existing committed run: drag the start/end handles,
   // confirm with the Save/Cancel modal.
@@ -690,15 +725,15 @@ export default function Calendar({
           (identity map), so the tint sits exactly on the cells regardless of
           row pitch. Pre-measure fallback: unit viewBox + h-full w-full. */}
       {(() => {
-        const totalH = tintGeom && tintGeom.rowTops.length > 0
+        const totalH = tintGeomOk && tintGeom
           ? tintGeom.rowTops[tintGeom.rowTops.length - 1] + tintGeom.rowHeights[tintGeom.rowHeights.length - 1]
           : 0
-        const totalW = tintGeom ? tintGeom.cellW * 7 : 0
+        const totalW = tintGeomOk && tintGeom ? tintGeom.cellW * 7 : 0
         return (
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
-        style={tintGeom ? { width: `${totalW}px`, height: `${totalH}px` } : undefined}
-        viewBox={tintGeom ? `0 0 ${totalW} ${totalH}` : `0 0 7 ${weeks.length}`}
+        style={tintGeomOk && tintGeom ? { width: `${totalW}px`, height: `${totalH}px` } : undefined}
+        viewBox={tintGeomOk && tintGeom ? `0 0 ${totalW} ${totalH}` : `0 0 7 ${weeks.length}`}
         preserveAspectRatio="none"
         aria-hidden
       >
