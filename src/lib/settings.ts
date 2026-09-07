@@ -7,7 +7,7 @@ export const DEFAULT_CALENDAR_STYLE: CalendarStyle = {
   fertile: '#e4dcf3', // lavender-100
   ovulation: '#b9a7d9', // lavender-400
   safe: '#e3eddd', // sage-100
-  monthTint: '#dfe3e8', // month tint
+  monthTint: '#e0d6f2', // light lavender: visible wash on cream bg (≠ fertile #e4dcf3)
   trendFertile: '#99d6f2', // Fitbit fertile-window blue (trends bars)
   trendOvulation: '#f4a88e', // peach-400
   ringFollicular: '#e4dcf3', // lavender-100
@@ -58,7 +58,11 @@ export function sanitizeCalendarStyle(raw: Partial<CalendarStyle> | null | undef
     'ringLuteal',
   ] as const) {
     const v = raw[key]
-    if (typeof v === 'string' && HEX_RE.test(v)) {
+    // Legacy default #dfe3e8 (near-white gray) was invisible on the cream page
+    // — treat it as "unset" so those blobs inherit the visible lavender default.
+    const LEGACY_MONTH_TINT = '#dfe3e8'
+    const isLegacyTint = key === 'monthTint' && typeof v === 'string' && v.toLowerCase() === LEGACY_MONTH_TINT
+    if (typeof v === 'string' && HEX_RE.test(v) && !isLegacyTint) {
       out[key] = v.length === 4 ? expandHex(v.toLowerCase()) : v.toLowerCase()
     }
   }
