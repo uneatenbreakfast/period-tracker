@@ -513,7 +513,7 @@ export default function Calendar({
   }
 
   return (
-    <div data-calendar className="relative flex min-h-0 flex-col rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
+    <div data-calendar className="relative flex min-h-0 flex-1 flex-col rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
       {edit && (
         <div
           data-edit-modal

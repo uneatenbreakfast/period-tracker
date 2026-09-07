@@ -376,7 +376,7 @@ export default function App() {
       className={tab === 'calendar' ? 'flex h-dvh flex-col' : 'min-h-dvh'}
       {...swipeProps}
     >
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6">
+      <div className="mx-auto flex w-full max-w-md min-h-0 flex-1 flex-col px-4 py-6">
       <header className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight text-ink">
