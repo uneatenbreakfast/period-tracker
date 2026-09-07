@@ -327,6 +327,48 @@ export function forecastWindow(
 
 export type CyclePhase = 'period' | 'follicular' | 'ovulation' | 'luteal'
 
+export interface HistoricalMarkerDays {
+  /** Estimated ovulation date (ISO) for each logged cycle with a REAL next start. */
+  ovulationDays: string[]
+  /** Inclusive fertile-window days around those ovulations (calendar method). */
+  fertileDays: string[]
+}
+
+/**
+ * Retrospective ovulation + fertile-window estimates for every logged cycle
+ * that already has a real next period start in the data — i.e. all cycles
+ * except the current/last one. Ovulation is back-computed as
+ * LUTEAL_PHASE_DAYS before the NEXT logged period start (retrospective
+ * luteal-phase rule), so each estimate uses that cycle's ACTUAL observed
+ * length — never the average — matching cycleTrends' historical rows.
+ *
+ * Cycles whose following gap exceeds MAX_CYCLE_LENGTH_DAYS are skipped: the
+ * "next start" is a logging break / pregnancy / data error, not a real cycle
+ * boundary, so an estimate derived from it would be fabricated. The last
+ * cycle has no next start yet; it is covered by the forward prediction
+ * (predictNext → the calendar's fertile/ovulation markers).
+ */
+export function historicalEstimates(entries: DayEntry[]): HistoricalMarkerDays {
+  const cycles = detectCycles(entries)
+  const ovulationDays: string[] = []
+  const fertileDays: string[] = []
+  const lens = cycleLengths(cycles)
+  for (let i = 0; i < cycles.length - 1; i++) {
+    const gap = lens[i]
+    if (gap === null || gap > MAX_CYCLE_LENGTH_DAYS) continue
+    const ovulation = addDays(cycles[i + 1].start, -LUTEAL_PHASE_DAYS)
+    ovulationDays.push(ovulation)
+    for (
+      let d = addDays(ovulation, -FERTILE_RANGE.before);
+      d <= addDays(ovulation, FERTILE_RANGE.after);
+      d = addDays(d, 1)
+    ) {
+      fertileDays.push(d)
+    }
+  }
+  return { ovulationDays, fertileDays }
+}
+
 /** One ring segment: half-open day range [start, end) within a cycle. */
 export interface CycleRingSegment {
   phase: CyclePhase

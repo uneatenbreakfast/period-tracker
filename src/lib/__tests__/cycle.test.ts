@@ -19,6 +19,7 @@ import {
   isPeriodDay,
   predictNext,
   cycleBarLayout,
+  historicalEstimates,
   type CycleTrendRow,
 } from '../cycle'
 import { addDays } from '../dates'
@@ -308,6 +309,67 @@ describe('predictNext', () => {
     const p = predictNext(entries)
     expect(p.avgCycleLength).toBe(30)
     expect(p.nextPeriodStart).toBe(addDays('2026-03-04', 30))
+  })
+})
+
+describe('historicalEstimates', () => {
+  it('no entries → empty markers', () => {
+    expect(historicalEstimates([])).toEqual({ ovulationDays: [], fertileDays: [] })
+  })
+
+  it('single cycle (no next start) → empty — last cycle is prediction territory', () => {
+    expect(historicalEstimates(['2026-01-03', '2026-01-04'].map((d) => day(d)))).toEqual({ ovulationDays: [], fertileDays: [] })
+  })
+
+  it('two cycles → ovulation = next logged start − 14, fertile window ±5/+1', () => {
+    // three period runs = two completed cycles: Jan 3 → Jan 31 = 28 days,
+    // Jan 31 → Feb 28 = 28 days. The LAST run has no next start — skipped.
+    const entries = [
+      '2026-01-03', '2026-01-04', '2026-01-05',
+      '2026-01-31', '2026-02-01',
+      '2026-02-28', '2026-03-01',
+    ].map((d) => day(d))
+    const { ovulationDays, fertileDays } = historicalEstimates(entries)
+    expect(ovulationDays).toEqual([addDays('2026-01-31', -LUTEAL_PHASE_DAYS), addDays('2026-02-28', -LUTEAL_PHASE_DAYS)]) // Jan 17, Feb 14
+    const expectFertile: string[] = []
+    for (const ov of ovulationDays) {
+      for (let d = addDays(ov, -FERTILE_RANGE.before); d <= addDays(ov, FERTILE_RANGE.after); d = addDays(d, 1)) expectFertile.push(d)
+    }
+    expect(fertileDays).toEqual(expectFertile)
+    expect(fertileDays).toHaveLength(14)
+    expect(fertileDays).toContain('2026-01-17') // ovulation day inside its window
+    expect(fertileDays).toContain('2026-02-14')
+  })
+
+  it('multiple cycles → one estimate per non-last cycle, driven by ACTUAL gaps', () => {
+    const { ovulationDays, fertileDays } = historicalEstimates(sixCycles())
+    // intervals 26, 25, 26, 23, 28 — ovulation = next start − 14
+    expect(ovulationDays).toEqual([
+      addDays('2026-04-10', -LUTEAL_PHASE_DAYS),
+      addDays('2026-05-05', -LUTEAL_PHASE_DAYS),
+      addDays('2026-05-31', -LUTEAL_PHASE_DAYS),
+      addDays('2026-06-23', -LUTEAL_PHASE_DAYS),
+      addDays('2026-07-21', -LUTEAL_PHASE_DAYS),
+    ])
+    expect(fertileDays).toHaveLength(5 * 7)
+    // each ovulation has its 7-day window
+    for (const ov of ovulationDays) {
+      expect(fertileDays).toContain(ov)
+      expect(fertileDays).toContain(addDays(ov, -FERTILE_RANGE.before))
+      expect(fertileDays).toContain(addDays(ov, FERTILE_RANGE.after))
+    }
+  })
+
+  it('outlier gap (> 90 days) → that cycle gets NO estimate (logging break)', () => {
+    const entries = [
+      '2026-01-03', '2026-01-04',
+      '2026-06-01', '2026-06-02',   // 149-day break — not a real cycle boundary
+      '2026-06-29', '2026-06-30',   // real 28-day interval after the break
+    ].map((d) => day(d))
+    const { ovulationDays, fertileDays } = historicalEstimates(entries)
+    // cycle 1 (Jan 3 → Jun 1) skipped; cycle 2 (Jun 1 → Jun 29) estimated
+    expect(ovulationDays).toEqual([addDays('2026-06-29', -LUTEAL_PHASE_DAYS)])
+    expect(fertileDays).toHaveLength(7)
   })
 })
 

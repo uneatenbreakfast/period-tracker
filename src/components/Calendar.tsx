@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { Snapshot } from '../types'
 import {
   continuousGrid,
@@ -12,7 +13,7 @@ import {
 } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
 import { cancelHaptic, hapticLongPress, hapticTick } from '../lib/haptics'
-import { forecastWindow } from '../lib/cycle'
+import { forecastWindow, historicalEstimates } from '../lib/cycle'
 import {
   armDrag,
   beginDrag,
@@ -56,6 +57,13 @@ const fmtDay = (iso: string) => {
   return `${MONTH_NAMES[m - 1].slice(0, 3)} ${d}`
 }
 
+/**
+ * Scroll near the top of the loaded history triggers the next prepend of
+ * LOAD_STEP older months — the calendar scrolls infinitely back with no
+ * 6-month cap and no "Load older" button.
+ */
+const LOAD_MORE_AT_PX = 120
+
 /** Small pencil glyph marking a day that has a note (BLOOM note symbol). */
 function NoteIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -79,11 +87,11 @@ export default function Calendar({
   const today = todayISO()
   // User-pickable calendar colors (BLOOM-0022) — drives cells + legend fills.
   const calStyle = snap.settings.style
-  // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead.
-  // Older history is revealed on demand via the "Load older periods" button
-  // (loadOlder); newer months auto-grow on scroll near the bottom edge
-  // (growFuture) so the calendar scrolls infinitely into the future, with
-  // predictions rendered for every loaded month.
+  // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead and
+  // grows at BOTH ends on edge scroll — backward via maybeLoadOlder (top-edge
+  // prepend, no cap/button), forward via growFuture (bottom edge), so the
+  // calendar scrolls infinitely in both directions with markers on every
+  // loaded month.
   const [months, setMonths] = useState<MonthRef[]>(() => initialMonths())
   // ONE flowing week strip across the whole month window — weeks span month
   // boundaries (a month ending Tue 31 continues same-row into Wed 1).
@@ -101,10 +109,31 @@ export default function Calendar({
     const toISO = flat[flat.length - 1].iso
     return forecastWindow(snap.entries, snap.settings, fromISO, toISO)
   }, [weeks, snap.entries, snap.settings])
+  // Retrospective ovulation + fertile-window estimates for every COMPLETED
+  // cycle that has a real next period start in the data (all but the last) —
+  // these mark the past months when scrolling back, using each cycle's ACTUAL
+  // observed length. The current/last cycle and all future ones are covered by
+  // the forward forecastWindow above.
+  const history = useMemo(() => historicalEstimates(snap.entries), [snap.entries])
   const predictedDays = forecast.predictedDays
   const fertileDays = forecast.fertileDays
   const safeDays = snap.settings.showSafeDays ? forecast.safeDays : []
   const ovulationDays = forecast.ovulationDays
+  // O(1) marker membership sets: the window-wide forecast plus the historical
+  // estimates merged in, so past months render the same fills/dot/legend as
+  // the forward prediction.
+  const predictedSet = useMemo(() => new Set(predictedDays), [predictedDays])
+  const safeSet = useMemo(() => new Set(safeDays), [safeDays])
+  const fertileAll = useMemo(() => {
+    const s = new Set(fertileDays)
+    for (const d of history.fertileDays) s.add(d)
+    return s
+  }, [fertileDays, history.fertileDays])
+  const ovulationSet = useMemo(() => {
+    const s = new Set(ovulationDays)
+    for (const d of history.ovulationDays) s.add(d)
+    return s
+  }, [ovulationDays, history.ovulationDays])
 
   // Measure the month-tint overlay's containing box AND each week row in
   // real pixels. The SVG is absolutely positioned inside a height-auto
@@ -164,10 +193,10 @@ export default function Calendar({
   const [edit, setEdit] = useState<EditRange | null>(null)
   const [editAxis, setEditAxis] = useState<'start' | 'end' | null>(null)
   const [drag, setDrag] = useState<RangeDrag | null>(null)
-  // "Load older periods" floating button visibility: only shows while the
-  // scroll box is at (or near) the top. Once the user scrolls down to read
-  // the calendar, the button fades away so it doesn't cover content.
-  const [atTop, setAtTop] = useState(true)
+  // "Load older" guard: a prepend is in flight until the scroll position has
+  // re-anchored — prevents re-entrant prepends from the scroll events the
+  // prepend itself generates.
+  const loadingOlderRef = useRef(false)
   // Set when a drag commits on release; the trailing click (same element) is swallowed.
   const dragJustEnded = useRef(false)
   // Long-press gate: hold LONG_PRESS_MS without moving beyond SLOP_PX → arm
@@ -284,6 +313,10 @@ export default function Calendar({
       lastTouchY = y
       lastTouchT = now
       el.scrollTop += dy
+      // Infinite back-scroll: once pinned at the top a continued upward drag
+      // never changes scrollTop (so no scroll event fires) — probe the
+      // boundary directly while the finger is moving toward older content.
+      if (dy < 0 && el.scrollTop <= LOAD_MORE_AT_PX) maybeLoadOlder()
     }
     const onTouchEnd = () => {
       if (dragRef.current || editAxisRef.current || editRef.current) return
@@ -317,9 +350,15 @@ export default function Calendar({
     }
     // Wheel veto: mouse wheel must not scroll the calendar while a drag
     // is pending (hold timer running) or armed — the gesture owns vertical
-    // movement from press until release.
+    // movement from press until release. At the top of the loaded history,
+    // upward wheel at the boundary (scrollTop stays 0, no scroll event)
+    // triggers the next prepend instead.
     const onWheel = (e: WheelEvent) => {
-      if (dragRef.current || editAxisRef.current) e.preventDefault()
+      if (dragRef.current || editAxisRef.current) {
+        e.preventDefault()
+        return
+      }
+      if (e.deltaY < 0 && (scrollElRef.current?.scrollTop ?? 0) <= LOAD_MORE_AT_PX) maybeLoadOlder()
     }
     // Capture phase: veto runs BEFORE browser processes scroll. Bubble phase
     // is too late — the browser has already committed to the pan gesture.
@@ -389,19 +428,31 @@ export default function Calendar({
     }
   }, [pageScrollLocked])
 
-  // Reveal another LOAD_STEP months of history behind the oldest loaded month.
-  // Triggered by the "Load older periods" button (not auto-scroll) so the past
-  // stays bounded until the user asks for more. Scroll position is held so the
-  // view stays anchored on the same month after the prepend.
-  const loadOlder = () => {
+  // Reveal another LOAD_STEP months of history behind the oldest loaded month,
+  // triggered automatically by scrolling to the top (any scroll event crossing
+  // LOAD_MORE_AT_PX) — no cap, no button. Scroll position is re-anchored so
+  // the view stays on the same month after the prepend. Guarded by
+  // loadingOlderRef: a prepend must anchor before the next one can start, and
+  // the only stale closure read here is `months.length > 0` (never false once
+  // mounted), so the first-render function captured by the []-dep effects
+  // stays correct forever.
+  //
+  // flushSync: scroll events are CONTINUOUS in React 18, so a plain setState
+  // commits on the scheduler's deferred task — AFTER the next rAF, which would
+  // measure a pre-prepend scrollHeight and zero the anchor (verified: first
+  // prepend worked, position jumped to the top, and no further scroll events
+  // ever fired → infinite scroll stalled). flushSync forces the commit inside
+  // the handler, so the anchor delta is measured against the NEW layout and
+  // applied synchronously — zero flash frame, no race.
+  function maybeLoadOlder() {
     const el = scrollElRef.current
-    if (!el || months.length === 0) return
+    if (!el || loadingOlderRef.current || months.length === 0) return
+    if (el.scrollTop > LOAD_MORE_AT_PX) return
+    loadingOlderRef.current = true
     const prevHeight = el.scrollHeight
-    setMonths((m) => [...loadOlderMonths(m[0]), ...m])
-    requestAnimationFrame(() => {
-      const node = scrollElRef.current
-      if (node) node.scrollTop += node.scrollHeight - prevHeight
-    })
+    flushSync(() => setMonths((m) => [...loadOlderMonths(m[0]), ...m]))
+    el.scrollTop += el.scrollHeight - prevHeight
+    loadingOlderRef.current = false
   }
 
   // Reveal another LOAD_STEP months of the future after the newest loaded
@@ -530,7 +581,7 @@ export default function Calendar({
   }
 
   const showLegend =
-    fertileDays.length > 0 || predictedDays.length > 0 || safeDays.length > 0 || ovulationDays.length > 0
+    predictedSet.size > 0 || fertileAll.size > 0 || safeSet.size > 0 || ovulationSet.size > 0
 
   const saveEdit = () => {
     const ed = editRef.current
@@ -596,14 +647,8 @@ export default function Calendar({
           </div>
         </div>
       )}
-      <button
-        type="button"
-        onClick={loadOlder}
-        aria-label="Load older periods"
-        className={`absolute left-1/2 top-2 z-20 -translate-x-1/2 rounded-full bg-white/95 px-4 py-1.5 text-xs font-bold text-ink-soft shadow-lg backdrop-blur-sm transition-all duration-200 hover:bg-rose-50 hover:text-rose-500 ${atTop ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
-      >
-        ↑ Load older
-      </button>
+      {/* The history grows automatically when scroll reaches the top —
+          no "Load older" button. */}
       {/* Weekday labels sit ABOVE the scroll box — always fully visible,
           never overlapped by scrolling day rows. */}
       <div
@@ -632,7 +677,9 @@ export default function Calendar({
         onScroll={(e) => {
           const el = e.currentTarget
           const t = el.scrollTop
-          setAtTop(t < 20)
+          // Near the top edge → prepend more history (infinite BACK-scroll,
+          // the auto-grow counterpart to growFuture below).
+          if (t <= LOAD_MORE_AT_PX) maybeLoadOlder()
           // Near the bottom edge → append more future months (infinite
           // forward scroll with predictions). Native wheel AND the JS-driven
           // touch scroll both mutate scrollTop, so onScroll fires for both.
@@ -727,16 +774,16 @@ export default function Calendar({
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
-                  const isPredicted = predictedDays.includes(cell.iso)
-                  const isFertile = fertileDays.includes(cell.iso)
-                  const isOvulation = ovulationDays.includes(cell.iso)
-                  const isSafe = safeDays.includes(cell.iso)
+                  const isPredicted = predictedSet.has(cell.iso)
+                  const isFertile = fertileAll.has(cell.iso)
+                  const isOvulation = ovulationSet.has(cell.iso)
+                  const isSafe = safeSet.has(cell.iso)
                   // Calculate shapes for all range types (connected-strip look).
                   // Priority: period > fertile > predicted > safe. Edit mode
                   // replaces the committed run with the edited bounds.
-                  const fertileShape = isFertile ? runShape(cell.iso, (iso) => fertileDays.includes(iso)) : null
-                  const predictedShape = isPredicted ? runShape(cell.iso, (iso) => predictedDays.includes(iso)) : null
-                  const safeShape = isSafe ? runShape(cell.iso, (iso) => safeDays.includes(iso)) : null
+                  const fertileShape = isFertile ? runShape(cell.iso, (iso) => fertileAll.has(iso)) : null
+                  const predictedShape = isPredicted ? runShape(cell.iso, (iso) => predictedSet.has(iso)) : null
+                  const safeShape = isSafe ? runShape(cell.iso, (iso) => safeSet.has(iso)) : null
                   const shape = edit
                     ? dragShape(cell.iso, edit.start, edit.end)
                     : isPeriod
@@ -1011,7 +1058,7 @@ export default function Calendar({
           <span className="flex items-center gap-1.5">
             <span data-legend="period" className="h-3 w-3 rounded-full" style={{ backgroundColor: calStyle.period }} /> period
           </span>
-          {predictedDays.length > 0 && (
+          {predictedSet.size > 0 && (
             <span className="flex items-center gap-1.5">
               <span
                 data-legend="predicted"
@@ -1021,12 +1068,12 @@ export default function Calendar({
               predicted
             </span>
           )}
-          {fertileDays.length > 0 && (
+          {fertileAll.size > 0 && (
             <span className="flex items-center gap-1.5">
               <span data-legend="fertile" className="h-3 w-3 rounded-full" style={{ backgroundColor: calStyle.fertile }} /> fertile
             </span>
           )}
-          {ovulationDays.length > 0 && (
+          {ovulationSet.size > 0 && (
             <span className="flex items-center gap-1.5">
               <span
                 data-legend="ovulation"
@@ -1038,7 +1085,7 @@ export default function Calendar({
               ovulation
             </span>
           )}
-          {safeDays.length > 0 && (
+          {safeSet.size > 0 && (
             <span className="flex items-center gap-1.5">
               <span data-legend="safe" className="h-3 w-3 rounded-full" style={{ backgroundColor: calStyle.safe }} /> safe
             </span>
