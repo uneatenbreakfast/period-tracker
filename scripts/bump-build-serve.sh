@@ -29,7 +29,9 @@ if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "master" ]; then
 fi
 
 # ---------------------------------------------------------------- version
-OLD_VER="$(cat VERSION)"
+# Strip CR: core.autocrlf checkouts rewrite VERSION to CRLF, which breaks
+# bash arithmetic ("invalid arithmetic operator").
+OLD_VER="$(tr -d '\r' < VERSION)"
 NEW_VER=$((OLD_VER + 1))
 log "version: $OLD_VER -> $NEW_VER"
 printf '%s' "$NEW_VER" > VERSION
