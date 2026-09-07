@@ -112,7 +112,7 @@ const isoAdd = (iso, n) => {
     safe: '#e3eddd',
     monthTint: '#e0d6f2',
     trendFertile: '#99d6f2',
-    trendOvulation: '#f4a88e',
+    trendOvulation: '#4bb5e5',
     ringFollicular: '#e4dcf3',
     ringOvulation: '#f4a88e',
     ringLuteal: '#8fae8b',
@@ -127,6 +127,40 @@ const isoAdd = (iso, n) => {
       const label = document.querySelector(`[data-testid="${s}"] label`);
       return label ? getComputedStyle(label).backgroundColor : '';
     }, testId);
+
+  // STEP 6.5 — hex inputs (BLOOM-0043): each style row shows its current hex,
+  // typing a valid hex recolorizes the swatch, invalid hex is ignored, and the
+  // text stays in sync with the color picker.
+  const hexVal = async (key) =>
+    page.inputValue(`[data-testid="settings-style-${key}-hex"]`);
+  for (const key of Object.keys(DEFAULTS)) {
+    if ((await hexVal(key)) === DEFAULTS[key]) ok(`style ${key} hex input shows ${DEFAULTS[key]}`);
+    else fail(`style ${key} hex input wrong: ${await hexVal(key)}`);
+  }
+  // Type a valid hex into the period hex input -> swatch + color input follow.
+  await page.fill('[data-testid="settings-style-period-hex"]', '#3366ff');
+  await page.dispatchEvent('[data-testid="settings-style-period-hex"]', 'blur');
+  await page.waitForTimeout(200);
+  const periodHexInput = await page.inputValue('[data-testid="settings-style-period-hex"]');
+  if ((await page.getAttribute('[data-testid="settings-style-period-input"]', 'value')) === '#3366ff')
+    ok('typing #3366ff in hex input updates the period color picker');
+  else fail('period color picker not updated by hex input: ' + periodHexInput);
+  if ((await swatchBg('settings-style-period')) === 'rgb(51, 102, 255)')
+    ok('period swatch reflects hex-typed #3366ff');
+  else fail('period swatch not updated by hex input');
+  // Invalid hex is ignored (color unchanged, draft stays).
+  await page.fill('[data-testid="settings-style-period-hex"]', '#zzz');
+  await page.waitForTimeout(200);
+  if ((await page.getAttribute('[data-testid="settings-style-period-input"]', 'value')) === '#3366ff')
+    ok('invalid hex leaves the color unchanged');
+  else fail('invalid hex mutated the color');
+  // Short 3-digit hex expands to full 6-digit.
+  await page.fill('[data-testid="settings-style-ovulation-hex"]', '#0f0');
+  await page.dispatchEvent('[data-testid="settings-style-ovulation-hex"]', 'blur');
+  await page.waitForTimeout(200);
+  if ((await page.getAttribute('[data-testid="settings-style-ovulation-input"]', 'value')) === '#00ff00')
+    ok('3-digit hex #0f0 expands to #00ff00');
+  else fail('short hex not expanded: ' + (await page.getAttribute('[data-testid="settings-style-ovulation-input"]', 'value')));
 
   // STEP 7 — user picks new colors; swatches + persisted blob follow.
   const setColor = async (testId, hex) => {
@@ -155,6 +189,12 @@ const isoAdd = (iso, n) => {
   if ((await swatchBg('settings-style-ovulation')) === 'rgb(0, 170, 0)')
     ok('ovulation swatch reflects #00aa00');
   else fail('ovulation swatch bg wrong: ' + (await swatchBg('settings-style-ovulation')));
+
+  // Picker change syncs the hex inputs back (BLOOM-0043).
+  if ((await hexVal('period')) === '#3366ff') ok('period hex input syncs to picker-picked #3366ff');
+  else fail('period hex out of sync after picker: ' + (await hexVal('period')));
+  if ((await hexVal('ovulation')) === '#00aa00') ok('ovulation hex input syncs to picker-picked #00aa00');
+  else fail('ovulation hex out of sync after picker: ' + (await hexVal('ovulation')));
   let blobStyle = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1') || 'null'));
   if (blobStyle && blobStyle.settings && blobStyle.settings.style && blobStyle.settings.style.period === '#3366ff' && blobStyle.settings.style.ovulation === '#00aa00')
     ok('localStorage blob carries style {period: #3366ff, ovulation: #00aa00}');
