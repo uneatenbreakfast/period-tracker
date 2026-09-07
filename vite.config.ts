@@ -19,4 +19,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(appVersion),
   },
   server: { port: 5174, allowedHosts: ['.ts.net'] },
+  // Relative base → assets resolve under /period-tracker/ on GitHub Pages
+  // (default "/" makes /assets/... point at site root → 404 → blank page).
+  base: './',
 })
