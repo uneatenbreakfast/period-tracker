@@ -23,7 +23,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, monthBackgroundPaths, ovulationRing, runShape } from '../lib/rangeStyle'
+import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthBackgroundPaths, ovulationRing, runShape } from '../lib/rangeStyle'
 import type { DayShape, MonthGeom } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -744,9 +744,8 @@ export default function Calendar({
         aria-hidden
       >
         {monthBgPaths.map(({ monthKey, pathD }) => {
-          const m = Number(monthKey.slice(5, 7))
-          // Odd months get the user-pickable tint (BLOOM-0023); even months stay plain.
-          return m % 2 !== 0 ? (
+          // Even months get the user-pickable tint; odd months stay plain.
+          return isTintMonth(monthKey) ? (
             <path key={monthKey} d={pathD} style={{ fill: calStyle.monthTint }} />
           ) : null
         })}
@@ -817,7 +816,7 @@ export default function Calendar({
                         : null
                     : null
 
-                  const monthTint = cell.inMonth && Number(cell.iso.slice(5, 7)) % 2 !== 0
+                  const monthTint = cell.inMonth && isTintMonth(cell.iso)
                   // Layout: centered circles by default; period shapes use
                   // capsule geometry. SVG layer behind grid provides month tint.
                   let cls =

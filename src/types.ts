@@ -20,7 +20,7 @@ export interface CalendarStyle {
   ovulation: string
   /** Safe days fill. */
   safe: string
-  /** Calendar month background tint (odd months in the continuous window). */
+  /** Calendar month background tint (even months in the continuous window). */
   monthTint: string
   /** Trend bar: fertile window segment. */
   trendFertile: string

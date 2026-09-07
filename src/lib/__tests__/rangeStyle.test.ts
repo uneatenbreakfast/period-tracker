@@ -4,12 +4,39 @@ import {
   cellFillStyle,
   cellLayoutClass,
   dragShape,
+  isTintMonth,
   monthScoopClass,
   ovulationRing,
   runShape,
 } from '../rangeStyle'
 import { DEFAULT_CALENDAR_STYLE } from '../settings'
 import { darken } from '../color'
+
+describe('isTintMonth', () => {
+  it('tints even months — August (the reported break) included', () => {
+    expect(isTintMonth('2026-02')).toBe(true)
+    expect(isTintMonth('2026-04')).toBe(true)
+    expect(isTintMonth('2026-06')).toBe(true)
+    expect(isTintMonth('2026-08')).toBe(true)
+    expect(isTintMonth('2026-10')).toBe(true)
+    expect(isTintMonth('2026-12')).toBe(true)
+  })
+
+  it('leaves odd months plain', () => {
+    expect(isTintMonth('2026-01')).toBe(false)
+    expect(isTintMonth('2026-03')).toBe(false)
+    expect(isTintMonth('2026-05')).toBe(false)
+    expect(isTintMonth('2026-07')).toBe(false)
+    expect(isTintMonth('2026-09')).toBe(false)
+    expect(isTintMonth('2026-11')).toBe(false)
+  })
+
+  it('reads the month slot from an ISO date or a YYYY-MM key', () => {
+    // Full ISO date string: Calendar passes cell.iso; monthKey is slice(0,7).
+    expect(isTintMonth('2026-08-15')).toBe(true)
+    expect(isTintMonth('2026-08')).toBe(true)
+  })
+})
 
 describe('runShape', () => {
   const flowDays = new Set(['2025-07-15', '2025-07-16', '2025-07-17', '2025-07-18'])

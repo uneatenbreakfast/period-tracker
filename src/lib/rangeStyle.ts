@@ -48,7 +48,7 @@ export function dragShape(iso: string, from: string, to: string): DayShape | nul
 
 /**
  * Concave "scoop" corner for an untinted cell that sits in the inner corner
- * of an odd-month tint block. Two orientations:
+ * of an even-month tint block. Two orientations:
  *
  *   'tl' — left+top neighbors tinted (e.g. Sep 1 with Aug tint to its left
  *          and above). White overlay with rounded-tl covers the cell; tint
@@ -210,6 +210,18 @@ export interface MonthBgPath {
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
+
+/**
+ * Which calendar months get the alternating background tint. Even-numbered
+ * months (2,4,6,8,10,12) are tinted, odd months are plain — the original
+ * alternating-strip design (0dff7c6); a Sep 3 inversion to odd months left
+ * August (8) permanently untinted, which was reported as broken.
+ *
+ * @param monthKey — YYYY-MM month key from `MonthCell.iso.slice(0, 7)`
+ */
+export function isTintMonth(monthKey: string): boolean {
+  return Number(monthKey.slice(5, 7)) % 2 === 0
+}
 
 export function monthBackgroundPaths(weeks: MonthCell[][], geom?: MonthGeom): MonthBgPath[] {
   if (weeks.length === 0) return []

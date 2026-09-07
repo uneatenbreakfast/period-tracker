@@ -86,7 +86,7 @@ const STYLE_GROUPS: StyleGroup[] = [
   {
     title: 'Month background',
     hint: 'The soft tint behind alternating months.',
-    fields: [{ key: 'monthTint', label: 'Month tint', hint: 'Background tint of odd months' }],
+    fields: [{ key: 'monthTint', label: 'Month tint', hint: 'Background tint of even months' }],
   },
   {
     title: 'Trend bars',
