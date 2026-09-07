@@ -243,6 +243,7 @@ const isoAdd = (iso, n) => {
       fertileBg: fertile ? getComputedStyle(fertile).backgroundColor : '',
       dropletColor: droplet ? getComputedStyle(droplet).color : '',
       heartColor: heart ? getComputedStyle(heart).color : '',
+      markerCircle: heart ? getComputedStyle(heart.closest('span')).backgroundColor : '',
     };
   });
   if (barStyle.periodBg === 'rgb(51, 102, 255)') ok('trend period segment follows Period color #3366ff');
@@ -251,8 +252,10 @@ const isoAdd = (iso, n) => {
   else fail('trend fertile segment wrong: ' + barStyle.fertileBg);
   if (barStyle.dropletColor === 'rgb(51, 102, 255)') ok('trend droplet follows Period color #3366ff');
   else fail('trend droplet wrong: ' + barStyle.dropletColor);
-  if (barStyle.heartColor === 'rgb(0, 102, 204)') ok('trend ovulation heart follows #0066cc');
-  else fail('trend heart wrong: ' + barStyle.heartColor);
+  if (barStyle.markerCircle === 'rgb(0, 102, 204)') ok('trend ovulation marker circle follows #0066cc');
+  else fail('trend marker circle wrong: ' + barStyle.markerCircle);
+  if (barStyle.heartColor === 'rgb(255, 255, 255)') ok('marker heart stays white on the circle');
+  else fail('marker heart wrong: ' + barStyle.heartColor);
 
   // STEP 13 — health ring phase strokes follow style (period shared, others own pickers).
   await goTab('Health');

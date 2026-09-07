@@ -9,7 +9,7 @@ export const DEFAULT_CALENDAR_STYLE: CalendarStyle = {
   safe: '#e3eddd', // sage-100
   monthTint: '#e0d6f2', // light lavender: visible wash on cream bg (≠ fertile #e4dcf3)
   trendFertile: '#99d6f2', // Fitbit fertile-window blue (trends bars)
-  trendOvulation: '#f4a88e', // peach-400
+  trendOvulation: '#4bb5e5', // marker circle on cycle bars (reference blue)
   ringFollicular: '#e4dcf3', // lavender-100
   ringOvulation: '#f4a88e', // peach-400
   ringLuteal: '#8fae8b', // sage-400

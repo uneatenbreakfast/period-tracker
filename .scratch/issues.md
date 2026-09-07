@@ -113,3 +113,16 @@ Bloom prediction now follows Fitbit's officially documented model: `averageCycle
 - `rangeStyle.ts`: shaped predicted cells drop `bg-rose-50` → dashed outline only (`predictedStripBorder(shape)` + text), matching the legend swatch (empty dashed circle). Month tint/white shows through the stitch line.
 **Tests**: new `rangeStyle.test.ts` case — shaped predicted strip asserts dashed rose-300 border + NO `bg-` class for all four shapes, caps/flush sides preserved. 210/210 pass; tsc clean.
 **Verified**: DOM dump — predicted Sep 5-9: transparent bg + 1px dashed, no rose overlay; safe Sep 1-4: sage only; period Jul 11-15 on tinted month: rose overlay intact. Pixel count in strip region 82,951 → 427 rose-400 px. Screenshot `.scratch/bloom-pred-fixed.png`.
+
+### BLOOM-0022 — Trends tab styled to match Menstrual Health reference
+User supplied reference screenshot (menstrual-health app Trends screen) for Bloom's circle/trends section.
+
+**Deltas applied (TrendsCard.tsx)**:
+1. **Pink droplet** on cycle bars: `DropletIcon` now `color: style.period` (was hardcoded `text-white`). Droplet follows the Period color picker — ref shows pink droplet at period start.
+2. **Blue circle ovulation marker**: heart icon now sits inside a 16px circle (`background-color: style.trendOvulation`) centered on the fertile band end; heart is white 10px inside. `trendOvulation` default changed `#f4a88e` (peach) → `#4bb5e5` (reference blue). Picker hint updated: "Marker circle at ovulation day".
+3. **MY CYCLES section header**: split into full-width `#f3f3f3` strip (26px, no text) + label below on white (`#464a52`), matching ref pixel scan (band y455-481, text y503-517 on white). Was text-inside-band.
+Kept existing Fitbit bar geometry (pink period → gray gap → `#99d6f2` fertile → gray remainder) — ref matches Bloom defaults exactly (#f2318c/#99d6f2).
+
+**Also fixed pre-existing E2E drift**: settings E2E DEFAULTS still expected pre-Fitbit-palette colors (`period #e58aa8`, `trendFertile #c9b8e3`) — synced to settings.ts (`#f2318c`, `#99d6f2`); droplet/heart color asserts were red since white-icon change (1abfa6a) — reworked to assert droplet=period color, marker circle=trendOvulation color, heart stays white.
+
+**Verified**: 268/268 unit tests; trends E2E PASS (new: droplet pink #f2318c, marker circle blue #4bb5e5, heart centered at ovulation); settings E2E PASS (47 ok: droplet follows #3366ff, marker circle follows #0066cc, white heart); pixel scan of rendered page matches ref structure (band→label-on-white→cards); screenshot `.scratch/bloom-trends-ref-style.png` (in /mnt/c/temp/bloom-trends-new.png).

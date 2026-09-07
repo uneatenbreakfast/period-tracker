@@ -92,7 +92,7 @@ const STYLE_GROUPS: StyleGroup[] = [
     hint: 'Cycle chart in the Trends tab — period segment follows the Period color.',
     fields: [
       { key: 'trendFertile', label: 'Fertile bar', hint: 'Fertile window segment in cycle bars' },
-      { key: 'trendOvulation', label: 'Ovulation mark', hint: 'Heart marker at ovulation day' },
+      { key: 'trendOvulation', label: 'Ovulation mark', hint: 'Marker circle at ovulation day' },
     ],
   },
   {

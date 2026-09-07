@@ -3,10 +3,35 @@ import type { CalendarStyle, Settings, Snapshot } from '../types'
 import { cycleBarLayout, cycleTrends, type CycleTrendRow } from '../lib/cycle'
 import { formatDayShort, formatRange, ordinal } from '../lib/ui'
 
-function DropletIcon(props: React.SVGProps<SVGSVGElement>) {
+function DropletIcon(props: React.SVGProps<SVGSVGElement> & { glass?: boolean; wide?: boolean }) {
+  const { glass, wide, ...rest } = props
+  if (glass) {
+    if (wide) {
+      // Fitbit stat medallion: solid pink drop + pale-pink inner oval (glossy)
+      const body = 'M12 4 C 17.6 7.4, 20 10.6, 20 12 C 20 13.4, 17.4 16.6, 12 20 C 6.6 16.6, 4 13.4, 4 12 C 4 10.6, 6.4 7.4, 12 4 Z'
+      return (
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...rest}>
+          <path d={body} />
+          <ellipse cx="12" cy="12.8" rx="4.6" ry="5.2" fill="#ffcfe9" />
+          <ellipse cx="12" cy="12.8" rx="2.9" ry="3" fill="#fff" />
+        </svg>
+      )
+    }
+    // Fitbit bar-start droplet: white glass drop w/ pink rim
+    return (
+      <svg viewBox="0 0 24 24" fill="#fff" aria-hidden {...rest}>
+        <path
+          d="M12 4 C 16.8 7.2, 18.8 10.2, 18.8 12 C 18.8 14, 16.6 16.8, 12 20 C 7.4 16.8, 5.2 14, 5.2 12 C 5.2 10.2, 7.2 7.2, 12 4 Z"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  }
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
-      <path d="M12 2c.5 4.5 5.5 8.5 5.5 13a5.5 5.5 0 0 1-11 0C6.5 10.5 11.5 6.5 12 2z" />
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...rest}>
+      <path d="M12 2 C 14.8 8.5, 21.5 12.2, 21.5 15.7 A 9.5 9.5 0 1 1 2.5 15.7 C 2.5 12.2, 9.2 8.5, 12 2 Z" />
     </svg>
   )
 }
@@ -64,7 +89,7 @@ function CycleBar({
   const l = cycleBarLayout(row, maxLen)
   return (
     <div
-      className="relative mt-4 h-4 rounded-full bg-[#e7ebee]"
+      className="relative mt-4 h-[17px] rounded-full bg-[#e7ebee]"
       style={{ width: `${l.trackWidth * 100}%` }}
       data-testid={`cycle-bar-${row.start}`}
     >
@@ -85,15 +110,19 @@ function CycleBar({
         />
       )}
       <DropletIcon
-        className="absolute left-0 top-1/2 z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 text-white"
+        glass
+        className="absolute left-[7px] top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2"
+        style={{ color: style.period }}
         aria-label="Period start"
       />
       {l.showFertile && (
-        <HeartIcon
-          className="absolute top-1/2 z-10 h-5 w-5 translate-x-1/2 -translate-y-1/2 text-white"
-          style={{ right: `${(1 - l.fertileEnd) * 100}%` }}
-          aria-label="Ovulation day"
-        />
+        <span
+          className="absolute top-1/2 z-10 flex h-4 w-4 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full"
+          style={{ right: `${(1 - l.fertileEnd) * 100}%`, backgroundColor: style.trendOvulation }}
+          data-testid="cycle-bar-ovulation-marker"
+        >
+          <HeartIcon className="h-2.5 w-2.5 text-white" aria-label="Ovulation day" />
+        </span>
       )}
     </div>
   )
@@ -134,7 +163,7 @@ export default function TrendsCard({ snap, settings }: TrendsCardProps) {
       <div className="grid grid-cols-2 gap-x-2.5 gap-y-4">
         {statsTile(
           'stat-period',
-          <DropletIcon className="h-9 w-9" style={{ color: settings.style.period }} />,
+          <DropletIcon glass wide className="h-9 w-9" style={{ color: settings.style.period }} />,
           stats.avgPeriodLength === null ? null : String(stats.avgPeriodLength),
           'Days',
           'Average Period Length',
@@ -157,10 +186,9 @@ export default function TrendsCard({ snap, settings }: TrendsCardProps) {
         )}
       </div>
 
-      <h2 className="-mx-4 mt-5 bg-[#f3f3f3] px-4 py-[17px] text-xs font-bold uppercase tracking-wider text-[#677070]">
-        My cycles
-      </h2>
-      <ul className="mt-3 space-y-3">
+      <div className="-mx-4 mt-2 h-[26px] bg-[#f3f3f3]" aria-hidden="true" />
+      <h2 className="mt-5 text-xs font-bold uppercase tracking-wider text-[#464a52]">My cycles</h2>
+      <ul className="mt-2 space-y-3">
         {[...rows].reverse().map((row) => (
           <li key={row.start} className="rounded-2xl bg-white px-3.5 pb-3 pt-3 shadow-[0_3px_10px_rgba(0,0,0,0.06)]">
             <button

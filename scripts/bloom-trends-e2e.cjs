@@ -118,6 +118,9 @@ const cycles = [
       fertileRightPx: fr.right - r.left,
       droplet: !!droplet,
       heart: !!heart,
+      dropletColor: droplet ? getComputedStyle(droplet).color : '',
+      heartColor: heart ? getComputedStyle(heart).color : '',
+      markerCircle: heart ? getComputedStyle(heart.closest('span')).backgroundColor : '',
       dropletCx: dr.left + dr.width / 2 - r.left,
       dropletCy: dr.top + dr.height / 2 - (r.top + r.height / 2),
       heartCx: hr.left + hr.width / 2 - r.left,
@@ -139,15 +142,19 @@ const cycles = [
       else fail(`fertile segment wrong: left ${bar.fertileLeft} width ${bar.fertileW}`);
     } else fail('fertile segment missing');
     if (bar.droplet) {
-      // droplet caps the pink segment start, vertically centered on the track
-      if (Math.abs(bar.dropletCx - bar.periodLeftPx) < 6 && Math.abs(bar.dropletCy) < 6) ok('droplet at period start, centered on track');
+      // droplet caps the pink segment start: center ~7px in from the track edge (ref match), vertically centered
+      if (Math.abs(bar.dropletCx - bar.periodLeftPx - 7) < 2 && Math.abs(bar.dropletCy) < 6) ok('droplet at period start, centered on track');
       else fail(`droplet misplaced: cx ${bar.dropletCx.toFixed(1)} cy ${bar.dropletCy.toFixed(1)}`);
     } else fail('droplet missing');
+    if (bar.dropletColor === 'rgb(242, 49, 140)') ok('droplet pink (Period default #f2318c)');
+    else fail('droplet color wrong: ' + bar.dropletColor);
     if (bar.heart) {
       // heart caps the blue segment end (ovulation day 13 = 50% of this 26d track)
       if (Math.abs(bar.heartCx - bar.fertileRightPx) < 6 && Math.abs(bar.heartCy) < 6) ok(`heart at ovulation day (right edge of blue), centered`);
       else fail(`heart misplaced: cx ${bar.heartCx.toFixed(1)} cy ${bar.heartCy.toFixed(1)}`);
     } else fail('heart missing');
+    if (bar.markerCircle === 'rgb(75, 181, 229)') ok('marker circle blue (trendOvulation default #4bb5e5)');
+    else fail('marker circle color wrong: ' + bar.markerCircle);
   }
 
   // STEP 5 — expand detail: fertile window + next period
