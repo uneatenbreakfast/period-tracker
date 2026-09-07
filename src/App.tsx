@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FlowLevel, Snapshot } from './types'
 import Calendar from './components/Calendar'
+import CycleDayDialog from './components/CycleDayDialog'
 import DaySheet from './components/DaySheet'
 import HistoryCard from './components/HistoryCard'
 import MenstrualHealthCard from './components/MenstrualHealthCard'
 import SettingsCard from './components/SettingsCard'
 import TrendsCard from './components/TrendsCard'
 import { todayISO } from './lib/dates'
-import { predictNext } from './lib/cycle'
+import { cycleDayLabel, predictNext } from './lib/cycle'
 import { DEFAULT_FLOW } from './lib/symptoms'
 import {
   FOLLOW_MAX_PX,
@@ -41,6 +42,9 @@ declare const __APP_VERSION__: number
 export default function App() {
   const [snap, setSnap] = useState<Snapshot>(() => loadSnapshot(storage))
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  // Day summary dialog (cycle-day position) shown on tap BEFORE the form. The
+  // notes & mood form (DaySheet) opens only when the user hits its button.
+  const [dialogDate, setDialogDate] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('calendar')
   const now = new Date()
 
@@ -441,8 +445,13 @@ export default function App() {
         <main ref={setMainRef} className="flex min-h-0 flex-1 flex-col gap-4">
           <Calendar
             snap={snap}
-            selectedDate={selectedDate}
-            onSelect={setSelectedDate}
+            selectedDate={dialogDate ?? selectedDate}
+            onSelect={(d) => {
+              // Tap opens the cycle-day summary dialog first; the form opens
+              // from its button. Clear any open form so dialogs never stack.
+              setSelectedDate(null)
+              setDialogDate(d)
+            }}
             onRangeComplete={commitRange}
             onRangeDelete={deleteRange}
             maxPeriodDays={snap.settings.periodLength}
@@ -454,6 +463,18 @@ export default function App() {
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
           </footer>
         </main>
+      )}
+
+      {dialogDate && (
+        <CycleDayDialog
+          date={dialogDate}
+          label={cycleDayLabel(snap.entries, dialogDate, snap.settings)}
+          onOpenForm={() => {
+            setSelectedDate(dialogDate)
+            setDialogDate(null)
+          }}
+          onClose={() => setDialogDate(null)}
+        />
       )}
 
       {selectedDate && (

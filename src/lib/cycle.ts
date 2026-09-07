@@ -381,3 +381,23 @@ export function cycleDayInfo(entries: DayEntry[], today: string, settings?: Sett
 
   return { dayInCycle, cycleLength, segments, phase }
 }
+
+/** Display label for a date's position in the current cycle (BLOOM day picker dialog). */
+export interface CycleDayLabel {
+  /** 1-based day within the cycle (1 = first period day, e.g. 2 for "day 2 of 26") */
+  day: number
+  /** Predicted cycle length in days (average of logged cycles, or the user default) */
+  total: number
+}
+
+/**
+ * Cycle-day label for ANY date (not just today): the date's folded position
+ * within the current cycle, relative to the last logged period start and the
+ * average cycle length. Null only when no period has ever been logged (no
+ * anchor to count from).
+ */
+export function cycleDayLabel(entries: DayEntry[], date: string, settings?: Settings): CycleDayLabel | null {
+  const info = cycleDayInfo(entries, date, settings)
+  if (!info) return null
+  return { day: info.dayInCycle + 1, total: info.cycleLength }
+}

@@ -11,6 +11,7 @@ import {
   averageCycleLength,
   averagePeriodLength,
   cycleDayInfo,
+  cycleDayLabel,
   cycleLengths,
   cycleTrends,
   detectCycles,
@@ -224,6 +225,36 @@ describe('cycleDayInfo', () => {
       prevEnd = s.end
     }
     expect(info.segments[0].end).toBe(10)
+  })
+})
+
+describe('cycleDayLabel', () => {
+  it('null with no logged period (no anchor)', () => {
+    expect(cycleDayLabel([], '2026-03-01')).toBeNull()
+    expect(cycleDayLabel([{ date: '2026-03-01', symptoms: ['cramps'] }], '2026-03-05')).toBeNull()
+  })
+
+  it('first period day = day 1 of the predicted cycle', () => {
+    const label = cycleDayLabel([day('2026-01-03')], '2026-01-03', { ...DEFAULT_SETTINGS, cycleLength: 26 })!
+    expect(label).toEqual({ day: 1, total: 26 })
+  })
+
+  it('day after period start = "day 2 of 26" (dialog headline)', () => {
+    const entries = ['2026-01-03', '2026-01-04'].map((d) => day(d))
+    const label = cycleDayLabel(entries, '2026-01-04', { ...DEFAULT_SETTINGS, cycleLength: 26 })!
+    expect(label).toEqual({ day: 2, total: 26 })
+  })
+
+  it('uses the recency-weighted average once 2+ cycles are logged', () => {
+    // start-to-start gap = 30 days → average 30 overrides the 28 default
+    const entries = ['2026-01-03', '2026-01-04', '2026-02-02', '2026-02-03'].map((d) => day(d))
+    const label = cycleDayLabel(entries, '2026-02-03', DEFAULT_SETTINGS)!
+    expect(label).toEqual({ day: 2, total: 30 })
+  })
+
+  it('wraps: predicted next period start is day 1 again', () => {
+    const label = cycleDayLabel([day('2026-01-03')], '2026-01-31', { ...DEFAULT_SETTINGS, cycleLength: 28 })!
+    expect(label).toEqual({ day: 1, total: 28 })
   })
 })
 
