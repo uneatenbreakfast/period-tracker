@@ -308,6 +308,54 @@ const monthStr = (i) => `${Math.floor(i / 12)}-${((i % 12) + 12) % 12}`;
   });
   if (dialog && dialog.label.includes(oldTitle)) ok(`old day tap opens cycle-day dialog (${oldTitle})`);
   else fail('cycle-day dialog for old day missing: ' + JSON.stringify(dialog));
+
+  // STEP 4a — summary sheet is NON-modal: no backdrop blur, and it lives inside
+  // the calendar scroller so wheel/touch gestures scroll the grid behind it.
+  const sheetChrome = await page.evaluate(() => {
+    const d = document.querySelector('[role="dialog"]');
+    const scroller = document.querySelector('[data-calendar-scroll]');
+    if (!d || !scroller) return { err: 'dialog or scroller missing' };
+    const cs = getComputedStyle(d);
+    return {
+      insideScroller: scroller.contains(d),
+      backdropFilter: cs.backdropFilter,
+      scrollTopBefore: scroller.scrollTop,
+    };
+  });
+  if (sheetChrome.err) fail('sheet chrome inspect failed: ' + sheetChrome.err);
+  else if (!sheetChrome.insideScroller) fail('cycle-day dialog not inside [data-calendar-scroll] (scroll pass-through impossible)');
+  else ok('cycle-day dialog renders inside calendar scroller');
+  if (!sheetChrome.backdropFilter || !sheetChrome.backdropFilter.includes('blur(')) ok(`cycle-day dialog has no backdrop blur (backdropFilter="${sheetChrome.backdropFilter}")`);
+  else fail('cycle-day dialog still blurs background: ' + sheetChrome.backdropFilter);
+  // The dialog must not freeze the grid: with it open, the scroller stays
+  // native-scrollable (no page-level scroll lock is ever applied for a dialog —
+  // only for drag/edit) AND a wheel over the dim backdrop scrolls the box.
+  const lockState = await page.evaluate(() => {
+    const s = document.querySelector('[data-calendar-scroll]');
+    return {
+      scrollLocked: getComputedStyle(document.body).overflow === 'hidden'
+        || getComputedStyle(document.documentElement).overflow === 'hidden',
+      touchLocked: getComputedStyle(s).touchAction === 'none',
+      overflowY: getComputedStyle(s).overflowY,
+    };
+  });
+  if (!lockState.scrollLocked && lockState.overflowY === 'auto')
+    ok(`dialog does not lock page/canvas scroll (overflowY=${lockState.overflowY}, body overflow auto)`);
+  else fail('dialog locked page scroll: ' + JSON.stringify(lockState));
+  // Direct scroller scroll with the dialog open — proves the grid still scrolls
+  // and the summary sheet survives it (stays anchored to the viewport bottom).
+  const scrollLive = await page.evaluate(() => {
+    const s = document.querySelector('[data-calendar-scroll]');
+    const before = s.scrollTop;
+    s.scrollTop += 300;
+    const after = s.scrollTop;
+    const sheet = document.querySelector('[role="dialog"]');
+    const r = sheet ? sheet.getBoundingClientRect() : null;
+    return { before, after, moved: after !== before, sheetTop: r ? Math.round(r.top) : -1 };
+  });
+  if (scrollLive.moved && scrollLive.sheetTop >= 0)
+    ok(`calendar scrolls behind open dialog (scrollTop ${scrollLive.before} → ${scrollLive.after}, sheet still visible top=${scrollLive.sheetTop})`);
+  else fail('calendar did not scroll behind dialog: ' + JSON.stringify(scrollLive));
   await page.click('button:has-text("Open notes")');
   await page.waitForTimeout(300);
   const sheet = await page.evaluate(() => document.body.innerText);

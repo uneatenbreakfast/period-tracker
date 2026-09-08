@@ -1,5 +1,6 @@
 import type { CycleDayLabel } from '../lib/cycle'
 import { fromISODate } from '../lib/dates'
+import { createPortal } from 'react-dom'
 
 interface CycleDayDialogProps {
   date: string
@@ -24,9 +25,31 @@ export default function CycleDayDialog({ date, label, onOpenForm, onClose }: Cyc
   })
 
   return (
+    <DialogOverlay
+      title={title}
+      label={label}
+      onOpenForm={onOpenForm}
+      onClose={onClose}
+    />
+  )
+}
+
+/**
+ * Rendered INSIDE the calendar's scroll box (`data-calendar-scroll`) via portal,
+ * so wheel/touch gestures over the dim backdrop fall through to the calendar's
+ * own scroll handling — the month grid keeps scrolling while the summary sheet
+ * floats above it. No backdrop blur: the grid stays readable behind the sheet.
+ */
+function DialogOverlay({
+  title,
+  label,
+  onOpenForm,
+  onClose,
+}: Pick<CycleDayDialogProps, 'label' | 'onOpenForm' | 'onClose'> & { title: string }) {
+  const overlay = (
     <div
       data-sheet
-      className="fixed inset-0 z-20 flex items-end justify-center bg-ink/30 backdrop-blur-[2px]"
+      className="fixed inset-0 z-20 flex items-end justify-center bg-ink/30"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -73,4 +96,10 @@ export default function CycleDayDialog({ date, label, onOpenForm, onClose }: Cyc
       </div>
     </div>
   )
+
+  // The summary must live INSIDE the calendar scroller for scroll pass-through.
+  // Fall back to plain render if the scroller isn't in the DOM (never happens
+  // for a day tap — the calendar is on screen — but keeps mount safe).
+  const scroller = document.querySelector('[data-calendar-scroll]')
+  return scroller ? createPortal(overlay, scroller) : overlay
 }
