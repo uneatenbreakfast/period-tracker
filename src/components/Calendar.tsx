@@ -23,8 +23,8 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
-import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintBites, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import type { DayShape, MonthTintBite, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -148,6 +148,18 @@ export default function Calendar({
       let arr = m.get(seg.row)
       if (!arr) { arr = []; m.set(seg.row, arr) }
       arr.push(seg)
+    }
+    return m
+  }, [weeks])
+  // Concave scoop bites — quarter-discs of tint color in the corner of an
+  // untinted day that sits in the inner corner of a tint block (tint right +
+  // below, or left + above). Painted as plain DOM divs like the row segments.
+  const tintBitesByRow = useMemo(() => {
+    const m = new Map<number, MonthTintBite[]>()
+    for (const bite of monthTintBites(weeks)) {
+      let arr = m.get(bite.row)
+      if (!arr) { arr = []; m.set(bite.row, arr) }
+      arr.push(bite)
     }
     return m
   }, [weeks])
@@ -672,6 +684,33 @@ export default function Calendar({
                   borderRadius: `${seg.tl ? TINT_RADIUS_PX : 0}px ${seg.tr ? TINT_RADIUS_PX : 0}px ${seg.br ? TINT_RADIUS_PX : 0}px ${seg.bl ? TINT_RADIUS_PX : 0}px`,
                 }}
               />
+            ))}
+            {tintBitesByRow.get(wi)?.map((bite) => (
+              <div
+                key={`bite-${bite.col}`}
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0"
+                style={{
+                  left: `${(bite.col * 100) / 7}%`,
+                  width: `${100 / 7}%`,
+                }}
+              >
+                {/* Quarter-disc of tint filling the untinted cell's corner, so
+                    the tint boundary curves around it instead of meeting at a
+                    sharp 90° L (convex band corners are rounded above). */}
+                <span
+                  aria-hidden
+                  className="absolute"
+                  style={{
+                    ...(bite.corner === 'tl'
+                      ? { top: 0, left: 0, borderBottomRightRadius: TINT_RADIUS_PX }
+                      : { bottom: 0, right: 0, borderTopLeftRadius: TINT_RADIUS_PX }),
+                    width: TINT_RADIUS_PX,
+                    height: TINT_RADIUS_PX,
+                    backgroundColor: calStyle.monthTint,
+                  }}
+                />
+              </div>
             ))}
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)

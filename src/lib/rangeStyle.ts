@@ -238,6 +238,62 @@ export interface MonthTintSeg {
 export const TINT_RADIUS_PX = 16
 
 /**
+ * Concave "scoop" bite for the month tint — the untinted cell tucked into the
+ * inner corner of an even-month block (e.g. Sep 30 with Oct tint to its right
+ * and below, or Nov 1 with Oct tint to its left and above). The tint's own
+ * convex band corners are rounded by `monthTintSegments`, but where the band
+ * wraps AROUND an untinted day the boundary was left a sharp 90° L; each bite
+ * paints a quarter-disc of tint color (radius TINT_RADIUS_PX) into the corner
+ * of that cell so the tint boundary follows the same curve there too. Painted
+ * as plain DOM divs in the tint layer — same GPU-safe approach as the row
+ * segments (the old per-cell overlay version died with the SVG rewrite).
+ */
+export interface MonthTintBite {
+  /** Week row index within `weeks`. */
+  row: number
+  /** Column of the UNTINTED cell whose corner the tint rounds. */
+  col: number
+  /** Which corner of that cell the disc fills: tint sits above+left ('tl')
+   *  or right+below ('br') of the cell. */
+  corner: 'tl' | 'br'
+}
+
+export function monthTintBites(weeks: MonthCell[][]): MonthTintBite[] {
+  const out: MonthTintBite[] = []
+  // Month key of a TINTED (even, in-month) cell at (r, c); null when the cell
+  // is missing, out-of-month, or an untinted (odd) month.
+  const tintKey = (r: number, c: number): string | null => {
+    const cell = weeks[r]?.[c]
+    if (!cell || !cell.inMonth) return null
+    const mk = cell.iso.slice(0, 7)
+    return isTintMonth(mk) ? mk : null
+  }
+  for (let r = 0; r < weeks.length; r++) {
+    const row = weeks[r]
+    if (!row) continue
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c]
+      if (!cell || !cell.inMonth || isTintMonth(cell.iso)) continue
+      // 'br' — tint wraps the cell's bottom-right: tinted day to the right
+      // (same row) AND tinted day below (next row, same column), both from the
+      // same even month (e.g. Sep 30 → Oct 1 right, Oct 5 below).
+      const kRight = tintKey(r, c + 1)
+      const kBelow = tintKey(r + 1, c)
+      if (kRight && kRight === kBelow) {
+        out.push({ row: r, col: c, corner: 'br' })
+        continue
+      }
+      // 'tl' — mirror image: tint above (previous row, same column) AND to the
+      // left (same row), same even month (e.g. Nov 1 ← Oct 31 left, Oct above).
+      const kLeft = tintKey(r, c - 1)
+      const kAbove = tintKey(r - 1, c)
+      if (kLeft && kLeft === kAbove) out.push({ row: r, col: c, corner: 'tl' })
+    }
+  }
+  return out
+}
+
+/**
  * Which calendar months get the alternating background tint. Even-numbered
  * months (2,4,6,8,10,12) are tinted, odd months are plain — the original
  * alternating-strip design (0dff7c6); a Sep 3 inversion to odd months left
