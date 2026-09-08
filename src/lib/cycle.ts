@@ -424,22 +424,75 @@ export function cycleDayInfo(entries: DayEntry[], today: string, settings?: Sett
   return { dayInCycle, cycleLength, segments, phase }
 }
 
-/** Display label for a date's position in the current cycle (BLOOM day picker dialog). */
+/** Display label for a date's position in the cycle it actually falls in (BLOOM day picker dialog). */
 export interface CycleDayLabel {
   /** 1-based day within the cycle (1 = first period day, e.g. 2 for "day 2 of 26") */
   day: number
-  /** Predicted cycle length in days (average of logged cycles, or the user default) */
-  total: number
+  /**
+   * Cycle length in days: the ACTUAL logged length when the tapped date sits in
+   * a completed cycle, or the predicted (average) length inside the current
+   * cycle. Null when the current cycle has already run past its prediction and
+   * no period is logged yet — the real length is unknown, so only the running
+   * day count is shown ("Day 32", not "Day 32 of 28").
+   */
+  total: number | null
 }
 
 /**
- * Cycle-day label for ANY date (not just today): the date's folded position
- * within the current cycle, relative to the last logged period start and the
- * average cycle length. Null only when no period has ever been logged (no
- * anchor to count from).
+ * Cycle-day label for ANY date (not just today). Unlike the ring
+ * (`cycleDayInfo`, which folds today into the predicted cycle), this reports
+ * the date's REAL position: the cycle whose logged start is nearest on or
+ * before the date, with that cycle's ACTUAL observed length when it has a
+ * logged next start. Only dates beyond every logged start use the prediction
+ * (future forecast folding) — a current cycle running past its average length
+ * keeps counting real days instead of fake-wrapping into an unstarted cycle.
+ * Null when no period has ever been logged, the date precedes the first
+ * logged period, or the date sits inside an outlier gap (> MAX_CYCLE_LENGTH_DAYS
+ * = logging break / pregnancy / data error — not a real cycle).
  */
 export function cycleDayLabel(entries: DayEntry[], date: string, settings?: Settings): CycleDayLabel | null {
-  const info = cycleDayInfo(entries, date, settings)
-  if (!info) return null
-  return { day: info.dayInCycle + 1, total: info.cycleLength }
+  return cycleDayLabelOn(entries, date, settings, todayISO())
+}
+
+/**
+ * Deterministic core of `cycleDayLabel`: `today` is injected so future-fold
+ * vs. real-elapsed-day semantics are testable regardless of the wall clock.
+ */
+export function cycleDayLabelOn(
+  entries: DayEntry[],
+  date: string,
+  settings: Settings | undefined,
+  today: string,
+): CycleDayLabel | null {
+  const cycles = detectCycles(entries)
+  if (cycles.length === 0) return null
+
+  // The cycle this date falls in: the latest logged start on or before it.
+  let idx = cycles.length - 1
+  while (idx > 0 && cycles[idx].start > date) idx--
+  if (cycles[idx].start > date) return null // before any logged period
+
+  const c = cycles[idx]
+  const raw = diffDays(date, c.start)
+
+  // Completed cycle (a later logged start exists): use its ACTUAL observed
+  // length. An outlier gap (> 90 days) is a logging break, not a real cycle —
+  // withhold the label entirely (mirrors cycleTrends' isOutlier handling).
+  if (idx < cycles.length - 1) {
+    const actual = diffDays(cycles[idx + 1].start, c.start)
+    if (actual > MAX_CYCLE_LENGTH_DAYS) return null
+    return { day: raw + 1, total: actual }
+  }
+
+  // Current (last) cycle — its end is not logged yet; predict with the average.
+  const avg = averageCycleLength(cycles, settings?.cycleLength)
+  if (date > today) {
+    // Future dates: fold into predicted cycles anchored on the last start
+    // (matches the calendar's forecast). Predicted next start → day 1 again.
+    return { day: ((raw % avg) + avg) % avg + 1, total: avg }
+  }
+  // Real elapsed days: never wrap. Past the prediction (period late) the length
+  // is unknown → total null so the dialog shows the honest running day count.
+  const day = raw + 1
+  return { day, total: day <= avg ? avg : null }
 }

@@ -12,6 +12,7 @@ import {
   averagePeriodLength,
   cycleDayInfo,
   cycleDayLabel,
+  cycleDayLabelOn,
   cycleLengths,
   cycleTrends,
   detectCycles,
@@ -252,10 +253,70 @@ describe('cycleDayLabel', () => {
     const label = cycleDayLabel(entries, '2026-02-03', DEFAULT_SETTINGS)!
     expect(label).toEqual({ day: 2, total: 30 })
   })
+})
 
-  it('wraps: predicted next period start is day 1 again', () => {
-    const label = cycleDayLabel([day('2026-01-03')], '2026-01-31', { ...DEFAULT_SETTINGS, cycleLength: 28 })!
-    expect(label).toEqual({ day: 1, total: 28 })
+// cycleDayLabelOn(…, today) is the deterministic core (cycleDayLabel injects
+// todayISO()). All dates below are pinned to an injected today so the suite
+// never depends on the wall clock.
+describe('cycleDayLabel actual-cycle semantics (late/short/long cycles)', () => {
+  it('completed cycle reports its ACTUAL logged length, not the recency average', () => {
+    // Real start-to-start: A→B = 26 days, B→C = 30 days.
+    // Recency-weighted average = (26 + 2·30) / 3 ≈ 29 — the old always-same total.
+    const entries = [
+      '2026-01-03', '2026-01-04', // A
+      '2026-01-29', '2026-01-30', // B (+26)
+      '2026-02-28', '2026-03-01', // C (+30)
+    ].map((d) => day(d))
+    // A mid-cycle: total must be A's real 26 (day 18 exists in a 26-day cycle).
+    expect(cycleDayLabelOn(entries, '2026-01-20', DEFAULT_SETTINGS, '2026-09-09')).toEqual({ day: 18, total: 26 })
+    // B mid-cycle: total must be B's real 30.
+    expect(cycleDayLabelOn(entries, '2026-02-12', DEFAULT_SETTINGS, '2026-09-09')).toEqual({ day: 15, total: 30 })
+    // C's own first day: day 1 of the CURRENT cycle, still predicted 30 (avg fallback? no — current cycle predicted by avg of prior = 29)
+    expect(cycleDayLabelOn(entries, '2026-02-28', DEFAULT_SETTINGS, '2026-09-09')).toEqual({ day: 1, total: 29 })
+  })
+
+  it('shorter-than-average logged cycle caps a tapped day at its real length', () => {
+    // Completed gaps: A→B = 26, B→C = 30 → recency avg 29. The old label would
+    // call A's day 26 "day 26 of 29"; A really ended at 26.
+    const entries = [
+      '2025-12-01', '2025-12-02', // A
+      '2025-12-27', '2025-12-28', // B (+26)
+      '2026-01-26', '2026-01-27', // C (+30)
+    ].map((d) => day(d))
+    // Day 28 of A would exist under a 30-day cycle but A really ended at 26 → day 27 IS the last day of A.
+    expect(cycleDayLabelOn(entries, '2025-12-26', DEFAULT_SETTINGS, '2026-09-09')).toEqual({ day: 26, total: 26 })
+    // Next day the real cycle B has started.
+    expect(cycleDayLabelOn(entries, '2025-12-27', DEFAULT_SETTINGS, '2026-09-09')).toEqual({ day: 1, total: 30 })
+  })
+
+  it('no fake wrap when the current cycle runs LONGER than the average (period late)', () => {
+    const entries = ['2026-08-01', '2026-08-02'].map((d) => day(d)) // last start 08-01, avg 28 → predicted end 08-29
+    // Today 09-01, no bleed logged: real cycle day 32 — must NOT show "day 5 of 28".
+    expect(cycleDayLabelOn(entries, '2026-09-01', DEFAULT_SETTINGS, '2026-09-01')).toEqual({ day: 32, total: null })
+    // Still counting on 09-03 (day 34).
+    expect(cycleDayLabelOn(entries, '2026-09-03', DEFAULT_SETTINGS, '2026-09-03')).toEqual({ day: 34, total: null })
+    // Inside the predicted span the label keeps its predicted total.
+    expect(cycleDayLabelOn(entries, '2026-08-20', DEFAULT_SETTINGS, '2026-08-20')).toEqual({ day: 20, total: 28 })
+  })
+
+  it('future dates still fold into predicted cycles anchored on the last start', () => {
+    const entries = ['2026-08-01', '2026-08-02'].map((d) => day(d))
+    const today = '2026-08-10'
+    // Predicted next period start (08-29) → day 1 of the NEXT predicted cycle.
+    expect(cycleDayLabelOn(entries, '2026-08-29', DEFAULT_SETTINGS, today)).toEqual({ day: 1, total: 28 })
+    // Two days later in the future → day 3 of the next predicted cycle.
+    expect(cycleDayLabelOn(entries, '2026-08-31', DEFAULT_SETTINGS, today)).toEqual({ day: 3, total: 28 })
+  })
+
+  it('date before the first logged period has no cycle anchor → null', () => {
+    const entries = ['2026-01-03', '2026-01-04'].map((d) => day(d))
+    expect(cycleDayLabelOn(entries, '2025-12-20', DEFAULT_SETTINGS, '2026-09-09')).toBeNull()
+  })
+
+  it('outlier gap (> MAX_CYCLE_LENGTH_DAYS) is a logging break, not a cycle → null', () => {
+    // Single 212-day "gap" between logged runs — mid-break dates belong to no real cycle.
+    const entries = ['2026-01-03', '2026-01-04', '2026-08-03', '2026-08-04'].map((d) => day(d))
+    expect(cycleDayLabelOn(entries, '2026-03-01', DEFAULT_SETTINGS, '2026-09-09')).toBeNull()
   })
 })
 

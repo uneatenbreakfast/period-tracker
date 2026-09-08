@@ -99,7 +99,9 @@ function DialogOverlay({
 
         {label ? (
           <p className="mt-2 text-center text-2xl font-extrabold tracking-tight text-ink">
-            Day {label.day} of {label.total}
+            {label.total === null
+              ? `Day ${label.day}`
+              : `Day ${label.day} of ${label.total}`}
           </p>
         ) : (
           <p className="mt-2 text-center text-2xl font-extrabold tracking-tight text-ink">
@@ -109,7 +111,7 @@ function DialogOverlay({
         <p className="mt-1 text-center text-xs text-ink-soft">
           {label
             ? 'Tap below to log your notes, flow and symptoms for this day.'
-            : 'Log your first period day to start cycle predictions.'}
+            : 'Log your period days to place this day in a cycle.'}
         </p>
 
         <button
