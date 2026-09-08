@@ -51,6 +51,15 @@ export function saveSnapshot(snap: Snapshot, storage: StorageLike): void {
   storage.setItem(STORAGE_KEY, serializeSnapshot(updated))
 }
 
+/** Wipe everything: clears logged entries AND resets settings to defaults.
+ *  Persists the empty snapshot immediately (so a tab close before React's
+ *  save effect fires can't resurrect stale data) and returns it for state. */
+export function clearAllData(storage: StorageLike): Snapshot {
+  const empty = createEmptySnapshot()
+  saveSnapshot(empty, storage)
+  return empty
+}
+
 /** Pure upsert — returns a new snapshot. Pass the result to saveSnapshot. */
 export function upsertEntry(snap: Snapshot, entry: DayEntry): Snapshot {
   const others = snap.entries.filter((e) => e.date !== entry.date)

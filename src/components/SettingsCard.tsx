@@ -58,6 +58,7 @@ interface SettingsCardProps {
   onChange: (next: Settings) => void
   onExport: () => void
   onImport: (file: File) => void
+  onClearAll: () => void
 }
 
 interface StyleField {
@@ -139,7 +140,7 @@ function StyleRow({
   )
 }
 
-export default function SettingsCard({ settings, onChange, onExport, onImport }: SettingsCardProps) {
+export default function SettingsCard({ settings, onChange, onExport, onImport, onClearAll }: SettingsCardProps) {
   // Which style field's color picker is open — null = no modal.
   const [editing, setEditing] = useState<StyleField | null>(null)
 
@@ -237,8 +238,17 @@ export default function SettingsCard({ settings, onChange, onExport, onImport }:
             }}
           />
         </label>
+        <button
+          type="button"
+          onClick={onClearAll}
+          data-testid="settings-clear-all"
+          className="rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-50"
+        >
+          Clear all data
+        </button>
         <p className="text-[11px] font-semibold text-ink-soft/70">
-          Export saves your period history and settings as a JSON file. Import replaces your current data.
+          Export saves your period history and settings as a JSON file. Import replaces your current data. Clear all
+          data wipes your history and resets settings to defaults.
         </p>
       </div>
       <p className="mt-4 text-[11px] font-semibold text-ink-soft/80">Saved automatically on this device.</p>

@@ -21,6 +21,7 @@ import {
 } from './lib/swipeTabs'
 import {
   captureDeletedEntries,
+  clearAllData,
   createLocalStorageAdapter,
   deleteRangeFlow,
   getEntry,
@@ -240,6 +241,17 @@ export default function App() {
     reader.readAsText(file)
   }
 
+  const handleClearAll = () => {
+    if (
+      confirm(
+        `Delete all ${snap.entries.length} logged day${snap.entries.length === 1 ? '' : 's'} and reset settings to defaults? This can't be undone — export a backup first if you want to keep your data.`,
+      )
+    ) {
+      setUndoState(null)
+      setSnap(clearAllData(storage))
+    }
+  }
+
   const scrollToMonth = (year: number, month: number) => {
     // scroll the calendar's inner box (data-calendar-scroll), not the page.
     // rect-based: current positions already reflect current scrollTop, so the
@@ -419,6 +431,7 @@ export default function App() {
             onChange={(settings) => setSnap((s) => ({ ...s, settings }))}
             onExport={handleExport}
             onImport={handleImport}
+            onClearAll={handleClearAll}
           />
           <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
             Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device

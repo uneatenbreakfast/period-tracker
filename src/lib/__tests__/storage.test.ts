@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   captureDeletedEntries,
+  clearAllData,
   createEmptySnapshot,
   getEntry,
   loadSnapshot,
@@ -295,4 +296,25 @@ describe('undo capture helpers', () => {
     expect(undoResult.entries.map((e) => e.date)).toEqual(['2026-02-01', '2026-02-02', '2026-02-03'])
   })
 
+})
+
+describe('clear all data', () => {
+  it('wipes entries and resets settings to defaults', () => {
+    const storage = memoryStorage()
+    const withData = upsertEntry(createEmptySnapshot(), {
+      date: '2026-01-05',
+      flow: 'heavy',
+      symptoms: ['cramps'],
+      notes: 'bad',
+    })
+    const custom = { ...withData, settings: { ...DEFAULT_SETTINGS, cycleLength: 40 } }
+    saveSnapshot(custom, storage)
+
+    const cleared = clearAllData(storage)
+
+    expect(cleared.entries).toEqual([])
+    expect(cleared.settings).toEqual(DEFAULT_SETTINGS)
+    // Persisted immediately — a reload gives a clean slate, not stale data.
+    expect(loadSnapshot(storage)).toEqual(createEmptySnapshot())
+  })
 })
