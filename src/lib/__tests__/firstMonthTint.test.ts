@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { monthBackgroundPaths } from '../rangeStyle'
+import { monthTintSegments } from '../rangeStyle'
 import type { MonthCell } from '../dates'
 
-// Window that STARTS with an EVEN month (Feb 2024): first row = Jan 29..Feb 4
-// (Mon), second month March. All in-window cells inMonth; leading row has the
-// Feb 1 in it so the "first month" occupies row 0.
+// Real Feb 2024 window: Monday Jan 29 .. Sunday Mar 3, where February (even)
+// is the FIRST month in the window and starts mid-row at col 3 (Thu Feb 1).
+// Leading Jan 29-31 cells are out-of-month pads. Regression: the first month
+// of the window must still get its tint segments (Feb 1-4 = row 0 cols 3-6).
 function febWindow(): MonthCell[][] {
   const days = (startISO: string, count: number, inF: (i: number) => boolean): MonthCell[] =>
     Array.from({ length: count }, (_, i) => {
@@ -13,7 +14,7 @@ function febWindow(): MonthCell[][] {
       const iso = dt.toISOString().slice(0, 10)
       return { iso, inMonth: inF(i) }
     })
-  // Jan 29 2024 = Monday. Row 0: Jan29..Feb4. Row1: Feb5..11 ...
+  // Jan 29 2024 = Monday. Row 0: Jan29..Feb4. Rows 1-5 follow.
   const weeks: MonthCell[][] = []
   for (let r = 0; r < 6; r++) {
     const start = new Date(Date.UTC(2024, 0, 29 + r * 7))
@@ -25,23 +26,27 @@ function febWindow(): MonthCell[][] {
   return weeks
 }
 
-describe('first-month-even window (regression: top month of the window must get its tint path)', () => {
-  it('emits a path for the first month when it is even (Feb)', () => {
-    const weeks = febWindow()
-    const geom = { cellW: 51, rowTops: weeks.map((_, r) => r * 48), rowHeights: weeks.map(() => 48) }
-    const paths = monthBackgroundPaths(weeks, geom)
-    const mks = paths.map((p) => p.monthKey)
-    expect(mks[0]).toBe('2024-02')
+describe('first-even-month-of-window tint (regression)', () => {
+  it('emits segments for the leading even month (Feb 2024)', () => {
+    const segs = monthTintSegments(febWindow())
+    const mks = [...new Set(segs.map((s) => s.monthKey))]
     expect(mks).toContain('2024-02')
-    expect(mks).toContain('2024-03')
-    // path at y=0 (first month's first row top)
-    const [feb] = paths
-    expect(feb.pathD).toMatch(/ 0 L /)
+    expect(mks).not.toContain('2024-01')
+    expect(mks).not.toContain('2024-03')
   })
 
-  it('same with legacy unit mode', () => {
-    const weeks = febWindow()
-    const paths = monthBackgroundPaths(weeks)
-    expect(paths.map((p) => p.monthKey)[0]).toBe('2024-02')
+  it('places the Feb top row at cols 3-6 with its band corners', () => {
+    const segs = monthTintSegments(febWindow())
+    const top = segs.find((s) => s.monthKey === '2024-02' && s.row === 0)
+    expect(top).toMatchObject({ c0: 3, c1: 6, tl: true, tr: true })
+  })
+
+  it('has Feb span 5 rows ending with a partial bottom row', () => {
+    const feb = monthTintSegments(febWindow()).filter((s) => s.monthKey === '2024-02')
+    expect(feb).toHaveLength(5)
+    const last = feb[4]
+    // Feb 26..29 = cols 0-3 on the final row; bottom corners on that row.
+    expect(last.row).toBe(4)
+    expect(last).toMatchObject({ c0: 0, c1: 3, bl: true, br: true })
   })
 })

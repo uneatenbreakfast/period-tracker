@@ -1,127 +1,78 @@
 import { describe, expect, it } from 'vitest'
-import { monthBackgroundPaths, tintGeomMatches } from '../rangeStyle'
+import { monthTintSegments } from '../rangeStyle'
 import type { MonthCell } from '../dates'
 
-// Hand-built week grid where a single "month" occupies a rectangle of cells:
-// rows 0..rows-1, cols in `cols` are in-month (iso 2026-07-xx), rest out-month.
-// Note: the path tracer emits a point per exterior segment even on collinear
-// straight runs (e.g. "L 2 0 L 2 0" where two adjacent cells' top edges meet)
-// — redundant but geometrically identical to a merged path. Expectations
-// below are the VERIFIED exact outputs.
-function rectGrid(rows: number, cols: number[]): MonthCell[][] {
+// Grid of `rows` × 7 cells; a single month (even 2026-08, or whatever `mk`
+// month is passed) occupies every cell whose column is in `cols`. Cells use
+// sequential ISO dates so `.iso.slice(0, 7)` yields `mk` for in-month cells.
+function monthGrid(rows: number, cols: number[], mk = '2026-08'): MonthCell[][] {
   const weeks: MonthCell[][] = []
   for (let r = 0; r < rows; r++) {
     const week: MonthCell[] = []
     for (let c = 0; c < 7; c++) {
       const inMonth = cols.includes(c)
-      week.push({ iso: `2026-07-${String(r * 7 + c + 1).padStart(2, '0')}`, inMonth })
+      week.push({ iso: `${mk}-${String(r * 7 + c + 1).padStart(2, '0')}`, inMonth })
     }
     weeks.push(week)
   }
   return weeks
 }
 
-describe('monthBackgroundPaths legacy (no geom — grid units)', () => {
-  it('single-cell month at row 0 col 0', () => {
-    const grid = rectGrid(1, [0])
-    const [p] = monthBackgroundPaths(grid)
-    expect(p.pathD).toBe(
-      'M 0.35 0 L 0.65 0 A 0.35 0.35 0 0 1 1 0.35 L 1 0.65 A 0.35 0.35 0 0 1 0.65 1 L 0.35 1 A 0.35 0.35 0 0 1 0 0.65 L 0 0.35 A 0.35 0.35 0 0 1 0.35 0 Z',
-    )
+describe('monthTintSegments', () => {
+  it('emits one segment per week row for a full-width month', () => {
+    const segs = monthTintSegments(monthGrid(3, [0, 1, 2, 3, 4, 5, 6]))
+    expect(segs).toHaveLength(3)
+    expect(segs.map((s) => s.c0)).toEqual([0, 0, 0])
+    expect(segs.map((s) => s.c1)).toEqual([6, 6, 6])
+    // Top row: top-left + top-right band corners. Bottom row: bottom corners.
+    expect(segs[0]).toMatchObject({ tl: true, tr: true, bl: false, br: false })
+    expect(segs[1]).toMatchObject({ tl: false, tr: false, bl: false, br: false })
+    expect(segs[2]).toMatchObject({ tl: false, tr: false, bl: true, br: true })
   })
 
-  it('2x3 rectangle: rows 0-1, cols 1-3 (unchanged from previous algorithm)', () => {
-    const grid = rectGrid(2, [1, 2, 3])
-    const [p] = monthBackgroundPaths(grid)
-    expect(p.pathD).toBe(
-      'M 1.35 0 L 2 0 L 2 0 L 3 0 L 3 0 L 3.65 0 A 0.35 0.35 0 0 1 4 0.35 L 4 1 L 4 1 L 4 1.65 A 0.35 0.35 0 0 1 3.65 2 L 3 2 L 3 2 L 2 2 L 2 2 L 1.35 2 A 0.35 0.35 0 0 1 1 1.65 L 1 1 L 1 1 L 1 0.35 A 0.35 0.35 0 0 1 1.35 0 Z',
-    )
-  })
-})
-
-describe('monthBackgroundPaths px geom — uniform rows', () => {
-  it('scales coordinates exactly by cellW and row height', () => {
-    const grid = rectGrid(2, [1, 2, 3])
-    const [p] = monthBackgroundPaths(grid, {
-      cellW: 40,
-      rowTops: [0, 44],
-      rowHeights: [44, 44],
-    })
-    // Same rectangle as legacy, every x scaled by 40, y by 44,
-    // R = 0.35 * min(40, 44) = 14.
-    expect(p.pathD).toBe(
-      'M 54 0 L 80 0 L 80 0 L 120 0 L 120 0 L 146 0 A 14 14 0 0 1 160 14 L 160 44 L 160 44 L 160 74 A 14 14 0 0 1 146 88 L 120 88 L 120 88 L 80 88 L 80 88 L 54 88 A 14 14 0 0 1 40 74 L 40 44 L 40 44 L 40 14 A 14 14 0 0 1 54 0 Z',
-    )
-  })
-})
-
-describe('monthBackgroundPaths px geom — NON-uniform rows (the bug)', () => {
-  it('tracks measured row tops/heights exactly when rows differ', () => {
-    const grid = rectGrid(2, [1, 2, 3])
-    // Row 0 is 36px, row 1 is 60px — a tall row from a month-start label
-    // or font scaling. Legacy uniform mapping would misplace row 1.
-    const [p] = monthBackgroundPaths(grid, {
-      cellW: 40,
-      rowTops: [0, 36],
-      rowHeights: [36, 60],
-    })
-    // R = 0.35 * min(cellW 40, minRowH 36) = 12.6 → r2 = 12.6.
-    // Top edge y=0; the mid boundary lands at y=36 (bottom of row 0):
-    expect(p.pathD).toBe(
-      'M 52.6 0 L 80 0 L 80 0 L 120 0 L 120 0 L 147.4 0 A 12.6 12.6 0 0 1 160 12.6 L 160 36 L 160 36 L 160 83.4 A 12.6 12.6 0 0 1 147.4 96 L 120 96 L 120 96 L 80 96 L 80 96 L 52.6 96 A 12.6 12.6 0 0 1 40 83.4 L 40 36 L 40 36 L 40 12.6 A 12.6 12.6 0 0 1 52.6 0 Z',
-    )
+  it('rounds only the month-block convex corners on a partial-start month', () => {
+    // Month starts mid-row at col 3 and spans three full-width rows beneath —
+    // the October/February pattern.
+    const weeks = monthGrid(1, [3, 4, 5, 6])
+    weeks.push(monthGrid(2, [0, 1, 2, 3, 4, 5, 6])[0])
+    weeks.push(monthGrid(2, [0, 1, 2, 3, 4, 5, 6])[1])
+    const segs = monthTintSegments(weeks)
+    expect(segs).toHaveLength(3)
+    // Top row: only the 4 partial cells; both its corners are band corners.
+    expect(segs[0]).toMatchObject({ c0: 3, c1: 6, tl: true, tr: true, bl: false, br: false })
+    // Second row: the block now starts at col 0, so its col-0 cell carries the
+    // band's left-top corner (cell above is out-of-month).
+    expect(segs[1]).toMatchObject({ c0: 0, c1: 6, tl: true, tr: false, bl: false, br: false })
+    // Bottom row: left + right bottom corners.
+    expect(segs[2]).toMatchObject({ c0: 0, c1: 6, tl: false, tr: false, bl: true, br: true })
   })
 
-  it('three uneven rows: each vertical edge lands on the measured boundary', () => {
-    const grid = rectGrid(3, [2])
-    const [p] = monthBackgroundPaths(grid, {
-      cellW: 50,
-      rowTops: [0, 30, 75], // heights 30, 45, 40
-      rowHeights: [30, 45, 40],
-    })
-    // min rowH = 30 → R = 0.35 * 30 = 10.5. col 2 → x 100..150.
-    // Mid boundaries appear at y=30 and y=75; bottom at 75+40=115.
-    expect(p.pathD).toBe(
-      'M 110.5 0 L 139.5 0 A 10.5 10.5 0 0 1 150 10.5 L 150 30 L 150 30 L 150 75 L 150 75 L 150 104.5 A 10.5 10.5 0 0 1 139.5 115 L 110.5 115 A 10.5 10.5 0 0 1 100 104.5 L 100 75 L 100 75 L 100 30 L 100 30 L 100 10.5 A 10.5 10.5 0 0 1 110.5 0 Z',
-    )
+  it('rounds all four corners of a single-cell month', () => {
+    const segs = monthTintSegments(monthGrid(1, [4]))
+    expect(segs).toHaveLength(1)
+    expect(segs[0]).toMatchObject({ c0: 4, c1: 4, tl: true, tr: true, bl: true, br: true })
   })
 
-  it('falls back to legacy unit mode when geom row count mismatches', () => {
-    const grid = rectGrid(1, [0])
-    const [p] = monthBackgroundPaths(grid, {
-      cellW: 40,
-      rowTops: [0, 44], // 2 rowTops but only 1 week
-      rowHeights: [44, 44],
-    })
-    expect(p.pathD).toBe(
-      'M 0.35 0 L 0.65 0 A 0.35 0.35 0 0 1 1 0.35 L 1 0.65 A 0.35 0.35 0 0 1 0.65 1 L 0.35 1 A 0.35 0.35 0 0 1 0 0.65 L 0 0.35 A 0.35 0.35 0 0 1 0.35 0 Z',
-    )
-  })
-})
-
-describe('tintGeomMatches', () => {
-  it('true when rowTops/rowHeights lengths equal weeks length', () => {
-    const geom = { cellW: 40, rowTops: [0, 44, 88], rowHeights: [44, 44, 44] }
-    expect(tintGeomMatches(geom, 3)).toBe(true)
+  it('only tints even months (odd months emit no segments)', () => {
+    expect(monthTintSegments(monthGrid(2, [0, 1, 2, 3, 4, 5, 6], '2026-09'))).toEqual([])
   })
 
-  it('false when geom is null/undefined (pre-measure)', () => {
-    expect(tintGeomMatches(null, 3)).toBe(false)
-    expect(tintGeomMatches(undefined, 3)).toBe(false)
+  it('respects month boundaries across rows (neighbor in a different month is a boundary)', () => {
+    // Row 0: Aug at cols 4-6 (top-left corner only). Row 1: Sep at cols 0-2 —
+    // odd, so untinted; the Aug block does NOT continue below, so the Aug
+    // bottom corners land on row 0.
+    const weeks = monthGrid(2, [4, 5, 6]) // all '2026-08' in-month in those cols
+    // Force row 1 cells to be September instead (odd → skipped as their own
+    // month, and treated as boundary for August).
+    for (let c = 0; c < 7; c++) {
+      weeks[1][c] = { iso: `2026-09-${String(c + 1).padStart(2, '0')}`, inMonth: c <= 2 }
+    }
+    const segs = monthTintSegments(weeks)
+    expect(segs).toHaveLength(1)
+    expect(segs[0]).toMatchObject({ row: 0, c0: 4, c1: 6, tl: true, tr: true, bl: true, br: true })
   })
 
-  it('false when rowTops length differs (stale geom after window prepend/append)', () => {
-    const geom = { cellW: 40, rowTops: [0, 44], rowHeights: [44, 44] }
-    expect(tintGeomMatches(geom, 3)).toBe(false)
-  })
-
-  it('false when rowHeights length differs from rowTops', () => {
-    const geom = { cellW: 40, rowTops: [0, 44], rowHeights: [44] }
-    expect(tintGeomMatches(geom, 2)).toBe(false)
-  })
-
-  it('true for an empty geom against zero weeks', () => {
-    const geom = { cellW: 40, rowTops: [], rowHeights: [] }
-    expect(tintGeomMatches(geom, 0)).toBe(true)
+  it('emits nothing for an empty grid', () => {
+    expect(monthTintSegments([])).toEqual([])
   })
 })

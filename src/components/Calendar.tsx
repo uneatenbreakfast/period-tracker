@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { Snapshot } from '../types'
 import {
@@ -23,8 +23,8 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthBackgroundPaths, ovulationRing, runShape, selectionRingColor, tintGeomMatches } from '../lib/rangeStyle'
-import type { DayShape, MonthGeom } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -135,99 +135,22 @@ export default function Calendar({
     return s
   }, [ovulationDays, history.ovulationDays])
 
-  // Measure the month-tint overlay's containing box AND each week row in
-  // real pixels. The SVG is absolutely positioned inside a height-auto
-  // wrapper, so a percentage height can resolve against the wrong box (or
-  // fall back to the intrinsic 7:36 ratio) on some engines. More important:
-  // rows are NOT uniformly pitched on every viewport — month-start labels,
-  // font scaling and zoom can grow some rows taller than others. The SVG
-  // paths are therefore generated in PIXEL space from the measured row
-  // tops/heights, so the tint tracks the cells exactly at any screen size.
-  const tintBoxRef = useRef<HTMLDivElement | null>(null)
-  const rowElsRef = useRef<(HTMLDivElement | null)[]>([])
-  const [tintGeom, setTintGeom] = useState<MonthGeom | null>(null)
-  // Strict gate: pixel-space paths are only valid while the measured geometry
-  // covers EXACTLY the current weeks. After a window prepend/append the old
-  // geom has a stale length; using it would stretch unit-coordinate paths
-  // into a pixel viewBox (preserveAspectRatio="none") → elliptical corners +
-  // one-row drift. Until a fresh measure lands, render NO tint at all rather
-  // than a malformed one.
-  const tintGeomOk = useMemo(
-    () => tintGeomMatches(tintGeom, weeks.length),
-    [tintGeom, weeks],
-  )
-  useLayoutEffect(() => {
-    const el = tintBoxRef.current
-    if (!el) return
-    let cancelled = false
-    let retries = 0
-    const measure = () => {
-      const r = el.getBoundingClientRect()
-      const rows = rowElsRef.current
-      const tops: number[] = []
-      const heights: number[] = []
-      // A null rowEl means a row ref hasn't been attached yet (rows remount
-      // when the keyed window prepends/appends). Never abort the whole
-      // measurement on it — collect what we have and retry on the next
-      // frame; aborting here permanently froze tintGeom to a stale length.
-      let missing = false
-      for (const rowEl of rows) {
-        if (!rowEl) {
-          missing = true
-          continue
-        }
-        const rr = rowEl.getBoundingClientRect()
-        tops.push(rr.top - r.top)
-        heights.push(rr.height)
-      }
-      if (missing) {
-        // Retry a few frames for rows that are mid-remount (window prepends
-        // re-key all rows). Bounded so a permanently-null ref can't spin.
-        if (!cancelled && retries < 6 && typeof requestAnimationFrame !== 'undefined') {
-          retries += 1
-          requestAnimationFrame(measure)
-        }
-        return
-      }
-      if (tops.length === 0) return
-      setTintGeom((prev) => {
-        const same =
-          prev &&
-          Math.abs(prev.cellW - r.width / 7) < 0.5 &&
-          prev.rowTops.length === tops.length &&
-          prev.rowTops.every((v, i) => Math.abs(v - tops[i]) < 0.5) &&
-          prev.rowHeights.every((v, i) => Math.abs(v - heights[i]) < 0.5)
-        return same
-          ? prev
-          : { cellW: r.width / 7, rowTops: tops, rowHeights: heights }
-      })
+  // Month-tint bands: one absolutely-positioned painted run per (week row ×
+  // contiguous in-month columns) — plain DOM divs behind the day buttons.
+  // Replaces the single SVG that used to span the whole scrollable grid: that
+  // vector layer re-tessellated every scroll frame AND, once promoted with
+  // translateZ(0), exceeded phone GPU texture budgets and rendered as a
+  // corrupt displaced blob (Samsung Fold 8). Row segments need no geometry
+  // measurement — each fills its own row, so they track cells at any pitch.
+  const tintSegsByRow = useMemo(() => {
+    const m = new Map<number, MonthTintSeg[]>()
+    for (const seg of monthTintSegments(weeks)) {
+      let arr = m.get(seg.row)
+      if (!arr) { arr = []; m.set(seg.row, arr) }
+      arr.push(seg)
     }
-    measure()
-    if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(measure)
-      ro.observe(el)
-      for (const rowEl of rowElsRef.current) {
-        if (rowEl) ro.observe(rowEl)
-      }
-      return () => {
-        cancelled = true
-        ro.disconnect()
-      }
-    }
-    return () => {
-      cancelled = true
-    }
-    // Re-measure on ANY grid change (identity), not just a row-count change:
-    // a prepend/append that keeps the same week count (e.g. interleaved
-    // back-scroll + future growth) leaves the old geometry in place while the
-    // length gate passes → malformed tint bands. `weeks` is memoized over the
-    // month window, so this effect only re-runs when the grid actually changes.
+    return m
   }, [weeks])
-  // Unified SVG month background paths — replaces per-cell rounded corners + tint
-  const monthBgPaths = useMemo(
-    () => (tintGeomOk ? monthBackgroundPaths(weeks, tintGeom ?? undefined) : []),
-    [weeks, tintGeom, tintGeomOk],
-  )
   // Edit mode for an existing committed run: drag the start/end handles,
   // confirm with the Save/Cancel modal.
   const [edit, setEdit] = useState<EditRange | null>(null)
@@ -722,53 +645,6 @@ export default function Calendar({
           })
         }}
       >
-      {/* Positioning wrapper: SVG fills exactly the grid content area */}
-      <div ref={tintBoxRef} className="relative">
-      {/* SVG month background layer: one continuous path per month, rounded
-          on convex outer corners, flush on interior edges. When `tintGeom`
-          has been measured, viewBox + paths are in REAL pixel coordinates
-          (identity map), so the tint sits exactly on the cells regardless of
-          row pitch. Pre-measure fallback: unit viewBox + h-full w-full. */}
-      {(() => {
-        const pxGeom = tintGeomOk && tintGeom
-        const totalH = pxGeom
-          ? tintGeom.rowTops[tintGeom.rowTops.length - 1] + tintGeom.rowHeights[tintGeom.rowHeights.length - 1]
-          : 0
-        const totalW = pxGeom ? tintGeom.cellW * 7 : 0
-        // Durable scroll-flicker fix (2026-09-08): this ONE svg spans the whole
-        // scrollable grid (every month row, potentially thousands of px tall).
-        // It is a vector layer with preserveAspectRatio="none", so on phone GPU
-        // compositors every scroll frame re-tessellates its rounded paths as
-        // transient soft patches ("orbs") while the content is in motion —
-        // geometry is verified clean frame-by-frame in Chromium, yet devices
-        // mid-fling show the artifact. Promote the svg onto its OWN composited
-        // layer (translateZ(0) + will-change): the vector is rasterized once to
-        // a texture and scrolling only translates tiles of that texture — no
-        // repeated tessellation, no repaint of the decorative layer per frame.
-        // Paint order unchanged: the layer sits behind the grid cells (rows are
-        // later positioned siblings, painted after it in the same context).
-        const layerStyle = {
-          transform: 'translateZ(0)',
-          willChange: 'transform',
-          ...(pxGeom ? { width: `${totalW}px`, height: `${totalH}px` } : {}),
-        }
-        return (
-      <svg
-        className="pointer-events-none absolute inset-0 h-full w-full"
-        style={layerStyle}
-        viewBox={pxGeom ? `0 0 ${totalW} ${totalH}` : `0 0 7 ${weeks.length}`}
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        {monthBgPaths.map(({ monthKey, pathD }) => {
-          // Even months get the user-pickable tint; odd months stay plain.
-          return isTintMonth(monthKey) ? (
-            <path key={monthKey} d={pathD} style={{ fill: calStyle.monthTint }} />
-          ) : null
-        })}
-      </svg>
-        )
-      })()}
       {weeks.map((week, wi) => {
         // Anchor for the month whose 1st falls in this row — App's Today pill
         // and the initial scroll bring the row containing the 1st to the top.
@@ -781,12 +657,22 @@ export default function Calendar({
         return (
           <div
           key={`w${wi}`}
-          ref={(el) => {
-            rowElsRef.current[wi] = el
-          }}
           data-month={monthRef}
           className="relative grid grid-cols-7"
         >
+            {tintSegsByRow.get(wi)?.map((seg) => (
+              <div
+                key={`${seg.monthKey}-${seg.row}-${seg.c0}`}
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0"
+                style={{
+                  left: `${(seg.c0 * 100) / 7}%`,
+                  width: `${((seg.c1 - seg.c0 + 1) * 100) / 7}%`,
+                  backgroundColor: calStyle.monthTint,
+                  borderRadius: `${seg.tl ? TINT_RADIUS_PX : 0}px ${seg.tr ? TINT_RADIUS_PX : 0}px ${seg.br ? TINT_RADIUS_PX : 0}px ${seg.bl ? TINT_RADIUS_PX : 0}px`,
+                }}
+              />
+            ))}
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined
@@ -835,13 +721,14 @@ export default function Calendar({
 
                   const monthTint = cell.inMonth && isTintMonth(cell.iso)
                   // Layout: centered circles by default; period shapes use
-                  // capsule geometry. SVG layer behind grid provides month tint.
+                  // capsule geometry. Month-tint segments painted as the row's
+                  // first child sit behind every button.
                   let cls =
                     'flex aspect-square select-none items-center justify-center text-sm transition-colors touch-none'
                   cls += ' ' + cellLayoutClass(shape)
                   if (!cell.inMonth) cls += ' opacity-15 text-ink-soft/40'
                   // Fill: shapes paint rose/lavender/sage depending on range;
-                  // unshaped cells are transparent so SVG month bg shows through.
+                  // unshaped cells stay transparent so the tint segments show.
                   cls += ' ' + cellFillClass(shape, isFertile, isPredicted, isSafe, monthTint, shapeOrigin)
                   // User-pickable colors (BLOOM-0022) — inline styles replace
                   // the old fixed Tailwind color utilities.
@@ -1072,7 +959,6 @@ export default function Calendar({
               </div>
             )
           })}
-      </div>
       </div>
       {undoState && (
         <div className="animate-slide-up absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full bg-ink px-4 py-2 shadow-lg">
