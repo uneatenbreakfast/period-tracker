@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import type { CycleDayLabel } from '../lib/cycle'
 import { fromISODate } from '../lib/dates'
 import { createPortal } from 'react-dom'
+import { revealDelta } from '../lib/sheetReveal'
 
 interface CycleDayDialogProps {
   date: string
@@ -23,6 +25,30 @@ export default function CycleDayDialog({ date, label, onOpenForm, onClose }: Cyc
     month: 'long',
     day: 'numeric',
   })
+
+  // The sheet slides over the lower part of the calendar. If it covers the
+  // day that was just tapped (the day sits behind the opaque sheet panel),
+  // scroll the calendar so the day — with its selection ring — is visible in
+  // the strip above the sheet. Runs once per date change (the dialog is a
+  // fresh mount per tap, so this fires on open).
+  useEffect(() => {
+    // Measure after layout: the portal content above (this sheet) and the
+    // scroller's day buttons both need their final positions.
+    const raf = requestAnimationFrame(() => {
+      const scroller = document.querySelector<HTMLElement>('[data-calendar-scroll]')
+      const sheet = document.querySelector<HTMLElement>('[data-sheet]')
+      if (!scroller || !sheet) return
+      const cell = scroller.querySelector<HTMLElement>(`button[aria-label="${date}"]`)
+      // The white sheet panel is the first child of the [data-sheet] overlay.
+      const panel = sheet.firstElementChild as HTMLElement | null
+      if (!cell || !panel) return
+      const cellBottom = cell.getBoundingClientRect().bottom
+      const sheetTop = panel.getBoundingClientRect().top
+      const delta = revealDelta(cellBottom, sheetTop)
+      if (delta > 0) scroller.scrollTop += delta
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [date])
 
   return (
     <DialogOverlay
