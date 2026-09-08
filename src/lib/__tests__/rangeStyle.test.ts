@@ -8,6 +8,7 @@ import {
   monthScoopClass,
   ovulationRing,
   runShape,
+  selectionRingColor,
 } from '../rangeStyle'
 import { DEFAULT_CALENDAR_STYLE } from '../settings'
 import { darken } from '../color'
@@ -292,5 +293,42 @@ describe('ovulationRing', () => {
   it('lightens the ovulation color ~55% toward white', () => {
     expect(ovulationRing(DEFAULT_CALENDAR_STYLE)).toBe('#e0d7ee')
     expect(ovulationRing({ ...DEFAULT_CALENDAR_STYLE, ovulation: '#000000' })).toBe('#8c8c8c')
+  })
+})
+
+describe('selectionRingColor', () => {
+  const style = DEFAULT_CALENDAR_STYLE
+
+  it('null for unshaped cells — Calendar keeps the static rose outline', () => {
+    expect(selectionRingColor(null, undefined, style)).toBeNull()
+    expect(selectionRingColor(null, 'period', style)).toBeNull()
+  })
+
+  it('white ring on the default dark period fill (inverted vs highlight)', () => {
+    expect(selectionRingColor('single', 'period', style)).toBe('#ffffff')
+    expect(selectionRingColor('start', 'period', style)).toBe('#ffffff')
+    expect(selectionRingColor('middle', 'period', style)).toBe('#ffffff')
+    expect(selectionRingColor('end', 'period', style)).toBe('#ffffff')
+  })
+
+  it('drag-preview cells (origin undefined) use the period fill contrast', () => {
+    expect(selectionRingColor('middle', undefined, style)).toBe('#ffffff')
+  })
+
+  it('darkened ring on light fertile/safe fills (never white-on-white)', () => {
+    expect(selectionRingColor('middle', 'fertile', style)).toBe('#57545c')
+    expect(selectionRingColor('middle', 'safe', style)).toBe('#565a54')
+  })
+
+  it('null for predicted — dashed + transparent, no fill to clash with', () => {
+    expect(selectionRingColor('middle', 'predicted', style)).toBeNull()
+    expect(selectionRingColor('start', 'predicted', style)).toBeNull()
+  })
+
+  it('follows a user-picked light period color (inverts to a dark ring)', () => {
+    const custom = { ...style, period: '#ffe0ec' }
+    expect(selectionRingColor('middle', 'period', custom)).not.toBe('#ffffff')
+    const dark = { ...style, period: '#123456' }
+    expect(selectionRingColor('middle', 'period', dark)).toBe('#ffffff')
   })
 })

@@ -23,7 +23,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthBackgroundPaths, ovulationRing, runShape, tintGeomMatches } from '../lib/rangeStyle'
+import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthBackgroundPaths, ovulationRing, runShape, selectionRingColor, tintGeomMatches } from '../lib/rangeStyle'
 import type { DayShape, MonthGeom } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -848,8 +848,17 @@ export default function Calendar({
                   const fillStyle = cellFillStyle(shape, isFertile, isPredicted, isSafe, monthTint, calStyle, shapeOrigin)
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
-                  // Today: small ink dot below number — distinct from rose period
-                  // fill, zero state ambiguity. Selected: outline for non-period.
+                  // Selected ring. Plain (unshaped) days: rose outline just
+                  // outside the circle. Shaped cells (period/fertile/safe
+                  // runs) sit on a solid fill that matches the ring's rose
+                  // tone, so they draw an INVERTED ring — contrast vs. the
+                  // actual fill — as an inner circle around the day number
+                  // (a strip cell's box outline would be a square bracket
+                  // slicing across the capsule). Predicted cells are dashed
+                  // + transparent and keep no marker.
+                  const selRingColor = isSelected
+                    ? selectionRingColor(shape, shapeOrigin, calStyle)
+                    : null
                   if (isSelected && !shape) cls += ' outline-2 outline-offset-2 outline-rose-300'
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
 
@@ -964,6 +973,13 @@ export default function Calendar({
                           className={`pointer-events-none absolute inset-0 ${
                             shape === 'single' ? 'rounded-full' : shape === 'start' ? 'rounded-l-full' : shape === 'end' ? 'rounded-r-full' : ''
                           }`}
+                        />
+                      ) : null}
+                      {isSelected && selRingColor ? (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 z-[2] m-auto h-8 w-8 rounded-full border-2"
+                          style={{ borderColor: selRingColor }}
                         />
                       ) : null}
                       {editHandle === 'start' ? grip : null}

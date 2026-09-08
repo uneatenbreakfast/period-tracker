@@ -12,7 +12,7 @@
 import { addDays } from './dates'
 import type { MonthCell } from './dates'
 import type { CalendarStyle } from '../types'
-import { darken, lighten } from './color'
+import { contrastRing, darken, lighten } from './color'
 
 export type DayShape = 'single' | 'start' | 'middle' | 'end'
 
@@ -171,6 +171,31 @@ export function cellFillStyle(
 /** Soft ring shade for the ovulation dot — the fill lightened ~55% to white. */
 export function ovulationRing(style: CalendarStyle): string {
   return lighten(style.ovulation, 0.55)
+}
+
+/**
+ * Selection ring shade for a SELECTED day. Plain (unshaped) cells return
+ * null — Calendar keeps the static rose outline there. Shaped cells sit on a
+ * solid user-pickable fill (period/fertile/safe runs, drag preview), so the
+ * ring color must INVERT relative to that fill or it disappears into the
+ * highlight. Predicted cells are dashed + transparent → null (no fill to
+ * clash with).
+ */
+export function selectionRingColor(
+  shape: DayShape | null,
+  shapeOrigin: 'period' | 'fertile' | 'predicted' | 'safe' | undefined,
+  style: CalendarStyle,
+): string | null {
+  if (!shape) return null
+  const fill =
+    shapeOrigin === 'fertile'
+      ? style.fertile
+      : shapeOrigin === 'safe'
+        ? style.safe
+        : shapeOrigin === 'predicted'
+          ? null
+          : style.period // committed period, or drag preview (origin undefined)
+  return fill ? contrastRing(fill) : null
 }
 
 /**

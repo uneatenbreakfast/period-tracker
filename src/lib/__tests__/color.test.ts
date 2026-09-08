@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { darken, hexToHsv, hexToRgb, hsvToHex, lighten, mixHex, rgbToHex } from '../color'
+import { contrastRing, darken, hexToHsv, hexToRgb, hsvToHex, lighten, mixHex, rgbToHex } from '../color'
 
 describe('hexToRgb / rgbToHex', () => {
   it('round-trips channel values', () => {
@@ -43,6 +43,29 @@ describe('mixHex / darken / lighten', () => {
   it('matches the shipped sage text derivation', () => {
     // sage-100 #e3eddd darken 0.35 ≈ the old sage-400 #8fae8b
     expect(darken('#e3eddd', 0.35)).toBe('#949a90')
+  })
+})
+
+describe('contrastRing', () => {
+  it('white on dark fills (period pink #f2318c)', () => {
+    expect(contrastRing('#f2318c')).toBe('#ffffff')
+    expect(contrastRing('#000000')).toBe('#ffffff')
+  })
+
+  it('darkened fill shade on light fills', () => {
+    // lavender-100 fill → darken 0.62
+    expect(contrastRing('#e4dcf3')).toBe('#57545c')
+    // sage-100 fill → darken 0.62
+    expect(contrastRing('#e3eddd')).toBe('#565a54')
+    // pure white → mid-gray
+    expect(contrastRing('#ffffff')).toBe('#616161')
+  })
+
+  it('is deterministic around the luma threshold', () => {
+    // A mid-tone just under the threshold inverts to white…
+    expect(contrastRing('#969696')).toBe('#ffffff')
+    // …just over it inverts to a darkened shade (never white-on-white).
+    expect(contrastRing('#9b9b9b')).not.toBe('#ffffff')
   })
 })
 

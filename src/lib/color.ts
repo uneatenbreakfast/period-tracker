@@ -49,6 +49,19 @@ export function lighten(hex: string, ratio: number): string {
   return mixHex(hex, '#ffffff', ratio)
 }
 
+/**
+ * Contrasting ring shade for a marker sitting ON a colored fill — white on
+ * dark fills, a darkened shade of the fill on light fills. Keeps a selection
+ * ring legible against any user-pickable fill (the ring "inverts" relative
+ * to whichever color it sits on). Threshold 0.6 (luma) ≈ the readability
+ * split used by the dark-text-on-light-fill cells.
+ */
+export function contrastRing(hex: string): string {
+  const { r, g, b } = hexToRgb(hex)
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return lum > 0.6 ? darken(hex, 0.62) : '#ffffff'
+}
+
 export interface Hsv {
   /** Hue 0–360 (degrees). */
   h: number
