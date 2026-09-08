@@ -730,15 +730,33 @@ export default function Calendar({
           (identity map), so the tint sits exactly on the cells regardless of
           row pitch. Pre-measure fallback: unit viewBox + h-full w-full. */}
       {(() => {
-        const totalH = tintGeomOk && tintGeom
+        const pxGeom = tintGeomOk && tintGeom
+        const totalH = pxGeom
           ? tintGeom.rowTops[tintGeom.rowTops.length - 1] + tintGeom.rowHeights[tintGeom.rowHeights.length - 1]
           : 0
-        const totalW = tintGeomOk && tintGeom ? tintGeom.cellW * 7 : 0
+        const totalW = pxGeom ? tintGeom.cellW * 7 : 0
+        // Durable scroll-flicker fix (2026-09-08): this ONE svg spans the whole
+        // scrollable grid (every month row, potentially thousands of px tall).
+        // It is a vector layer with preserveAspectRatio="none", so on phone GPU
+        // compositors every scroll frame re-tessellates its rounded paths as
+        // transient soft patches ("orbs") while the content is in motion —
+        // geometry is verified clean frame-by-frame in Chromium, yet devices
+        // mid-fling show the artifact. Promote the svg onto its OWN composited
+        // layer (translateZ(0) + will-change): the vector is rasterized once to
+        // a texture and scrolling only translates tiles of that texture — no
+        // repeated tessellation, no repaint of the decorative layer per frame.
+        // Paint order unchanged: the layer sits behind the grid cells (rows are
+        // later positioned siblings, painted after it in the same context).
+        const layerStyle = {
+          transform: 'translateZ(0)',
+          willChange: 'transform',
+          ...(pxGeom ? { width: `${totalW}px`, height: `${totalH}px` } : {}),
+        }
         return (
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
-        style={tintGeomOk && tintGeom ? { width: `${totalW}px`, height: `${totalH}px` } : undefined}
-        viewBox={tintGeomOk && tintGeom ? `0 0 ${totalW} ${totalH}` : `0 0 7 ${weeks.length}`}
+        style={layerStyle}
+        viewBox={pxGeom ? `0 0 ${totalW} ${totalH}` : `0 0 7 ${weeks.length}`}
         preserveAspectRatio="none"
         aria-hidden
       >
