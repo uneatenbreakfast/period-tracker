@@ -48,3 +48,54 @@ export function darken(hex: string, ratio: number): string {
 export function lighten(hex: string, ratio: number): string {
   return mixHex(hex, '#ffffff', ratio)
 }
+
+export interface Hsv {
+  /** Hue 0–360 (degrees). */
+  h: number
+  /** Saturation 0–1. */
+  s: number
+  /** Value (brightness) 0–1. */
+  v: number
+}
+
+/** Convert a normalized lowercase `#rrggbb` hex string into HSV. */
+export function hexToHsv(hex: string): Hsv {
+  const { r, g, b } = hexToRgb(hex)
+  const rn = r / 255
+  const gn = g / 255
+  const bn = b / 255
+  const max = Math.max(rn, gn, bn)
+  const min = Math.min(rn, gn, bn)
+  const d = max - min
+  const v = max
+  let h = 0
+  let s = max === 0 ? 0 : d / max
+  if (d !== 0) {
+    if (max === rn) h = 60 * (((gn - bn) / d) % 6)
+    else if (max === gn) h = 60 * ((bn - rn) / d + 2)
+    else h = 60 * ((rn - gn) / d + 4)
+  }
+  if (h < 0) h += 360
+  return { h, s, v }
+}
+
+/** Convert HSV back into a normalized lowercase `#rrggbb` hex string. */
+export function hsvToHex({ h, s, v }: Hsv): string {
+  const c = v * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = v - c
+  let r = 0
+  let g = 0
+  let b = 0
+  if (h < 60) [r, g, b] = [c, x, 0]
+  else if (h < 120) [r, g, b] = [x, c, 0]
+  else if (h < 180) [r, g, b] = [0, c, x]
+  else if (h < 240) [r, g, b] = [0, x, c]
+  else if (h < 300) [r, g, b] = [x, 0, c]
+  else [r, g, b] = [c, 0, x]
+  return rgbToHex({
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  })
+}

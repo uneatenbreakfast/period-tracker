@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { darken, hexToRgb, lighten, mixHex, rgbToHex } from '../color'
+import { darken, hexToHsv, hexToRgb, hsvToHex, lighten, mixHex, rgbToHex } from '../color'
 
 describe('hexToRgb / rgbToHex', () => {
   it('round-trips channel values', () => {
@@ -43,5 +43,43 @@ describe('mixHex / darken / lighten', () => {
   it('matches the shipped sage text derivation', () => {
     // sage-100 #e3eddd darken 0.35 ≈ the old sage-400 #8fae8b
     expect(darken('#e3eddd', 0.35)).toBe('#949a90')
+  })
+})
+
+describe('hexToHsv / hsvToHex', () => {
+  it('round-trips reference colors', () => {
+    // Fitbit period pink
+    expect(hsvToHex(hexToHsv('#f2318c'))).toBe('#f2318c')
+    // pure primaries
+    expect(hexToHsv('#ff0000')).toEqual({ h: 0, s: 1, v: 1 })
+    expect(hexToHsv('#00ff00')).toEqual({ h: 120, s: 1, v: 1 })
+    expect(hexToHsv('#0000ff')).toEqual({ h: 240, s: 1, v: 1 })
+    // black / white / gray have no hue or saturation
+    expect(hexToHsv('#000000')).toEqual({ h: 0, s: 0, v: 0 })
+    expect(hexToHsv('#ffffff')).toEqual({ h: 0, s: 0, v: 1 })
+    expect(hexToHsv('#808080')).toEqual({ h: 0, s: 0, v: 128 / 255 })
+    expect(hsvToHex({ h: 0, s: 0, v: 128 / 255 })).toBe('#808080')
+  })
+
+  it('maps known hue wedges', () => {
+    // lavender-400 #b9a7d9 — d > r indicates a blue-ish hue (r < b)
+    const { h, s } = hexToHsv('#b9a7d9')
+    expect(h).toBeGreaterThan(200)
+    expect(h).toBeLessThan(300)
+    expect(s).toBeGreaterThan(0.2)
+    // orange/peach — r > g > b
+    expect(hexToHsv('#f4a88e').h).toBeGreaterThan(10)
+    expect(hexToHsv('#f4a88e').h).toBeLessThan(40)
+    // sage — green-ish (g dominant)
+    expect(hexToHsv('#8fae8b').h).toBeGreaterThan(100)
+    expect(hexToHsv('#8fae8b').h).toBeLessThan(140)
+  })
+
+  it('round-trips hsvToHex for a range of hue steps', () => {
+    for (let h = 0; h < 360; h += 30) {
+      const hex = hsvToHex({ h, s: 0.8, v: 0.6 })
+      const back = hexToHsv(hex)
+      expect(back.h).toBeCloseTo(h, 0)
+    }
   })
 })

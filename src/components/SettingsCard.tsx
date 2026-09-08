@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CalendarStyle, Settings } from '../types'
 import { SETTINGS_LIMITS } from '../lib/settings'
+import ColorPickerModal from './ColorPickerModal'
 
 interface StepperProps {
   label: string
@@ -107,29 +109,15 @@ const STYLE_GROUPS: StyleGroup[] = [
   },
 ]
 
-const HEX_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
-
-/** Expand `#abc` → `#aabbcc` (kept in sync with settings.ts expandHex). */
-function expandHex(short: string): string {
-  return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`
-}
-
-function StyleRow({ field, value, onChange }: { field: StyleField; value: string; onChange: (v: string) => void }) {
-  // Local draft so the user can type a partial hex without it being rejected.
-  const [hexDraft, setHexDraft] = useState(value)
-
-  // Keep the text input in sync when the color changes elsewhere (picker, reload).
-  useEffect(() => {
-    setHexDraft(value)
-  }, [value])
-
-  const commitHex = (raw: string) => {
-    const hex = raw.trim()
-    if (HEX_RE.test(hex)) {
-      onChange(hex.length === 4 ? expandHex(hex.toLowerCase()) : hex.toLowerCase())
-    }
-  }
-
+function StyleRow({
+  field,
+  value,
+  onOpen,
+}: {
+  field: StyleField
+  value: string
+  onOpen: () => void
+}) {
   return (
     <div
       className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3"
@@ -139,39 +127,22 @@ function StyleRow({ field, value, onChange }: { field: StyleField; value: string
         <p className="text-sm font-bold text-ink">{field.label}</p>
         <p className="text-[11px] font-semibold leading-tight text-ink-soft">{field.hint}</p>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <input
-          type="text"
-          value={hexDraft}
-          spellCheck={false}
-          aria-label={`${field.label} hex`}
-          data-testid={`settings-style-${field.key}-hex`}
-          onChange={(e) => {
-            setHexDraft(e.target.value)
-            commitHex(e.target.value)
-          }}
-          onBlur={() => setHexDraft(value)}
-          className="h-9 w-[76px] rounded-lg border border-rose-100 bg-white px-2 text-center text-[11px] font-bold tabular-nums text-ink outline-none transition-colors focus:border-rose-300"
-        />
-        <label
-          className="relative h-9 w-9 shrink-0 cursor-pointer rounded-full shadow-[0_2px_8px_rgba(87,66,78,0.2)] transition-transform hover:scale-105"
-          style={{ backgroundColor: value }}
-          aria-label={`${field.label} color`}
-        >
-          <input
-            type="color"
-            value={value}
-            data-testid={`settings-style-${field.key}-input`}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          />
-        </label>
-      </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Change ${field.label} color`}
+        data-testid={`settings-style-${field.key}-input`}
+        className="h-9 w-9 shrink-0 cursor-pointer rounded-full shadow-[0_2px_8px_rgba(87,66,78,0.2)] transition-transform hover:scale-105"
+        style={{ backgroundColor: value }}
+      />
     </div>
   )
 }
 
 export default function SettingsCard({ settings, onChange, onExport, onImport }: SettingsCardProps) {
+  // Which style field's color picker is open — null = no modal.
+  const [editing, setEditing] = useState<StyleField | null>(null)
+
   return (
     <div className="rounded-3xl bg-white p-5 shadow-[0_6px_24px_rgba(217,111,147,0.12)]">
       <h2 className="text-sm font-extrabold uppercase tracking-wider text-ink-soft">Settings</h2>
@@ -235,7 +206,7 @@ export default function SettingsCard({ settings, onChange, onExport, onImport }:
                 key={field.key}
                 field={field}
                 value={settings.style[field.key]}
-                onChange={(v) => onChange({ ...settings, style: { ...settings.style, [field.key]: v } })}
+                onOpen={() => setEditing(field)}
               />
             ))}
           </div>
@@ -271,6 +242,17 @@ export default function SettingsCard({ settings, onChange, onExport, onImport }:
         </p>
       </div>
       <p className="mt-4 text-[11px] font-semibold text-ink-soft/80">Saved automatically on this device.</p>
+
+      {editing &&
+        createPortal(
+          <ColorPickerModal
+            label={editing.label}
+            value={settings.style[editing.key]}
+            onChange={(v) => onChange({ ...settings, style: { ...settings.style, [editing.key]: v } })}
+            onClose={() => setEditing(null)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }

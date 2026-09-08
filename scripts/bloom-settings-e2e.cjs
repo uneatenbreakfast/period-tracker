@@ -102,7 +102,37 @@ const isoAdd = (iso, n) => {
   if (minusDisabled !== null) ok('minus button disabled at min');
   else fail('minus button still enabled at min');
 
-  // STEP 6 — Style section exists with the color pickers, all showing the
+  const hexToRgb = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+};
+
+const swatchBg = async (testId) =>
+  page.evaluate((s) => {
+    const btn = document.querySelector(`[data-testid="${s}"] button`);
+    return btn ? getComputedStyle(btn).backgroundColor : '';
+  }, testId);
+
+// BLOOM-0044 — color editing moved INTO an in-app modal (no native picker /
+// no hex boxes on the settings page). Helpers drive the modal flow.
+const openPicker = async (key) => {
+  await page.click(`[data-testid="settings-style-${key}-input"]`);
+  await page.waitForSelector('[data-testid="color-picker-hex-input"]');
+  await page.waitForTimeout(150);
+};
+const closePicker = async () => {
+  await page.click('button:has-text("Done")');
+  await page.waitForTimeout(150);
+};
+const modalHexValue = () => page.inputValue('[data-testid="color-picker-hex-input"]');
+const setColor = async (key, hex) => {
+  await openPicker(key);
+  await page.fill('[data-testid="color-picker-hex-input"]', hex.slice(1));
+  await page.waitForTimeout(200);
+  await closePicker();
+};
+
+  // STEP 6 — Style section exists with the color swatches, all showing the
   // shipped pastel defaults (BLOOM-0022 + BLOOM-0023).
   const DEFAULTS = {
     period: '#f2318c',
@@ -118,83 +148,60 @@ const isoAdd = (iso, n) => {
     ringLuteal: '#8fae8b',
   };
   for (const key of Object.keys(DEFAULTS)) {
-    const v = await page.getAttribute(`[data-testid="settings-style-${key}-input"]`, 'value');
-    if (v === DEFAULTS[key]) ok(`style ${key} picker default ${v}`);
-    else fail(`style ${key} picker default wrong: ${v}`);
+    const bg = await swatchBg(`settings-style-${key}`);
+    if (bg === hexToRgb(DEFAULTS[key])) ok(`style ${key} swatch default ${bg}`);
+    else fail(`style ${key} swatch default wrong: ${bg} (want ${hexToRgb(DEFAULTS[key])})`);
   }
-  const swatchBg = async (testId) =>
-    page.evaluate((s) => {
-      const label = document.querySelector(`[data-testid="${s}"] label`);
-      return label ? getComputedStyle(label).backgroundColor : '';
-    }, testId);
 
-  // STEP 6.5 — hex inputs (BLOOM-0043): each style row shows its current hex,
-  // typing a valid hex recolorizes the swatch, invalid hex is ignored, and the
-  // text stays in sync with the color picker.
-  const hexVal = async (key) =>
-    page.inputValue(`[data-testid="settings-style-${key}-hex"]`);
-  for (const key of Object.keys(DEFAULTS)) {
-    if ((await hexVal(key)) === DEFAULTS[key]) ok(`style ${key} hex input shows ${DEFAULTS[key]}`);
-    else fail(`style ${key} hex input wrong: ${await hexVal(key)}`);
-  }
-  // Type a valid hex into the period hex input -> swatch + color input follow.
-  await page.fill('[data-testid="settings-style-period-hex"]', '#3366ff');
-  await page.dispatchEvent('[data-testid="settings-style-period-hex"]', 'blur');
+  // STEP 6.5 — BLOOM-0044: hex boxes are GONE from the settings page; hex
+  // lives in the in-app color modal. Tapping a swatch opens it live.
+  const hexBoxCount = await page.locator('[data-testid$="-hex"]').count();
+  if (hexBoxCount === 0) ok('settings page has no hex input boxes');
+  else fail('hex boxes still present: ' + hexBoxCount);
+
+  await openPicker('period');
+  if ((await modalHexValue()) === 'f2318c') ok('period modal hex shows f2318c');
+  else fail('period modal hex wrong: ' + (await modalHexValue()));
+  if ((await page.isVisible('[data-testid="color-picker-sv"]')) && (await page.isVisible('[data-testid="color-picker-hue"]')))
+    ok('modal has SV box + hue bar');
+  else fail('modal picker areas missing');
+  // Type a valid hex into the modal -> swatch updates live.
+  await page.fill('[data-testid="color-picker-hex-input"]', '3366ff');
   await page.waitForTimeout(200);
-  const periodHexInput = await page.inputValue('[data-testid="settings-style-period-hex"]');
-  if ((await page.getAttribute('[data-testid="settings-style-period-input"]', 'value')) === '#3366ff')
-    ok('typing #3366ff in hex input updates the period color picker');
-  else fail('period color picker not updated by hex input: ' + periodHexInput);
   if ((await swatchBg('settings-style-period')) === 'rgb(51, 102, 255)')
-    ok('period swatch reflects hex-typed #3366ff');
-  else fail('period swatch not updated by hex input');
-  // Invalid hex is ignored (color unchanged, draft stays).
-  await page.fill('[data-testid="settings-style-period-hex"]', '#zzz');
+    ok('typing #3366ff in modal updates the period swatch');
+  else fail('modal hex typing did not update swatch');
+  // Invalid hex is ignored (color unchanged).
+  await page.fill('[data-testid="color-picker-hex-input"]', 'zzz');
   await page.waitForTimeout(200);
-  if ((await page.getAttribute('[data-testid="settings-style-period-input"]', 'value')) === '#3366ff')
+  if ((await swatchBg('settings-style-period')) === 'rgb(51, 102, 255)')
     ok('invalid hex leaves the color unchanged');
   else fail('invalid hex mutated the color');
+  await closePicker();
   // Short 3-digit hex expands to full 6-digit.
-  await page.fill('[data-testid="settings-style-ovulation-hex"]', '#0f0');
-  await page.dispatchEvent('[data-testid="settings-style-ovulation-hex"]', 'blur');
+  await openPicker('ovulation');
+  await page.fill('[data-testid="color-picker-hex-input"]', '0f0');
   await page.waitForTimeout(200);
-  if ((await page.getAttribute('[data-testid="settings-style-ovulation-input"]', 'value')) === '#00ff00')
+  if ((await swatchBg('settings-style-ovulation')) === 'rgb(0, 255, 0)')
     ok('3-digit hex #0f0 expands to #00ff00');
-  else fail('short hex not expanded: ' + (await page.getAttribute('[data-testid="settings-style-ovulation-input"]', 'value')));
+  else fail('short hex not expanded');
+  await closePicker();
 
-  // STEP 7 — user picks new colors; swatches + persisted blob follow.
-  const setColor = async (testId, hex) => {
-    const sel = `[data-testid="${testId}"]`;
-    try {
-      await page.fill(sel, hex);
-    } catch {
-      await page.evaluate(
-        ([s, h]) => {
-          const el = document.querySelector(s);
-          if (!el) return;
-          el.value = h;
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        },
-        [sel, hex],
-      );
-    }
-    await page.waitForTimeout(200);
-  };
-  await setColor('settings-style-period-input', '#3366ff');
+  // STEP 7 — user picks new colors via the modal; swatches + persisted blob follow.
+  await setColor('period', '#3366ff');
   if ((await swatchBg('settings-style-period')) === 'rgb(51, 102, 255)')
     ok('period swatch reflects #3366ff');
   else fail('period swatch bg wrong: ' + (await swatchBg('settings-style-period')));
-  await setColor('settings-style-ovulation-input', '#00aa00');
+  await setColor('ovulation', '#00aa00');
   if ((await swatchBg('settings-style-ovulation')) === 'rgb(0, 170, 0)')
     ok('ovulation swatch reflects #00aa00');
   else fail('ovulation swatch bg wrong: ' + (await swatchBg('settings-style-ovulation')));
 
-  // Picker change syncs the hex inputs back (BLOOM-0043).
-  if ((await hexVal('period')) === '#3366ff') ok('period hex input syncs to picker-picked #3366ff');
-  else fail('period hex out of sync after picker: ' + (await hexVal('period')));
-  if ((await hexVal('ovulation')) === '#00aa00') ok('ovulation hex input syncs to picker-picked #00aa00');
-  else fail('ovulation hex out of sync after picker: ' + (await hexVal('ovulation')));
+  // Modal hex re-opens in sync with the picked color (BLOOM-0044).
+  await openPicker('period');
+  if ((await modalHexValue()) === '3366ff') ok('period modal hex syncs to picker-picked #3366ff');
+  else fail('period modal hex out of sync: ' + (await modalHexValue()));
+  await closePicker();
   let blobStyle = await page.evaluate(() => JSON.parse(localStorage.getItem('bloom.snapshot.v1') || 'null'));
   if (blobStyle && blobStyle.settings && blobStyle.settings.style && blobStyle.settings.style.period === '#3366ff' && blobStyle.settings.style.ovulation === '#00aa00')
     ok('localStorage blob carries style {period: #3366ff, ovulation: #00aa00}');
@@ -248,11 +255,11 @@ const isoAdd = (iso, n) => {
 
   // STEP 10 — BLOOM-0023 pickers: month tint, trend bars, health ring.
   await goTab('Settings');
-  await setColor('settings-style-monthTint-input', '#ffeeee');
-  await setColor('settings-style-trendFertile-input', '#ff8800');
-  await setColor('settings-style-trendOvulation-input', '#0066cc');
-  await setColor('settings-style-ringFollicular-input', '#00ff00');
-  await setColor('settings-style-ringLuteal-input', '#123456');
+  await setColor('monthTint', '#ffeeee');
+  await setColor('trendFertile', '#ff8800');
+  await setColor('trendOvulation', '#0066cc');
+  await setColor('ringFollicular', '#00ff00');
+  await setColor('ringLuteal', '#123456');
   const sw = async (testId) => swatchBg(testId);
   if ((await sw('settings-style-monthTint')) === 'rgb(255, 238, 238)') ok('month tint swatch reflects #ffeeee');
   else fail('month tint swatch wrong: ' + (await sw('settings-style-monthTint')));
@@ -322,9 +329,9 @@ const isoAdd = (iso, n) => {
     ok('blob carries {monthTint, trendFertile, ringLuteal} after reload');
   else fail('new style fields lost: ' + JSON.stringify(st));
   await goTab('Settings');
-  if ((await page.getAttribute('[data-testid="settings-style-monthTint-input"]', 'value')) === '#ffeeee')
-    ok('month tint picker survives reload');
-  else fail('month tint picker reset after reload');
+  if ((await swatchBg('settings-style-monthTint')) === 'rgb(255, 238, 238)')
+    ok('month tint swatch survives reload');
+  else fail('month tint swatch reset after reload: ' + (await swatchBg('settings-style-monthTint')));
 
   if (errors.length) fail('JS errors: ' + errors.join(' | '));
   else ok('no page errors');
