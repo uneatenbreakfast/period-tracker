@@ -735,18 +735,18 @@ export default function Calendar({
                   const fillStyle = cellFillStyle(shape, isFertile, isPredicted, isSafe, monthTint, calStyle, shapeOrigin)
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
-                  // Selected ring. Plain (unshaped) days: rose outline just
-                  // outside the circle. Shaped cells (period/fertile/safe
-                  // runs) sit on a solid fill that matches the ring's rose
-                  // tone, so they draw an INVERTED ring — contrast vs. the
-                  // actual fill — as an inner circle around the day number
-                  // (a strip cell's box outline would be a square bracket
-                  // slicing across the capsule). Predicted cells are dashed
-                  // + transparent and keep no marker.
+                  // Selected ring: ONE marker geometry for every selected
+                  // day — a fixed 32px inner circle around the day number —
+                  // so selection reads the same whatever the cell holds.
+                  // Cells on a solid fill (period/fertile/safe runs, drag
+                  // preview) draw an INVERTED shade that contrasts with that
+                  // fill; plain and dashed-predicted cells draw the static
+                  // rose shade. (A full-cell box outline can't mark strip
+                  // cells — it would be a square bracket slicing across the
+                  // capsule.)
                   const selRingColor = isSelected
                     ? selectionRingColor(shape, shapeOrigin, calStyle)
                     : null
-                  if (isSelected && !shape) cls += ' outline-2 outline-offset-2 outline-rose-300'
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
 
                   const grip = <span aria-hidden className="relative z-20 h-4 w-1 rounded-full bg-white/80" />

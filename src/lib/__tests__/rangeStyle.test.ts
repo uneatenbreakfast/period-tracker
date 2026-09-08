@@ -8,6 +8,7 @@ import {
   monthScoopClass,
   ovulationRing,
   runShape,
+  SELECTION_RING_PLAIN,
   selectionRingColor,
 } from '../rangeStyle'
 import { DEFAULT_CALENDAR_STYLE } from '../settings'
@@ -299,9 +300,9 @@ describe('ovulationRing', () => {
 describe('selectionRingColor', () => {
   const style = DEFAULT_CALENDAR_STYLE
 
-  it('null for unshaped cells — Calendar keeps the static rose outline', () => {
-    expect(selectionRingColor(null, undefined, style)).toBeNull()
-    expect(selectionRingColor(null, 'period', style)).toBeNull()
+  it('static rose ring on unshaped cells — same-size marker, no fill to invert', () => {
+    expect(selectionRingColor(null, undefined, style)).toBe(SELECTION_RING_PLAIN)
+    expect(selectionRingColor(null, 'period', style)).toBe(SELECTION_RING_PLAIN)
   })
 
   it('white ring on the default dark period fill (inverted vs highlight)', () => {
@@ -320,9 +321,9 @@ describe('selectionRingColor', () => {
     expect(selectionRingColor('middle', 'safe', style)).toBe('#565a54')
   })
 
-  it('null for predicted — dashed + transparent, no fill to clash with', () => {
-    expect(selectionRingColor('middle', 'predicted', style)).toBeNull()
-    expect(selectionRingColor('start', 'predicted', style)).toBeNull()
+  it('static rose ring on dashed predicted cells — no solid fill to invert', () => {
+    expect(selectionRingColor('middle', 'predicted', style)).toBe(SELECTION_RING_PLAIN)
+    expect(selectionRingColor('start', 'predicted', style)).toBe(SELECTION_RING_PLAIN)
   })
 
   it('follows a user-picked light period color (inverts to a dark ring)', () => {

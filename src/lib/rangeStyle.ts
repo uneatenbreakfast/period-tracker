@@ -175,28 +175,32 @@ export function ovulationRing(style: CalendarStyle): string {
 }
 
 /**
- * Selection ring shade for a SELECTED day. Plain (unshaped) cells return
- * null — Calendar keeps the static rose outline there. Shaped cells sit on a
- * solid user-pickable fill (period/fertile/safe runs, drag preview), so the
- * ring color must INVERT relative to that fill or it disappears into the
- * highlight. Predicted cells are dashed + transparent → null (no fill to
- * clash with).
+ * Selection ring shade for a SELECTED day. Every selected cell draws the
+ * SAME fixed-size inner circle (Calendar renders it once) — only the shade
+ * varies. Cells with no solid fill (plain days, dashed predicted cells) get
+ * the static light rose; cells on a solid user-pickable fill (period /
+ * fertile / safe runs, drag preview) INVERT relative to that fill so the
+ * ring never disappears into the highlight. Never null: a marker must exist
+ * on every selected cell, at the same geometry, so selection reads
+ * consistently whatever the cell holds.
  */
+export const SELECTION_RING_PLAIN = '#e89db9' // rose-300 — matches predicted dash
+
 export function selectionRingColor(
   shape: DayShape | null,
   shapeOrigin: 'period' | 'fertile' | 'predicted' | 'safe' | undefined,
   style: CalendarStyle,
-): string | null {
-  if (!shape) return null
-  const fill =
-    shapeOrigin === 'fertile'
+): string {
+  const fill = !shape
+    ? null
+    : shapeOrigin === 'fertile'
       ? style.fertile
       : shapeOrigin === 'safe'
         ? style.safe
         : shapeOrigin === 'predicted'
           ? null
           : style.period // committed period, or drag preview (origin undefined)
-  return fill ? contrastRing(fill) : null
+  return fill ? contrastRing(fill) : SELECTION_RING_PLAIN
 }
 
 /**
