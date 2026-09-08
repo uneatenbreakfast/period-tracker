@@ -180,21 +180,49 @@ const monthStr = (i) => `${Math.floor(i / 12)}-${((i % 12) + 12) % 12}`;
     ok(`legend shows fertile + ovulation (${legend.join(',')})`);
   else fail('legend missing fertile/ovulation: ' + legend.join(','));
 
-  // STEP 2f — note symbol: days WITH a note carry a note pen glyph; days
+  // STEP 2f — note symbol: days WITH a note carry a post-it note glyph; days
   // without one don't. Seeded: today has 'Cramps at noon', oldDay has none.
-  const notes = await page.evaluate(({ today, oldDay }) => {
+  // The glyph is absolutely positioned in the cell corner so the day number
+  // stays vertically centered (regression: the old in-flow pen pushed the
+  // number up ~5px on note days).
+  const POSTIT_D = 'M19 3H4.99'; // sticky-note-2 path prefix (was the pencil)
+  const notes = await page.evaluate(({ today, oldDay, POSTIT_D }) => {
     const cell = (iso) => document.querySelector(`[data-calendar-scroll] button[aria-label="${iso}"]`);
     const withNote = cell(today);
     const without = cell(oldDay);
+    const rect = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    };
+    const numSpan = (el) => (el ? [...el.querySelectorAll('span')].find((s) => /^\d+$/.test(s.textContent.trim())) : null);
+    const icon = withNote ? withNote.querySelector('svg[aria-hidden]') : null;
+    const num = numSpan(withNote) ? rect(numSpan(withNote)) : null;
+    const cellR = withNote ? rect(withNote) : null;
+    const iconR = icon ? rect(icon) : null;
+    const overlaps = num && iconR
+      ? !(iconR.right <= num.left || iconR.left >= num.right || iconR.bottom <= num.top || iconR.top >= num.bottom)
+      : null;
     return {
-      todayHasIcon: !!withNote && withNote.querySelector('svg[aria-hidden]') !== null,
+      todayHasIcon: !!withNote && icon !== null,
       todayIconCount: withNote ? withNote.querySelectorAll('svg[aria-hidden]').length : 0,
       oldHasIcon: !!without && without.querySelector('svg[aria-hidden]') !== null,
+      postit: icon && icon.querySelector('path') ? (icon.querySelector('path').getAttribute('d') || '').startsWith(POSTIT_D) : false,
+      numCentered: num && cellR ? Math.abs((num.top + num.bottom) / 2 - (cellR.top + cellR.bottom) / 2) : null,
+      iconOverlapsNum: overlaps,
     };
-  }, { today, oldDay });
+  }, { today, oldDay, POSTIT_D });
   if (notes.todayHasIcon && notes.todayIconCount === 1 && !notes.oldHasIcon)
     ok('note symbol on day with note, absent on day without');
   else fail('note symbol wrong: ' + JSON.stringify(notes));
+  if (notes.postit) ok('note symbol is the post-it note glyph, not the pen');
+  else fail('note symbol is not the post-it note: ' + JSON.stringify(notes));
+  if (notes.numCentered !== null && notes.numCentered <= 1)
+    ok(`day number stays centered with note icon (Δ=${notes.numCentered.toFixed(2)}px)`);
+  else fail('note icon shifted the day number: ' + JSON.stringify(notes));
+  if (notes.iconOverlapsNum === false)
+    ok(`note icon does not overlap the day number`);
+  else fail('note icon overlaps the day number: ' + JSON.stringify(notes));
 
   // STEP 2g — the infinite back-scroll left the box at the top of history;
   // reposition to the current month before the scrollbox checks below.

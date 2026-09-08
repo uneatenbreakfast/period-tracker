@@ -64,11 +64,11 @@ const fmtDay = (iso: string) => {
  */
 const LOAD_MORE_AT_PX = 120
 
-/** Small pencil glyph marking a day that has a note (BLOOM note symbol). */
+/** Post-it note glyph marking a day that has a note (BLOOM note symbol). */
 function NoteIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
-      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+      <path d="M19 3H4.99C3.88 3 3 3.9 3 5l.01 14c0 1.1.88 2 1.99 2h9l10-10V5c0-1.1-.9-2-2-2zM7 8h10v2H7V8zm5 6H7v-2h5v2zm2 5v-7h7l-7 7z" />
     </svg>
   )
 }
@@ -951,12 +951,16 @@ export default function Calendar({
                           </span>
                         )}
                         <span>{Number(cell.iso.slice(8))}</span>
-                        {entry?.notes ? (
-                          <NoteIcon
-                            className={shape ? 'h-[9px] w-[9px] text-white/80' : 'h-[9px] w-[9px] text-ink/45'}
-                          />
-                        ) : null}
                       </span>
+                      {/* Post-it note glyph — absolutely positioned in the cell
+                          corner so it never shifts the day number's vertical
+                          centering (it used to sit in the flex flow below the
+                          day number, pushing it up). */}
+                      {entry?.notes ? (
+                        <NoteIcon
+                          className={`pointer-events-none absolute top-0.5 right-0.5 z-10 h-[9px] w-[9px] ${shape ? 'text-white/80' : 'text-ink/45'}`}
+                        />
+                      ) : null}
                       {editHandle === 'end' ? grip : null}
                       {isOvulation && !shape && (
                         <span
