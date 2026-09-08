@@ -217,7 +217,12 @@ export default function Calendar({
     return () => {
       cancelled = true
     }
-  }, [weeks.length])
+    // Re-measure on ANY grid change (identity), not just a row-count change:
+    // a prepend/append that keeps the same week count (e.g. interleaved
+    // back-scroll + future growth) leaves the old geometry in place while the
+    // length gate passes → malformed tint bands. `weeks` is memoized over the
+    // month window, so this effect only re-runs when the grid actually changes.
+  }, [weeks])
   // Unified SVG month background paths — replaces per-cell rounded corners + tint
   const monthBgPaths = useMemo(
     () => (tintGeomOk ? monthBackgroundPaths(weeks, tintGeom ?? undefined) : []),
