@@ -208,6 +208,7 @@ const monthStr = (i) => `${Math.floor(i / 12)}-${((i % 12) + 12) % 12}`;
       todayIconCount: withNote ? withNote.querySelectorAll('svg[aria-hidden]').length : 0,
       oldHasIcon: !!without && without.querySelector('svg[aria-hidden]') !== null,
       postit: icon && icon.querySelector('path') ? (icon.querySelector('path').getAttribute('d') || '').startsWith(POSTIT_D) : false,
+      iconClass: icon ? (icon.getAttribute('class') || '') : '',
       numCentered: num && cellR ? Math.abs((num.top + num.bottom) / 2 - (cellR.top + cellR.bottom) / 2) : null,
       iconOverlapsNum: overlaps,
     };
@@ -217,6 +218,12 @@ const monthStr = (i) => `${Math.floor(i / 12)}-${((i % 12) + 12) % 12}`;
   else fail('note symbol wrong: ' + JSON.stringify(notes));
   if (notes.postit) ok('note symbol is the post-it note glyph, not the pen');
   else fail('note symbol is not the post-it note: ' + JSON.stringify(notes));
+  if (notes.iconClass.includes('h-[10px]') && notes.iconClass.includes('w-[10px]'))
+    ok('note icon sized 10px');
+  else fail('note icon not 10px: ' + notes.iconClass);
+  if (/\btext-white\b/.test(notes.iconClass) && !notes.iconClass.includes('text-white/'))
+    ok('shaped-day note icon is full white (on-rose contrast)');
+  else fail('shaped-day note icon contrast regressed: ' + notes.iconClass);
   if (notes.numCentered !== null && notes.numCentered <= 1)
     ok(`day number stays centered with note icon (Δ=${notes.numCentered.toFixed(2)}px)`);
   else fail('note icon shifted the day number: ' + JSON.stringify(notes));

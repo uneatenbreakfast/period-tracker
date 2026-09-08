@@ -60,6 +60,7 @@ const res = await p.evaluate(({ noteDay, noteDayPlain, controlDay }) => {
     noteSvgClass: nSvgs[0] ? nSvgs[0].getAttribute('class') : null,
     noteSvgPathD: nSvgs[0] ? nSvgs[0].querySelector('path')?.getAttribute('d') || '' : '',
     notePlainSvgCount: npSvgs.length,
+    notePlainSvgClass: npSvgs[0] ? npSvgs[0].getAttribute('class') : null,
     controlSvgCount: c ? c.querySelectorAll('svg[aria-hidden]').length : -1,
   }
 }, { noteDay, noteDayPlain, controlDay })
@@ -74,6 +75,9 @@ ok(res.notePlainSvgCount === 1, `plain note day has exactly 1 svg icon (got ${re
 ok(res.controlSvgCount === 0, `control day has 0 svg icons (got ${res.controlSvgCount})`)
 ok(res.noteSvgPathD.startsWith('M19 3H4.99'), `icon path is post-it note (d starts M19 3H4.99)`)
 ok(res.noteSvgClass && res.noteSvgClass.includes('absolute'), `icon is absolutely positioned (class=${res.noteSvgClass})`)
+ok(res.noteSvgClass && res.noteSvgClass.includes('h-[10px]') && res.noteSvgClass.includes('w-[10px]'), `icon is 10px (class=${res.noteSvgClass})`)
+ok(res.noteSvgClass && /\btext-white\b/.test(res.noteSvgClass) && !res.noteSvgClass.includes('text-white/'), `shaped-day icon is full white for contrast on rose (class=${res.noteSvgClass})`)
+ok(res.notePlainSvgClass && res.notePlainSvgClass.includes('text-ink/70'), `plain-day icon is ink/70 for contrast on cream (class=${res.notePlainSvgClass})`)
 const dY = res.notePlainNum && res.controlNum ? Math.abs(res.notePlainNum.centerY - res.controlNum.centerY) : -1
 ok(dY >= 0 && dY <= 1, `unshaped note-day number Y center identical to clean control (Δ=${dY}px)`)
 const cY = res.noteCell && res.noteNum ? Math.abs(res.noteCell.centerY - res.noteNum.centerY) : -1

@@ -963,7 +963,7 @@ export default function Calendar({
                           day number, pushing it up). */}
                       {entry?.notes ? (
                         <NoteIcon
-                          className={`pointer-events-none absolute top-0.5 right-0.5 z-10 h-[9px] w-[9px] ${shape ? 'text-white/80' : 'text-ink/45'}`}
+                          className={`pointer-events-none absolute top-0.5 right-0.5 z-10 h-[10px] w-[10px] ${shape ? 'text-white' : 'text-ink/70'}`}
                         />
                       ) : null}
                       {editHandle === 'end' ? grip : null}
