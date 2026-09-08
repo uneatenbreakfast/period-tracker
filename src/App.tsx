@@ -411,9 +411,6 @@ export default function App() {
       {tab === 'trends' ? (
         <main ref={setMainRef} className="flex flex-col gap-4">
           <TrendsCard snap={snap} settings={snap.settings} />
-          <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
-            Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
-          </footer>
         </main>
       ) : tab === 'settings' ? (
         <main ref={setMainRef} className="flex flex-col gap-4">
@@ -437,9 +434,6 @@ export default function App() {
             onLogToConfirm={() => setSelectedDate(todayISO())}
           />
           <HistoryCard snap={snap} />
-          <footer className="pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
-            Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
-          </footer>
         </main>
       ) : (
         <main ref={setMainRef} className="flex min-h-0 flex-1 flex-col gap-4">
@@ -459,9 +453,6 @@ export default function App() {
             onUndo={performUndo}
             onDismissUndo={dismissUndo}
           />
-          <footer className="shrink-0 pb-2 pt-1 text-center text-[11px] text-ink-soft/70">
-            Logged {snap.entries.length} day{snap.entries.length === 1 ? '' : 's'} · stored locally on this device
-          </footer>
         </main>
       )}
 
