@@ -29,6 +29,7 @@ import {
   parseSnapshot,
   removeEntry,
   replaceRangeFlow,
+  commitRangeEdit,
   saveSnapshot,
   serializeSnapshot,
   upsertEntry,
@@ -192,8 +193,15 @@ export default function App() {
 
   // Drag across calendar days: additive — the range is added without clearing
   // any other period days in the same month (multiple ranges can coexist).
-  const commitRange = (start: string, end: string) => {
-    setSnap((s) => replaceRangeFlow(s, start, end, DEFAULT_FLOW))
+  // Edit-mode Save carries the ORIGINAL bounds → commitRangeEdit sheds the days
+  // the edited run no longer covers (shorten/shift must shrink the run, not
+  // keep its old tail marked).
+  const commitRange = (start: string, end: string, original?: { start: string; end: string }) => {
+    setSnap((s) =>
+      original
+        ? commitRangeEdit(s, original.start, original.end, start, end, DEFAULT_FLOW)
+        : replaceRangeFlow(s, start, end, DEFAULT_FLOW),
+    )
     setUndoState(null)
   }
 

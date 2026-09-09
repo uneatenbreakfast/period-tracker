@@ -101,6 +101,32 @@ export function replaceRangeFlow(snap: Snapshot, start: string, end: string, flo
   return setRangeFlow(snap, from, to, flow)
 }
 
+/**
+ * Commit an EDITED run: the run becomes exactly [start, end]. Days of the
+ * original run that fall outside the new bounds (shed when the user shortens
+ * or shifts the run) have their flow cleared; days inside the new bounds keep
+ * any per-day flow level, and unrelated runs in the same month are untouched.
+ * Creation drags must keep using replaceRangeFlow (additive) — this clear pass
+ * exists because a shorten-then-save through the additive path would leave the
+ * old tail days marked, making the run appear unchanged (cumulative).
+ */
+export function commitRangeEdit(
+  snap: Snapshot,
+  originalStart: string,
+  originalEnd: string,
+  start: string,
+  end: string,
+  flow: FlowLevel,
+): Snapshot {
+  const [from, to] = start <= end ? [start, end] : [end, start]
+  const [ofrom, oto] = originalStart <= originalEnd ? [originalStart, originalEnd] : [originalEnd, originalStart]
+  let next = snap
+  // Shed the original run's days the new range no longer covers.
+  if (ofrom < from) next = deleteRangeFlow(next, ofrom, addDays(from, -1))
+  if (oto > to) next = deleteRangeFlow(next, addDays(to, 1), oto)
+  return setRangeFlow(next, from, to, flow)
+}
+
 /** Clear flow from every day in the range. Pure flow days (no symptoms/notes)
  *  are removed entirely; days with other data keep their entry minus the flow. */
 export function deleteRangeFlow(snap: Snapshot, start: string, end: string): Snapshot {

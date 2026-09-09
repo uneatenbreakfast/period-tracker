@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   captureDeletedEntries,
   clearAllData,
+  commitRangeEdit,
   createEmptySnapshot,
   getEntry,
   loadSnapshot,
@@ -226,6 +227,86 @@ describe('entry mutations (pure)', () => {
     expect(a.entries.map((e) => e.date)).toEqual(['2026-01-03', '2026-01-04', '2026-01-05', '2026-01-10', '2026-01-11', '2026-01-12'])
     expect(getEntry(a, '2026-01-10')?.flow).toBe('light')
     expect(getEntry(a, '2026-01-12')?.flow).toBe('light')
+  })
+})
+
+describe('commitRangeEdit (edit-mode save: run becomes exactly [start, end])', () => {
+  const run = (from: string, to: string, flow: 'light' | 'medium' | 'heavy' = 'medium') =>
+    setRangeFlow(createEmptySnapshot(), from, to, flow)
+
+  it('shorten end: shed tail days are cleared (regression — additive save kept the cumulative run)', () => {
+    const a = commitRangeEdit(run('2026-01-10', '2026-01-18'), '2026-01-10', '2026-01-18', '2026-01-10', '2026-01-14', 'medium')
+    expect(a.entries.map((e) => e.date)).toEqual([
+      '2026-01-10', '2026-01-11', '2026-01-12', '2026-01-13', '2026-01-14',
+    ])
+    expect(a.entries.every((e) => e.flow === 'medium')).toBe(true)
+  })
+
+  it('shorten start: shed head days are cleared', () => {
+    const a = commitRangeEdit(run('2026-01-10', '2026-01-18'), '2026-01-10', '2026-01-18', '2026-01-14', '2026-01-18', 'medium')
+    expect(a.entries.map((e) => e.date)).toEqual([
+      '2026-01-14', '2026-01-15', '2026-01-16', '2026-01-17', '2026-01-18',
+    ])
+  })
+
+  it('shift left: sheds right tail, adds new left days', () => {
+    const a = commitRangeEdit(run('2026-01-10', '2026-01-18'), '2026-01-10', '2026-01-18', '2026-01-08', '2026-01-14', 'medium')
+    expect(a.entries.map((e) => e.date)).toEqual([
+      '2026-01-08', '2026-01-09', '2026-01-10', '2026-01-11', '2026-01-12', '2026-01-13', '2026-01-14',
+    ])
+    // 15–18 (old tail outside the new bounds) must be gone
+    expect(getEntry(a, '2026-01-15')).toBeUndefined()
+    expect(getEntry(a, '2026-01-18')).toBeUndefined()
+  })
+
+  it('extend only (nothing shed): behaves like the additive path', () => {
+    const a = commitRangeEdit(run('2026-01-10', '2026-01-18'), '2026-01-10', '2026-01-18', '2026-01-10', '2026-01-22', 'medium')
+    expect(a.entries.map((e) => e.date)).toEqual([
+      '2026-01-10', '2026-01-11', '2026-01-12', '2026-01-13', '2026-01-14',
+      '2026-01-15', '2026-01-16', '2026-01-17', '2026-01-18', '2026-01-19',
+      '2026-01-20', '2026-01-21', '2026-01-22',
+    ])
+  })
+
+  it('keeps a per-day flow level inside the new range', () => {
+    const s = upsertEntry(run('2026-01-10', '2026-01-18'), { date: '2026-01-14', flow: 'heavy', symptoms: [] })
+    const a = commitRangeEdit(s, '2026-01-10', '2026-01-18', '2026-01-10', '2026-01-14', 'medium')
+    expect(getEntry(a, '2026-01-14')?.flow).toBe('heavy')
+    expect(getEntry(a, '2026-01-10')?.flow).toBe('medium')
+  })
+
+  it('shed day with symptoms/notes keeps its entry minus the flow', () => {
+    const s = upsertEntry(run('2026-01-10', '2026-01-18'), {
+      date: '2026-01-16',
+      flow: 'medium',
+      symptoms: ['cramps'],
+      notes: 'bad day',
+    })
+    const a = commitRangeEdit(s, '2026-01-10', '2026-01-18', '2026-01-10', '2026-01-14', 'medium')
+    expect(getEntry(a, '2026-01-16')).toEqual({ date: '2026-01-16', symptoms: ['cramps'], notes: 'bad day' })
+  })
+
+  it('unrelated run in the same month is untouched', () => {
+    let s = run('2026-01-03', '2026-01-05')
+    s = setRangeFlow(s, '2026-01-10', '2026-01-18', 'medium')
+    const a = commitRangeEdit(s, '2026-01-10', '2026-01-18', '2026-01-10', '2026-01-14', 'medium')
+    expect(a.entries.map((e) => e.date)).toEqual([
+      '2026-01-03', '2026-01-04', '2026-01-05',
+      '2026-01-10', '2026-01-11', '2026-01-12', '2026-01-13', '2026-01-14',
+    ])
+  })
+
+  it('sheds across a month boundary', () => {
+    const s = run('2026-01-28', '2026-02-03')
+    const a = commitRangeEdit(s, '2026-01-28', '2026-02-03', '2026-01-28', '2026-01-31', 'medium')
+    expect(a.entries.map((e) => e.date)).toEqual(['2026-01-28', '2026-01-29', '2026-01-30', '2026-01-31'])
+  })
+
+  it('is order-agnostic for both the original and the new bounds', () => {
+    const a = commitRangeEdit(run('2026-01-10', '2026-01-18'), '2026-01-18', '2026-01-10', '2026-01-14', '2026-01-10', 'medium')
+    expect(a.entries.map((e) => e.date)).toEqual([
+      '2026-01-10', '2026-01-11', '2026-01-12', '2026-01-13', '2026-01-14',
+    ])
   })
 })
 

@@ -39,7 +39,10 @@ interface CalendarProps {
   selectedDate: string | null
   onSelect: (date: string) => void
   /** Commit a range: creation drag (start → end) or an edited period save. */
-  onRangeComplete: (start: string, end: string) => void
+  // Range drag → `original` = the bounds being edited (edit-mode Save) so the
+  // storage layer can shed days the edited range no longer covers; creation
+  // drags omit it and stay additive.
+  onRangeComplete: (start: string, end: string, original?: { start: string; end: string }) => void
   /** Delete a committed period range (from edit mode). */
   onRangeDelete: (start: string, end: string) => void
   /** Max days a drag/edit range can span (from settings.periodLength). */
@@ -562,7 +565,10 @@ export default function Calendar({
     const ed = editRef.current
     if (!ed) return
     const range = commitEdit(ed)
-    rangeCompleteRef.current(range.from, range.to)
+    // Pass the ORIGINAL committed bounds along with the edited ones: the
+    // storage commit must shed days the edit no longer covers (shorten/shift),
+    // otherwise the old tail days stay marked and the run never shrinks.
+    rangeCompleteRef.current(range.from, range.to, { start: ed.originalStart, end: ed.originalEnd })
     setEdit(null)
     setEditAxis(null)
   }
