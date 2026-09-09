@@ -186,7 +186,7 @@ export default function SettingsCard({ settings, onChange, onExport, onImport, o
             className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${settings.showSafeDays ? 'bg-rose-500' : 'bg-ink-soft/20'}`}
           >
             <span
-              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${settings.showSafeDays ? 'translate-x-5' : 'translate-x-0.5'}`}
+              className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${settings.showSafeDays ? 'translate-x-5' : ''}`}
             />
           </button>
         </div>
