@@ -798,6 +798,15 @@ describe('forecastWindow (infinite future predictions)', () => {
     expect(f.predictedDays[0]).toBe('2026-04-25')
   })
 
+  it('safe range ends on September 30 before an October 1 predicted period', () => {
+    const entries = ['2026-08-06', '2026-08-07', '2026-09-03', '2026-09-04'].map((d) => day(d))
+    const f = forecastWindow(entries, undefined, '2026-09-01', '2026-10-31')
+
+    expect(f.predictedDays.slice(0, 2)).toEqual(['2026-10-01', '2026-10-02'])
+    expect(f.safeDays.includes('2026-09-30')).toBe(true)
+    expect(f.safeDays.includes('2026-10-01')).toBe(false)
+  })
+
   it('period span uses the average logged period length (not default)', () => {
     const f = forecastWindow(threeCycles, undefined, '2026-01-01', '2026-04-30')
     // Avg period length = 2 → each predicted period is 2 days.
