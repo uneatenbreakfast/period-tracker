@@ -694,8 +694,9 @@ export default function Calendar({
                   left: `${(seg.c0 * 100) / 7}%`,
                   width: `${((seg.c1 - seg.c0 + 1) * 100) / 7}%`,
                   backgroundColor: calStyle.monthTint,
-                  // Tint must cover every pixel of every tinted day. Rounded
-                  // segment corners leave visible cream holes (notably Aug 24).
+                  // Keep highlighted month-range end caps rounded while shared
+                  // edges remain flush across adjacent cells and rows.
+                  borderRadius: `${seg.tl ? 16 : 0}px ${seg.tr ? 16 : 0}px ${seg.br ? 16 : 0}px ${seg.bl ? 16 : 0}px`,
                 }}
               />
             ))}
