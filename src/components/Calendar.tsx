@@ -24,8 +24,8 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
-import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
+import type { DayShape, MonthTintCut, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -74,6 +74,21 @@ function NoteIcon(props: React.SVGProps<SVGSVGElement>) {
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
       <path d="M19 3H4.99C3.88 3 3 3.9 3 5l.01 14c0 1.1.88 2 1.99 2h9l10-10V5c0-1.1-.9-2-2-2zM7 8h10v2H7V8zm5 6H7v-2h5v2zm2 5v-7h7l-7 7z" />
     </svg>
+  )
+}
+
+/** One ovulation marker recipe, shared by calendar cells and legend. */
+function OvulationMarker({ className = '', style, testId, dataLegend }: { className?: string; style: React.CSSProperties; testId?: string; dataLegend?: string }) {
+  return (
+    <span
+      data-testid={testId}
+      data-legend={dataLegend}
+      aria-label={testId ? 'Ovulation day' : undefined}
+      className={`flex h-3 w-3 items-center justify-center rounded-full bg-white ${className}`}
+      style={{ boxShadow: `0 0 0 2px ${style.color}` }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: style.color }} />
+    </span>
   )
 }
 
@@ -898,19 +913,12 @@ export default function Calendar({
                         />
                       ) : null}
                       {editHandle === 'end' ? grip : null}
-                      {isOvulation && !shape && (
-                        <span
-                          aria-hidden
-                          className="pointer-events-none absolute inset-0 flex items-center justify-center"
-                        >
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{
-                              backgroundColor: calStyle.ovulation,
-                              boxShadow: `0 0 0 2px ${ovulationRing(calStyle)}`,
-                            }}
-                          />
-                        </span>
+                      {isOvulation && (
+                        <OvulationMarker
+                          testId="calendar-ovulation-icon"
+                          className="pointer-events-none absolute right-0.5 top-0.5 z-20"
+                          style={{ color: calStyle.ovulation }}
+                        />
                       )}
                       {isToday && (
                         <span
@@ -1007,13 +1015,7 @@ export default function Calendar({
           )}
           {ovulationSet.size > 0 && (
             <span className="flex items-center gap-1.5">
-              <span
-                data-legend="ovulation"
-                className="flex h-3 w-3 items-center justify-center rounded-full bg-white"
-                style={{ boxShadow: `0 0 0 2px ${calStyle.ovulation}` }}
-              >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: calStyle.ovulation }} />
-              </span>
+              <OvulationMarker dataLegend="ovulation" style={{ color: calStyle.ovulation }} />
               ovulation
             </span>
           )}
