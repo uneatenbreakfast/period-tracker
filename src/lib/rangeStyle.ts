@@ -76,6 +76,14 @@ export function monthScoopClass(
   return ''
 }
 
+export function cellHighlightClass(shape: DayShape): string {
+  const inset = 'absolute inset-y-[10px]'
+  if (shape === 'single') return `${inset} left-[10px] right-[10px] rounded-full`
+  if (shape === 'start') return `${inset} left-[10px] rounded-l-full rounded-r-none`
+  if (shape === 'end') return `${inset} right-[10px] rounded-r-full rounded-l-none`
+  return `${inset} left-[10px] right-[10px] rounded-none`
+}
+
 /**
  * Layout (width + corner rounding) for a calendar day cell. Period-shaped
  * cells keep their capsule-strip / lone-circle geometry. Month backgrounds
@@ -95,7 +103,7 @@ export function cellLayoutClass(shape: DayShape | null): string {
  * wraps the whole run, not each cell — middle cells skip left/right borders.
  */
 function predictedStripBorder(shape: DayShape): string {
-  const base = 'border-dashed'
+  const base = 'm-[10px] border-dashed'
   if (shape === 'single') return `border ${base}`
   if (shape === 'start') return `border-y border-l ${base}`
   if (shape === 'end') return `border-y border-r ${base}`

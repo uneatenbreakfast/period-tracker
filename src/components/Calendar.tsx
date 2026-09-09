@@ -23,7 +23,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
 import type { DayShape, MonthTintCut, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -909,9 +909,7 @@ export default function Calendar({
                         <span
                           aria-hidden
                           style={{ backgroundColor: calStyle.period }}
-                          className={`pointer-events-none absolute inset-0 ${
-                            shape === 'single' ? 'rounded-full' : shape === 'start' ? 'rounded-l-full' : shape === 'end' ? 'rounded-r-full' : ''
-                          }`}
+                          className={`pointer-events-none ${cellHighlightClass(shape)}`}
                         />
                       ) : null}
                       {isSelected && selRingColor ? (

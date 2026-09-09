@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cellFillClass,
   cellFillStyle,
+  cellHighlightClass,
   cellLayoutClass,
   dragShape,
   isTintMonth,
@@ -137,6 +138,15 @@ describe('monthScoopClass', () => {
 
 // Month backgrounds are now rendered as unified SVG shapes behind the grid.
 // cellLayoutClass and cellFillClass no longer handle tint/scoop per-cell.
+describe('cellHighlightClass', () => {
+  it('insets highlighted ranges by 10px on both sides', () => {
+    expect(cellHighlightClass('single')).toBe('absolute inset-y-[10px] left-[10px] right-[10px] rounded-full')
+    expect(cellHighlightClass('start')).toBe('absolute inset-y-[10px] left-[10px] rounded-l-full rounded-r-none')
+    expect(cellHighlightClass('middle')).toBe('absolute inset-y-[10px] left-[10px] right-[10px] rounded-none')
+    expect(cellHighlightClass('end')).toBe('absolute inset-y-[10px] right-[10px] rounded-r-full rounded-l-none')
+  })
+})
+
 describe('cellLayoutClass', () => {
   it('capsule strip geometry (rounded caps)', () => {
     expect(cellLayoutClass('start')).toBe('w-full rounded-l-full rounded-r-none')
@@ -198,7 +208,7 @@ describe('cellFillClass', () => {
     expect(cellFillClass('start', false, true, false, true, 'predicted')).toContain('border-l')
     expect(cellFillClass('end', false, true, false, true, 'predicted')).toContain('border-r')
     expect(cellFillClass('middle', false, true, false, true, 'predicted')).not.toContain('border-l')
-    expect(cellFillClass('single', false, true, false, true, 'predicted')).toContain('border border-dashed')
+    expect(cellFillClass('single', false, true, false, true, 'predicted')).toContain('border m-[10px] border-dashed')
   })
 
   it('unshaped, non-fertile, non-predicted, non-safe cells are transparent', () => {
