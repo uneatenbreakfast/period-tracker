@@ -267,7 +267,7 @@ export interface MonthTintBite {
   col: number
   /** Which corner of that cell the disc fills: tint sits above+left ('tl')
    *  or right+below ('br') of the cell. */
-  corner: 'tl' | 'br'
+  corner: 'tl' | 'tr' | 'bl' | 'br'
 }
 
 export function monthTintBites(weeks: MonthCell[][]): MonthTintBite[] {
@@ -286,29 +286,27 @@ export function monthTintBites(weeks: MonthCell[][]): MonthTintBite[] {
     for (let c = 0; c < row.length; c++) {
       const cell = row[c]
       if (!cell || !cell.inMonth || isTintMonth(cell.iso)) continue
-      // 'br' — tint wraps the cell's bottom-right: tinted day to the right
-      // (same row) AND tinted day below (next row, same column), both from the
-      // same even month (e.g. Sep 30 → Oct 1 right, Oct 5 below).
-      const kRight = tintKey(r, c + 1)
-      const kBelow = tintKey(r + 1, c)
-      if (kRight && kRight === kBelow) {
-        out.push({ row: r, col: c, corner: 'br' })
-        continue
-      }
-      // 'tl' — mirror image: tint above (previous row, same column) AND to the
-      // left (same row), same even month (e.g. Nov 1 ← Oct 31 left, Oct above).
+      // Tint can wrap around any corner of this white cell. Keep curve on the
+      // white cell itself (the visible target), including top-right: this is
+      // the May 1 / tinted Apr 30 case in the reference.
       const kLeft = tintKey(r, c - 1)
+      const kRight = tintKey(r, c + 1)
       const kAbove = tintKey(r - 1, c)
+      const kBelow = tintKey(r + 1, c)
       if (kLeft && kLeft === kAbove) out.push({ row: r, col: c, corner: 'tl' })
+      if (kRight && kRight === kAbove) out.push({ row: r, col: c, corner: 'tr' })
+      if (kLeft && kLeft === kBelow) out.push({ row: r, col: c, corner: 'bl' })
+      if (kRight && kRight === kBelow) out.push({ row: r, col: c, corner: 'br' })
     }
   }
   return out
 }
 
 /**
- * Concave scoop cut for one tinted cell corner. `row`/`col` address the
- * TINTED cell; `corner` is the corner of that cell adjacent to the untinted
- * day's wrap corner, which the cut rounds (tint pulled back).
+ * Rounded corner on the untinted cell at a tint wrap. `row`/`col` address the
+ * white cell itself; the corner is the re-entrant corner where the tint wraps
+ * around it. Keep this as one cut on the adjacent cell, not three quarter
+ * discs on its tinted neighbours: the visible curve belongs to the white day.
  */
 export interface MonthTintCut {
   row: number
@@ -317,29 +315,13 @@ export interface MonthTintCut {
 }
 
 export function monthTintCuts(weeks: MonthCell[][]): MonthTintCut[] {
-  const out: MonthTintCut[] = []
-  const tinted = (r: number, c: number): boolean => {
-    const cell = weeks[r]?.[c]
-    return !!cell && cell.inMonth && isTintMonth(cell.iso)
-  }
-  for (const bite of monthTintBites(weeks)) {
-    const { row: r, col: c } = bite
-    if (bite.corner === 'br') {
-      // Untinted day's bottom-right corner: the tinted right (NE), below (SW)
-      // and below-right (SE) cells all touch that point — round each of the
-      // three corners that meet it.
-      if (tinted(r, c + 1)) out.push({ row: r, col: c + 1, corner: 'bl' })
-      if (tinted(r + 1, c)) out.push({ row: r + 1, col: c, corner: 'tr' })
-      if (tinted(r + 1, c + 1)) out.push({ row: r + 1, col: c + 1, corner: 'tl' })
-    } else {
-      // 'tl' — untinted day's top-left corner: round the above (NE), left
-      // (SW) and above-left (NW) tinted cells' corners that meet it.
-      if (tinted(r - 1, c)) out.push({ row: r - 1, col: c, corner: 'br' })
-      if (tinted(r, c - 1)) out.push({ row: r, col: c - 1, corner: 'tr' })
-      if (tinted(r - 1, c - 1)) out.push({ row: r - 1, col: c - 1, corner: 'br' })
-    }
-  }
-  return out
+  return monthTintBites(weeks).map(({ row, col, corner }) => ({
+    row,
+    col,
+    // First white day after tinted month: visible target is its top-right
+    // corner (e.g. May 1 beside tinted Apr 30).
+    corner: corner === 'tl' ? 'tr' : corner,
+  }))
 }
 
 /**

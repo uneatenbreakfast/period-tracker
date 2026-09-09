@@ -24,8 +24,8 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
-import type { DayShape, MonthTintCut, MonthTintSeg } from '../lib/rangeStyle'
+import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -155,20 +155,7 @@ export default function Calendar({
     }
     return m
   }, [weeks])
-  // Concave scoop cuts — quarter-discs of the card background (white) over the
-  // corners of the TINTED cells that touch an untinted day's wrap corner, so
-  // the tint boundary arcs INWARD around that corner (pulled back, concave)
-  // instead of bulging into the white day. Painted as plain DOM divs like the
-  // row segments.
-  const tintCutsByRow = useMemo(() => {
-    const m = new Map<number, MonthTintCut[]>()
-    for (const cut of monthTintCuts(weeks)) {
-      let arr = m.get(cut.row)
-      if (!arr) { arr = []; m.set(cut.row, arr) }
-      arr.push(cut)
-    }
-    return m
-  }, [weeks])
+
   // Edit mode for an existing committed run: drag the start/end handles,
   // confirm with the Save/Cancel modal.
   const [edit, setEdit] = useState<EditRange | null>(null)
@@ -690,41 +677,11 @@ export default function Calendar({
                   left: `${(seg.c0 * 100) / 7}%`,
                   width: `${((seg.c1 - seg.c0 + 1) * 100) / 7}%`,
                   backgroundColor: calStyle.monthTint,
-                  borderRadius: `${seg.tl ? TINT_RADIUS_PX : 0}px ${seg.tr ? TINT_RADIUS_PX : 0}px ${seg.br ? TINT_RADIUS_PX : 0}px ${seg.bl ? TINT_RADIUS_PX : 0}px`,
+                  // Full-bleed row bands. Per-corner discs made the tint look
+                  // perforated and competed with the period strip.
+                  borderRadius: 0,
                 }}
               />
-            ))}
-            {tintCutsByRow.get(wi)?.map((cut) => (
-              <div
-                key={`cut-${cut.col}-${cut.corner}`}
-                aria-hidden
-                className="pointer-events-none absolute inset-y-0"
-                style={{
-                  left: `${(cut.col * 100) / 7}%`,
-                  width: `${100 / 7}%`,
-                }}
-              >
-                {/* Quarter-disc of card background cutting the TINTED cell's
-                    corner at the wrap point, so the tint boundary scoops
-                    concavely around the untinted day instead of bulging into
-                    it (old SVG blob pulled the tint back here). */}
-                <span
-                  aria-hidden
-                  className="absolute"
-                  style={{
-                    ...(cut.corner === 'tl'
-                      ? { top: 0, left: 0, borderBottomRightRadius: TINT_RADIUS_PX }
-                      : cut.corner === 'tr'
-                        ? { top: 0, right: 0, borderBottomLeftRadius: TINT_RADIUS_PX }
-                        : cut.corner === 'bl'
-                          ? { bottom: 0, left: 0, borderTopRightRadius: TINT_RADIUS_PX }
-                          : { bottom: 0, right: 0, borderTopLeftRadius: TINT_RADIUS_PX }),
-                    width: TINT_RADIUS_PX,
-                    height: TINT_RADIUS_PX,
-                    backgroundColor: '#ffffff',
-                  }}
-                />
-              </div>
             ))}
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
@@ -910,7 +867,9 @@ export default function Calendar({
                         <span
                           aria-hidden
                           style={{ backgroundColor: calStyle.period }}
-                          className={`pointer-events-none ${cellHighlightClass(shape)}`}
+                          className={`pointer-events-none absolute inset-0 z-[1] ${
+                            shape === 'single' ? 'rounded-full' : shape === 'start' ? 'rounded-l-full' : shape === 'end' ? 'rounded-r-full' : ''
+                          }`}
                         />
                       ) : null}
                       {isSelected && selRingColor ? (

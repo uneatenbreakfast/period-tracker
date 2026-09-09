@@ -148,27 +148,14 @@ describe('monthTintBites', () => {
 })
 
 describe('monthTintCuts', () => {
-  it('rounds the three tinted corners around a br wrap (right, below, below-right)', () => {
-    // Sep 30 (r1 c2): Oct tint sits to its right, below and below-right —
-    // the concave scoop cuts each of those tinted cells' corner at Sep 30's
-    // bottom-right point, pulling the tint back (NOT bulging into Sep 30).
+  it('rounds the untinted wrap cell, not three tinted neighbours', () => {
     const weeks = strip('2026-09-21', 3)
-    expect(monthTintCuts(weeks)).toEqual([
-      { row: 1, col: 3, corner: 'bl' }, // Oct 1 — bottom-left at the wrap point
-      { row: 2, col: 2, corner: 'tr' }, // Oct 7 — top-right
-      { row: 2, col: 3, corner: 'tl' }, // Oct 8 — top-left
-    ])
+    expect(monthTintCuts(weeks)).toEqual([{ row: 1, col: 2, corner: 'br' }])
   })
 
-  it('rounds the three tinted corners around a tl wrap (above, left, above-left)', () => {
-    // Nov 1 (r1 c6): Oct tint sits above, to the left and above-left — cuts
-    // hit their corners at Nov 1's top-left point.
+  it('rounds white month-start corner beside tinted prior month', () => {
     const weeks = strip('2026-10-19', 3)
-    expect(monthTintCuts(weeks)).toEqual([
-      { row: 0, col: 6, corner: 'br' }, // Oct 25 — bottom-right
-      { row: 1, col: 5, corner: 'tr' }, // Oct 31 — top-right
-      { row: 0, col: 5, corner: 'br' }, // Oct 24 — bottom-right
-    ])
+    expect(monthTintCuts(weeks)).toEqual([{ row: 1, col: 6, corner: 'tr' }])
   })
 
   it('emits no cuts when the wrap below is missing', () => {
