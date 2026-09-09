@@ -76,12 +76,33 @@ export function monthScoopClass(
   return ''
 }
 
-export function cellHighlightClass(shape: DayShape): string {
-  const inset = 'absolute inset-y-[10px]'
-  if (shape === 'single') return `${inset} left-[10px] right-[10px] rounded-full`
-  if (shape === 'start') return `${inset} left-[10px] rounded-l-full rounded-r-none`
-  if (shape === 'end') return `${inset} right-[10px] rounded-r-full rounded-l-none`
-  return `${inset} left-[10px] right-[10px] rounded-none`
+export function cellHighlightClass(
+  shape: DayShape,
+  shapeOrigin?: 'period' | 'fertile' | 'predicted' | 'safe',
+): string {
+  // Keep only vertical inset. Connected days must touch side-to-side so the
+  // range reads as one continuous strip across adjacent cells.
+  // Safe strips use explicit top/bottom offsets so their inset cannot be lost
+  // when combined with calendar cell layout classes.
+  const inset = shapeOrigin === 'safe'
+    ? 'absolute top-[10px] bottom-[10px]'
+    : 'absolute inset-y-[8px]'
+  const geometry = shape === 'single'
+    ? `${inset} left-[10px] right-[10px] rounded-full`
+    : shape === 'start'
+      ? `${inset} left-0 rounded-l-full rounded-r-none`
+      : shape === 'end'
+        ? `${inset} right-0 rounded-r-full rounded-l-none`
+        : `${inset} left-0 right-0 rounded-none`
+  if (shapeOrigin !== 'predicted') return geometry
+  const border = shape === 'single'
+    ? 'border'
+    : shape === 'start'
+      ? 'border-y border-l'
+      : shape === 'end'
+        ? 'border-y border-r'
+        : 'border-y'
+  return `${geometry} ${border} border-dashed`
 }
 
 /**
@@ -158,7 +179,7 @@ export function cellFillStyle(
   fertile: boolean,
   predicted: boolean,
   safe: boolean,
-  monthTint: boolean,
+  _monthTint: boolean,
   style: CalendarStyle,
   shapeOrigin?: 'period' | 'fertile' | 'predicted' | 'safe',
 ): CellFillStyle {
@@ -166,10 +187,7 @@ export function cellFillStyle(
     if (shapeOrigin === 'fertile') return { backgroundColor: style.fertile, color: darken(style.fertile, 0.42) }
     if (shapeOrigin === 'safe') return { backgroundColor: style.safe, color: darken(style.safe, 0.35) }
     if (shapeOrigin === 'predicted') return { borderColor: style.predicted, color: style.predicted }
-    // Period shape (or drag preview) — rose fill; on tinted months the SVG
-    // month shape shows through the transparent cell, and Calendar paints
-    // the solid fill as a child overlay span.
-    return monthTint ? {} : { backgroundColor: style.period }
+    return _monthTint ? {} : { backgroundColor: style.period }
   }
   if (fertile) return { backgroundColor: style.fertile, color: darken(style.fertile, 0.42) }
   if (safe) return { backgroundColor: style.safe, color: darken(style.safe, 0.35) }

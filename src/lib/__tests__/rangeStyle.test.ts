@@ -139,11 +139,25 @@ describe('monthScoopClass', () => {
 // Month backgrounds are now rendered as unified SVG shapes behind the grid.
 // cellLayoutClass and cellFillClass no longer handle tint/scoop per-cell.
 describe('cellHighlightClass', () => {
-  it('insets highlighted ranges by 10px on both sides', () => {
-    expect(cellHighlightClass('single')).toBe('absolute inset-y-[10px] left-[10px] right-[10px] rounded-full')
-    expect(cellHighlightClass('start')).toBe('absolute inset-y-[10px] left-[10px] rounded-l-full rounded-r-none')
-    expect(cellHighlightClass('middle')).toBe('absolute inset-y-[10px] left-[10px] right-[10px] rounded-none')
-    expect(cellHighlightClass('end')).toBe('absolute inset-y-[10px] right-[10px] rounded-r-full rounded-l-none')
+  it('keeps vertical margin while connected days touch side-to-side', () => {
+    expect(cellHighlightClass('single')).toBe('absolute inset-y-[8px] left-[10px] right-[10px] rounded-full')
+    expect(cellHighlightClass('start')).toBe('absolute inset-y-[8px] left-0 rounded-l-full rounded-r-none')
+    expect(cellHighlightClass('middle')).toBe('absolute inset-y-[8px] left-0 right-0 rounded-none')
+    expect(cellHighlightClass('end')).toBe('absolute inset-y-[8px] right-0 rounded-r-full rounded-l-none')
+  })
+
+  it('insets safe ranges above and below while keeping connected sides joined', () => {
+    expect(cellHighlightClass('start', 'safe')).toBe('absolute top-[10px] bottom-[10px] left-0 rounded-l-full rounded-r-none')
+    expect(cellHighlightClass('middle', 'safe')).toBe('absolute top-[10px] bottom-[10px] left-0 right-0 rounded-none')
+    expect(cellHighlightClass('end', 'safe')).toBe('absolute top-[10px] bottom-[10px] right-0 rounded-r-full rounded-l-none')
+  })
+
+  it('keeps predicted ranges inset with matching dashed border sides', () => {
+    expect(cellHighlightClass('single', 'predicted')).toContain('inset-y-[8px]')
+    expect(cellHighlightClass('single', 'predicted')).toContain('border border-dashed')
+    expect(cellHighlightClass('start', 'predicted')).toContain('border-y border-l')
+    expect(cellHighlightClass('middle', 'predicted')).toContain('border-y')
+    expect(cellHighlightClass('end', 'predicted')).toContain('border-y border-r')
   })
 })
 

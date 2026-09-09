@@ -24,8 +24,9 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
-import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import { darken } from '../lib/color'
+import type { DayShape, MonthTintCut, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -763,12 +764,8 @@ export default function Calendar({
                     : predictedShape ? 'predicted'
                     : safeShape ? 'safe'
                     : undefined
-                  // Rose overlay paints ONLY period visuals (committed run, drag
-                  // preview, edit bounds). Fertile/predicted/safe shapes must NOT
-                  // get the solid rose overlay — it painted every shaped cell on
-                  // tinted months as a solid pink block (legend mismatch).
-                  const isPeriodVisual =
-                    isPeriod || !!edit || dragShapeFor(cell.iso) !== null
+                  // Range overlays use same inset geometry for period, fertile,
+                  // safe, predicted strips. Predicted keeps dashed outline.
                   const isToday = cell.iso === today
                   const isSelected = cell.iso === selectedDate
                   // Superscript month tag on the 1st of every month (e.g. “AUG 1”
@@ -795,7 +792,9 @@ export default function Calendar({
                   cls += ' ' + cellFillClass(shape, isFertile, isPredicted, isSafe, monthTint, shapeOrigin)
                   // User-pickable colors (BLOOM-0022) — inline styles replace
                   // the old fixed Tailwind color utilities.
-                  const fillStyle = cellFillStyle(shape, isFertile, isPredicted, isSafe, monthTint, calStyle, shapeOrigin)
+                  const fillStyle = shape
+                    ? {}
+                    : cellFillStyle(null, isFertile, isPredicted, isSafe, monthTint, calStyle)
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Selected ring: ONE marker geometry for every selected
@@ -916,13 +915,28 @@ export default function Calendar({
                       style={fillStyle}
                       aria-label={cell.iso}
                     >
-                      {shape && monthTint && isPeriodVisual ? (
+                      {shape && shapeOrigin !== 'predicted' ? (
                         <span
                           aria-hidden
-                          style={{ backgroundColor: calStyle.period }}
-                          className={`pointer-events-none absolute inset-0 z-[1] ${
-                            shape === 'single' ? 'rounded-full' : shape === 'start' ? 'rounded-l-full' : shape === 'end' ? 'rounded-r-full' : ''
-                          }`}
+                          style={{
+                            backgroundColor: shapeOrigin === 'fertile'
+                              ? calStyle.fertile
+                              : shapeOrigin === 'safe'
+                                ? calStyle.safe
+                                : calStyle.period,
+                            ...(shapeOrigin === 'fertile'
+                              ? { color: darken(calStyle.fertile, 0.42) }
+                              : shapeOrigin === 'safe'
+                                ? { color: darken(calStyle.safe, 0.35) }
+                                : {}),
+                          }}
+                          className={`pointer-events-none ${cellHighlightClass(shape, shapeOrigin)}`}
+                        />
+                      ) : shape && shapeOrigin === 'predicted' ? (
+                        <span
+                          aria-hidden
+                          style={{ borderColor: calStyle.predicted, color: calStyle.predicted }}
+                          className={`pointer-events-none ${cellHighlightClass(shape, shapeOrigin)}`}
                         />
                       ) : null}
                       {isSelected && selRingColor ? (
