@@ -3,6 +3,7 @@ import {
   cellFillClass,
   cellFillStyle,
   cellHighlightClass,
+  cellHighlightStyle,
   cellLayoutClass,
   dragShape,
   isTintMonth,
@@ -158,6 +159,14 @@ describe('cellHighlightClass', () => {
     expect(cellHighlightClass('start', 'predicted')).toContain('border-y border-l')
     expect(cellHighlightClass('middle', 'predicted')).toContain('border-y')
     expect(cellHighlightClass('end', 'predicted')).toContain('border-y border-r')
+  })
+})
+
+describe('cellHighlightStyle', () => {
+  it('keeps rounded caps on range overlays', () => {
+    expect(cellHighlightStyle('start')).toEqual({ borderRadius: '9999px 0 0 9999px' })
+    expect(cellHighlightStyle('middle')).toEqual({ borderRadius: 0 })
+    expect(cellHighlightStyle('end')).toEqual({ borderRadius: '0 9999px 9999px 0' })
   })
 })
 

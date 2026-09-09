@@ -105,6 +105,14 @@ export function cellHighlightClass(
   return `${geometry} ${border} border-dashed`
 }
 
+/** Inline cap geometry prevents range caps being lost to utility overrides. */
+export function cellHighlightStyle(shape: DayShape): Pick<React.CSSProperties, 'borderRadius'> {
+  if (shape === 'single') return { borderRadius: '9999px' }
+  if (shape === 'start') return { borderRadius: '9999px 0 0 9999px' }
+  if (shape === 'end') return { borderRadius: '0 9999px 9999px 0' }
+  return { borderRadius: 0 }
+}
+
 /**
  * Layout (width + corner rounding) for a calendar day cell. Period-shaped
  * cells keep their capsule-strip / lone-circle geometry. Month backgrounds

@@ -24,7 +24,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellHighlightStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
 import { darken } from '../lib/color'
 import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
@@ -922,6 +922,7 @@ export default function Calendar({
                               : shapeOrigin === 'safe'
                                 ? calStyle.safe
                                 : calStyle.period,
+                            ...cellHighlightStyle(shape),
                             ...(shapeOrigin === 'fertile'
                               ? { color: darken(calStyle.fertile, 0.42) }
                               : shapeOrigin === 'safe'
@@ -933,7 +934,7 @@ export default function Calendar({
                       ) : shape && shapeOrigin === 'predicted' ? (
                         <span
                           aria-hidden
-                          style={{ borderColor: calStyle.predicted, color: calStyle.predicted }}
+                          style={{ borderColor: calStyle.predicted, color: calStyle.predicted, ...cellHighlightStyle(shape) }}
                           className={`pointer-events-none ${cellHighlightClass(shape, shapeOrigin)}`}
                         />
                       ) : null}
