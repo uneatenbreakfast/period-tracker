@@ -44,19 +44,20 @@ export interface MonthCell {
   inMonth: boolean
 }
 
-/** Continuous calendar grid across a month window: ONE flowing Mon-first strip
+/** Continuous calendar grid across a month window: ONE flowing week strip
  * where weeks span month boundaries — if a month ends on Tue 31, the next
  * month's 1st continues the SAME row on Wed. Only the Monday before the first
  * month and the Sunday after the last month pad the strip (inMonth = false). */
-export function continuousGrid(months: MonthRef[]): MonthCell[][] {
+export function continuousGrid(months: MonthRef[], weekStartsSunday = false): MonthCell[][] {
   if (months.length === 0) return []
   const first = months[0]
   const last = months[months.length - 1]
   const firstDate = new Date(first.year, first.month, 1)
   const lastDate = new Date(last.year, last.month + 1, 0)
-  // Monday-first: pad = (getDay() + 6) % 7
-  const padStart = (firstDate.getDay() + 6) % 7
-  const padEnd = 6 - ((lastDate.getDay() + 6) % 7)
+  const firstDayIndex = weekStartsSunday ? firstDate.getDay() : (firstDate.getDay() + 6) % 7
+  const lastDayIndex = weekStartsSunday ? lastDate.getDay() : (lastDate.getDay() + 6) % 7
+  const padStart = firstDayIndex
+  const padEnd = 6 - lastDayIndex
   const start = new Date(first.year, first.month, 1 - padStart)
   const end = new Date(last.year, last.month, lastDate.getDate() + padEnd)
   const cells: MonthCell[] = []
@@ -138,3 +139,4 @@ export const MONTH_NAMES = [
 ] as const
 
 export const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
+export const SUNDAY_FIRST_WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const

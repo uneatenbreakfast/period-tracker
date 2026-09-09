@@ -9,6 +9,7 @@ import {
   MONTH_NAMES,
   todayISO,
   WEEKDAY_LABELS,
+  SUNDAY_FIRST_WEEKDAY_LABELS,
   FUTURE_GROW_PX,
 } from '../lib/dates'
 import type { MonthRef } from '../lib/dates'
@@ -98,7 +99,7 @@ export default function Calendar({
   const [months, setMonths] = useState<MonthRef[]>(() => initialMonths())
   // ONE flowing week strip across the whole month window — weeks span month
   // boundaries (a month ending Tue 31 continues same-row into Wed 1).
-  const weeks = useMemo(() => continuousGrid(months), [months])
+  const weeks = useMemo(() => continuousGrid(months, snap.settings.weekStartsSunday), [months, snap.settings.weekStartsSunday])
   // Window-wide future forecast: predicted/fertile/safe/ovulation days for
   // EVERY cycle whose predicted start falls within the currently loaded month
   // window — not just the single next cycle. Recomputes as new future months
@@ -598,7 +599,7 @@ export default function Calendar({
         className="-mx-5 mb-1 bg-white px-5 pb-1.5 pt-3"
       >
         <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-ink-soft">
-          {WEEKDAY_LABELS.map((w) => (
+          {(snap.settings.weekStartsSunday ? SUNDAY_FIRST_WEEKDAY_LABELS : WEEKDAY_LABELS).map((w) => (
             <div key={w}>{w}</div>
           ))}
         </div>

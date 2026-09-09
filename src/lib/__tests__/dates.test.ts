@@ -84,6 +84,13 @@ describe('monthList', () => {
 })
 
 describe('continuousGrid', () => {
+  it('supports Sunday-first weeks', () => {
+    const grid = continuousGrid([{ year: 2026, month: 7 }], true)
+    expect(grid[0][0].iso).toBe('2026-07-26')
+    expect(grid[0][0].inMonth).toBe(false)
+    expect(grid[0][6].iso).toBe('2026-08-01')
+  })
+
   it('June 2026 starts on Monday → no leading pad, 5 weeks, only July tail pads', () => {
     const grid = continuousGrid([{ year: 2026, month: 5 }])
     expect(grid.length).toBe(5)

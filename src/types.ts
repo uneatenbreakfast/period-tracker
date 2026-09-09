@@ -42,6 +42,8 @@ export interface Settings {
   periodLength: number
   /** Show safe days (post-fertile luteal phase) on the calendar. */
   showSafeDays: boolean
+  /** Start calendar weeks on Sunday when enabled; Monday otherwise. */
+  weekStartsSunday: boolean
   /** Calendar + legend colors (BLOOM-0022). */
   style: CalendarStyle
 }

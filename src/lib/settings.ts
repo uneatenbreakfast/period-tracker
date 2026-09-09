@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cycleLength: 28,
   periodLength: 5,
   showSafeDays: true,
+  weekStartsSunday: true,
   style: { ...DEFAULT_CALENDAR_STYLE },
 }
 
@@ -95,6 +96,7 @@ export function sanitizeSettings(raw: Partial<Settings> | null | undefined): Set
       DEFAULT_SETTINGS.periodLength,
     ),
     showSafeDays: typeof raw?.showSafeDays === 'boolean' ? raw.showSafeDays : DEFAULT_SETTINGS.showSafeDays,
+    weekStartsSunday: typeof raw?.weekStartsSunday === 'boolean' ? raw.weekStartsSunday : DEFAULT_SETTINGS.weekStartsSunday,
     style: sanitizeCalendarStyle(raw?.style),
   }
 }

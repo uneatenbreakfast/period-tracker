@@ -67,6 +67,12 @@ describe('sanitizeSettings', () => {
     expect(sanitizeSettings({ cycleLength: 28, periodLength: 5, showSafeDays: undefined }).showSafeDays).toBe(true)
     expect(sanitizeSettings({ cycleLength: 28, periodLength: 5, showSafeDays: 1 as unknown as boolean }).showSafeDays).toBe(true)
   })
+
+  it('defaults and preserves Sunday-first calendar setting', () => {
+    expect(DEFAULT_SETTINGS.weekStartsSunday).toBe(true)
+    expect(sanitizeSettings({ weekStartsSunday: false }).weekStartsSunday).toBe(false)
+    expect(sanitizeSettings({ weekStartsSunday: 'yes' as unknown as boolean }).weekStartsSunday).toBe(true)
+  })
 })
 
 describe('sanitizeCalendarStyle', () => {

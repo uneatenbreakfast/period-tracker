@@ -190,6 +190,23 @@ export default function SettingsCard({ settings, onChange, onExport, onImport, o
             />
           </button>
         </div>
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3" data-testid="settings-week-start">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-ink">Week starts on Sunday</p>
+            <p className="text-[11px] font-semibold leading-tight text-ink-soft">Choose the first day shown in each calendar row.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.weekStartsSunday}
+            aria-label="Week starts on Sunday"
+            data-testid="settings-week-start-toggle"
+            onClick={() => onChange({ ...settings, weekStartsSunday: !settings.weekStartsSunday })}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${settings.weekStartsSunday ? 'bg-rose-500' : 'bg-ink-soft/20'}`}
+          >
+            <span className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${settings.weekStartsSunday ? 'translate-x-5' : ''}`} />
+          </button>
+        </div>
       </div>
       <div className="mt-5 flex flex-col gap-3 border-t border-rose-100 pt-4">
         <h3 className="text-xs font-bold uppercase tracking-wider text-ink-soft">Style</h3>
