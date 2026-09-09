@@ -24,7 +24,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellFillStyle, cellHighlightClass, cellLayoutClass, dragShape, isTintMonth, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
 import { darken } from '../lib/color'
 import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
@@ -168,6 +168,16 @@ export default function Calendar({
       let arr = m.get(seg.row)
       if (!arr) { arr = []; m.set(seg.row, arr) }
       arr.push(seg)
+    }
+    return m
+  }, [weeks])
+
+  const tintCutsByRow = useMemo(() => {
+    const m = new Map<number, { row: number; col: number; corner: 'tl' | 'tr' | 'bl' | 'br' }[]>()
+    for (const cut of monthTintCuts(weeks)) {
+      let arr = m.get(cut.row)
+      if (!arr) { arr = []; m.set(cut.row, arr) }
+      arr.push(cut)
     }
     return m
   }, [weeks])
@@ -694,11 +704,35 @@ export default function Calendar({
                   left: `${(seg.c0 * 100) / 7}%`,
                   width: `${((seg.c1 - seg.c0 + 1) * 100) / 7}%`,
                   backgroundColor: calStyle.monthTint,
-                  // Keep highlighted month-range end caps rounded while shared
-                  // edges remain flush across adjacent cells and rows.
-                  borderRadius: `${seg.tl ? 16 : 0}px ${seg.tr ? 16 : 0}px ${seg.br ? 16 : 0}px ${seg.bl ? 16 : 0}px`,
+                  borderRadius: `${seg.tl ? TINT_RADIUS_PX : 0}px ${seg.tr ? TINT_RADIUS_PX : 0}px ${seg.br ? TINT_RADIUS_PX : 0}px ${seg.bl ? TINT_RADIUS_PX : 0}px`,
                 }}
               />
+            ))}
+            {tintCutsByRow.get(wi)?.map((cut) => (
+              <div
+                key={`tint-cut-${cut.col}-${cut.corner}`}
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0"
+                style={{ left: `${(cut.col * 100) / 7}%`, width: `${100 / 7}%` }}
+              >
+                <span
+                  aria-hidden
+                  className="absolute"
+                  style={{
+                    ...(cut.corner === 'tl'
+                      ? { top: -TINT_RADIUS_PX, left: -TINT_RADIUS_PX }
+                      : cut.corner === 'tr'
+                        ? { top: -TINT_RADIUS_PX, right: -TINT_RADIUS_PX }
+                        : cut.corner === 'bl'
+                          ? { bottom: -TINT_RADIUS_PX, left: -TINT_RADIUS_PX }
+                          : { bottom: -TINT_RADIUS_PX, right: -TINT_RADIUS_PX }),
+                    width: TINT_RADIUS_PX * 2,
+                    height: TINT_RADIUS_PX * 2,
+                    borderRadius: '50%',
+                    backgroundColor: '#ffffff',
+                  }}
+                />
+              </div>
             ))}
 
             {week.map((cell) => {

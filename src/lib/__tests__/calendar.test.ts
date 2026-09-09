@@ -15,9 +15,10 @@ describe('calendar ovulation marker', () => {
     expect(source).not.toContain('right-1 top-1')
   })
 
-  it('keeps highlighted range end caps rounded while shared edges stay flush', () => {
+  it('rounds month-tint corners without sharp L-shaped wraps', () => {
     expect(source).toContain('backgroundColor: calStyle.monthTint')
-    expect(source).toContain('borderRadius: `${seg.tl ? 16 : 0}px ${seg.tr ? 16 : 0}px ${seg.br ? 16 : 0}px ${seg.bl ? 16 : 0}px`')
-    expect(source).not.toContain('tintCutsByRow')
+    expect(source).toContain('borderRadius: `${seg.tl ? TINT_RADIUS_PX')
+    expect(source).toContain('tintCutsByRow')
+    expect(source).toContain("borderRadius: '50%'")
   })
 })
