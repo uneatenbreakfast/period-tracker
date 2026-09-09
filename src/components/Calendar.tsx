@@ -24,8 +24,8 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
-import type { DayShape, MonthTintCut, MonthTintSeg } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -167,6 +167,18 @@ export default function Calendar({
       let arr = m.get(seg.row)
       if (!arr) { arr = []; m.set(seg.row, arr) }
       arr.push(seg)
+    }
+    return m
+  }, [weeks])
+
+  // Concave wrap cuts keep tint from forming sharp L-corners around white
+  // month-boundary cells. Tint recedes into its own area; white day stays clear.
+  const tintCutsByRow = useMemo(() => {
+    const m = new Map<number, { row: number; col: number; corner: 'tl' | 'tr' | 'bl' | 'br' }[]>()
+    for (const cut of monthTintCuts(weeks)) {
+      let arr = m.get(cut.row)
+      if (!arr) { arr = []; m.set(cut.row, arr) }
+      arr.push(cut)
     }
     return m
   }, [weeks])
@@ -697,6 +709,31 @@ export default function Calendar({
                   borderRadius: `${seg.tl ? TINT_RADIUS_PX : 0}px ${seg.tr ? TINT_RADIUS_PX : 0}px ${seg.br ? TINT_RADIUS_PX : 0}px ${seg.bl ? TINT_RADIUS_PX : 0}px`,
                 }}
               />
+            ))}
+            {tintCutsByRow.get(wi)?.map((cut) => (
+              <div
+                key={`tint-cut-${cut.col}-${cut.corner}`}
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0"
+                style={{ left: `${(cut.col * 100) / 7}%`, width: `${100 / 7}%` }}
+              >
+                <span
+                  aria-hidden
+                  className="absolute"
+                  style={{
+                    ...(cut.corner === 'tl'
+                      ? { top: 0, left: 0, borderBottomRightRadius: TINT_RADIUS_PX }
+                      : cut.corner === 'tr'
+                        ? { top: 0, right: 0, borderBottomLeftRadius: TINT_RADIUS_PX }
+                        : cut.corner === 'bl'
+                          ? { bottom: 0, left: 0, borderTopRightRadius: TINT_RADIUS_PX }
+                          : { bottom: 0, right: 0, borderTopLeftRadius: TINT_RADIUS_PX }),
+                    width: TINT_RADIUS_PX,
+                    height: TINT_RADIUS_PX,
+                    backgroundColor: '#ffffff',
+                  }}
+                />
+              </div>
             ))}
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
