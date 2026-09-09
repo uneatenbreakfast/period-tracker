@@ -23,8 +23,8 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintBites, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
-import type { DayShape, MonthTintBite, MonthTintSeg } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import type { DayShape, MonthTintCut, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -154,15 +154,17 @@ export default function Calendar({
     }
     return m
   }, [weeks])
-  // Concave scoop bites — quarter-discs of tint color in the corner of an
-  // untinted day that sits in the inner corner of a tint block (tint right +
-  // below, or left + above). Painted as plain DOM divs like the row segments.
-  const tintBitesByRow = useMemo(() => {
-    const m = new Map<number, MonthTintBite[]>()
-    for (const bite of monthTintBites(weeks)) {
-      let arr = m.get(bite.row)
-      if (!arr) { arr = []; m.set(bite.row, arr) }
-      arr.push(bite)
+  // Concave scoop cuts — quarter-discs of the card background (white) over the
+  // corners of the TINTED cells that touch an untinted day's wrap corner, so
+  // the tint boundary arcs INWARD around that corner (pulled back, concave)
+  // instead of bulging into the white day. Painted as plain DOM divs like the
+  // row segments.
+  const tintCutsByRow = useMemo(() => {
+    const m = new Map<number, MonthTintCut[]>()
+    for (const cut of monthTintCuts(weeks)) {
+      let arr = m.get(cut.row)
+      if (!arr) { arr = []; m.set(cut.row, arr) }
+      arr.push(cut)
     }
     return m
   }, [weeks])
@@ -691,29 +693,34 @@ export default function Calendar({
                 }}
               />
             ))}
-            {tintBitesByRow.get(wi)?.map((bite) => (
+            {tintCutsByRow.get(wi)?.map((cut) => (
               <div
-                key={`bite-${bite.col}`}
+                key={`cut-${cut.col}-${cut.corner}`}
                 aria-hidden
                 className="pointer-events-none absolute inset-y-0"
                 style={{
-                  left: `${(bite.col * 100) / 7}%`,
+                  left: `${(cut.col * 100) / 7}%`,
                   width: `${100 / 7}%`,
                 }}
               >
-                {/* Quarter-disc of tint filling the untinted cell's corner, so
-                    the tint boundary curves around it instead of meeting at a
-                    sharp 90° L (convex band corners are rounded above). */}
+                {/* Quarter-disc of card background cutting the TINTED cell's
+                    corner at the wrap point, so the tint boundary scoops
+                    concavely around the untinted day instead of bulging into
+                    it (old SVG blob pulled the tint back here). */}
                 <span
                   aria-hidden
                   className="absolute"
                   style={{
-                    ...(bite.corner === 'tl'
+                    ...(cut.corner === 'tl'
                       ? { top: 0, left: 0, borderBottomRightRadius: TINT_RADIUS_PX }
-                      : { bottom: 0, right: 0, borderTopLeftRadius: TINT_RADIUS_PX }),
+                      : cut.corner === 'tr'
+                        ? { top: 0, right: 0, borderBottomLeftRadius: TINT_RADIUS_PX }
+                        : cut.corner === 'bl'
+                          ? { bottom: 0, left: 0, borderTopRightRadius: TINT_RADIUS_PX }
+                          : { bottom: 0, right: 0, borderTopLeftRadius: TINT_RADIUS_PX }),
                     width: TINT_RADIUS_PX,
                     height: TINT_RADIUS_PX,
-                    backgroundColor: calStyle.monthTint,
+                    backgroundColor: '#ffffff',
                   }}
                 />
               </div>

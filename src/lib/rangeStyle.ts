@@ -238,15 +238,19 @@ export interface MonthTintSeg {
 export const TINT_RADIUS_PX = 16
 
 /**
- * Concave "scoop" bite for the month tint — the untinted cell tucked into the
- * inner corner of an even-month block (e.g. Sep 30 with Oct tint to its right
- * and below, or Nov 1 with Oct tint to its left and above). The tint's own
- * convex band corners are rounded by `monthTintSegments`, but where the band
- * wraps AROUND an untinted day the boundary was left a sharp 90° L; each bite
- * paints a quarter-disc of tint color (radius TINT_RADIUS_PX) into the corner
- * of that cell so the tint boundary follows the same curve there too. Painted
- * as plain DOM divs in the tint layer — same GPU-safe approach as the row
- * segments (the old per-cell overlay version died with the SVG rewrite).
+ * Concave "scoop" cut for the month tint at a wrap corner — the untinted cell
+ * tucked into the inner corner of an even-month block (e.g. Sep 30 with Oct
+ * tint to its right and below, or Nov 1 with Oct tint to its left and above).
+ * The tint's own convex band corners are rounded by `monthTintSegments`, but
+ * where the band wraps AROUND an untinted day the boundary was left a sharp
+ * 90° L. The old SVG blob rounded this reentrant corner by pulling the tint
+ * BACK from the untinted cell: the boundary arcs inward (concave for the
+ * tint) around the corner point instead of bulging into the white day. Each
+ * cut paints a quarter-disc of card background (radius TINT_RADIUS_PX) over
+ * the TINTED neighbors' corners that touch the untinted day's corner, so the
+ * tint recedes along the same curve the SVG blob used. Painted as plain DOM
+ * divs in the tint layer — same GPU-safe approach as the row segments (the
+ * per-cell overlay version died with the SVG rewrite).
  */
 export interface MonthTintBite {
   /** Week row index within `weeks`. */
@@ -288,6 +292,43 @@ export function monthTintBites(weeks: MonthCell[][]): MonthTintBite[] {
       const kLeft = tintKey(r, c - 1)
       const kAbove = tintKey(r - 1, c)
       if (kLeft && kLeft === kAbove) out.push({ row: r, col: c, corner: 'tl' })
+    }
+  }
+  return out
+}
+
+/**
+ * Concave scoop cut for one tinted cell corner. `row`/`col` address the
+ * TINTED cell; `corner` is the corner of that cell adjacent to the untinted
+ * day's wrap corner, which the cut rounds (tint pulled back).
+ */
+export interface MonthTintCut {
+  row: number
+  col: number
+  corner: 'tl' | 'tr' | 'bl' | 'br'
+}
+
+export function monthTintCuts(weeks: MonthCell[][]): MonthTintCut[] {
+  const out: MonthTintCut[] = []
+  const tinted = (r: number, c: number): boolean => {
+    const cell = weeks[r]?.[c]
+    return !!cell && cell.inMonth && isTintMonth(cell.iso)
+  }
+  for (const bite of monthTintBites(weeks)) {
+    const { row: r, col: c } = bite
+    if (bite.corner === 'br') {
+      // Untinted day's bottom-right corner: the tinted right (NE), below (SW)
+      // and below-right (SE) cells all touch that point — round each of the
+      // three corners that meet it.
+      if (tinted(r, c + 1)) out.push({ row: r, col: c + 1, corner: 'bl' })
+      if (tinted(r + 1, c)) out.push({ row: r + 1, col: c, corner: 'tr' })
+      if (tinted(r + 1, c + 1)) out.push({ row: r + 1, col: c + 1, corner: 'tl' })
+    } else {
+      // 'tl' — untinted day's top-left corner: round the above (NE), left
+      // (SW) and above-left (NW) tinted cells' corners that meet it.
+      if (tinted(r - 1, c)) out.push({ row: r - 1, col: c, corner: 'br' })
+      if (tinted(r, c - 1)) out.push({ row: r, col: c - 1, corner: 'tr' })
+      if (tinted(r - 1, c - 1)) out.push({ row: r - 1, col: c - 1, corner: 'br' })
     }
   }
   return out
