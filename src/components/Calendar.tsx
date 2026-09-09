@@ -24,7 +24,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
 import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -677,9 +677,9 @@ export default function Calendar({
                   left: `${(seg.c0 * 100) / 7}%`,
                   width: `${((seg.c1 - seg.c0 + 1) * 100) / 7}%`,
                   backgroundColor: calStyle.monthTint,
-                  // Full-bleed row bands. Per-corner discs made the tint look
-                  // perforated and competed with the period strip.
-                  borderRadius: 0,
+                  // One visual month shape: only perimeter corners round.
+                  // Shared edges stay square so row transitions remain flush.
+                  borderRadius: `${seg.tl ? TINT_RADIUS_PX : 0}px ${seg.tr ? TINT_RADIUS_PX : 0}px ${seg.br ? TINT_RADIUS_PX : 0}px ${seg.bl ? TINT_RADIUS_PX : 0}px`,
                 }}
               />
             ))}
