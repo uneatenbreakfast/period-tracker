@@ -24,9 +24,9 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import { cellFillClass, cellFillStyle, cellHighlightClass, cellLayoutClass, dragShape, isTintMonth, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
 import { darken } from '../lib/color'
-import type { DayShape, MonthTintCut, MonthTintSeg } from '../lib/rangeStyle'
+import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
 
@@ -172,17 +172,6 @@ export default function Calendar({
     return m
   }, [weeks])
 
-  // Concave wrap cuts keep tint from forming sharp L-corners around white
-  // month-boundary cells. Tint recedes into its own area; white day stays clear.
-  const tintCutsByRow = useMemo(() => {
-    const m = new Map<number, { row: number; col: number; corner: 'tl' | 'tr' | 'bl' | 'br' }[]>()
-    for (const cut of monthTintCuts(weeks)) {
-      let arr = m.get(cut.row)
-      if (!arr) { arr = []; m.set(cut.row, arr) }
-      arr.push(cut)
-    }
-    return m
-  }, [weeks])
 
   // Edit mode for an existing committed run: drag the start/end handles,
   // confirm with the Save/Cancel modal.
@@ -705,38 +694,12 @@ export default function Calendar({
                   left: `${(seg.c0 * 100) / 7}%`,
                   width: `${((seg.c1 - seg.c0 + 1) * 100) / 7}%`,
                   backgroundColor: calStyle.monthTint,
-                  // One visual month shape: only perimeter corners round.
-                  // Shared edges stay square so row transitions remain flush.
-                  borderRadius: `${seg.tl ? TINT_RADIUS_PX : 0}px ${seg.tr ? TINT_RADIUS_PX : 0}px ${seg.br ? TINT_RADIUS_PX : 0}px ${seg.bl ? TINT_RADIUS_PX : 0}px`,
+                  // Tint must cover every pixel of every tinted day. Rounded
+                  // segment corners leave visible cream holes (notably Aug 24).
                 }}
               />
             ))}
-            {tintCutsByRow.get(wi)?.map((cut) => (
-              <div
-                key={`tint-cut-${cut.col}-${cut.corner}`}
-                aria-hidden
-                className="pointer-events-none absolute inset-y-0"
-                style={{ left: `${(cut.col * 100) / 7}%`, width: `${100 / 7}%` }}
-              >
-                <span
-                  aria-hidden
-                  className="absolute"
-                  style={{
-                    ...(cut.corner === 'tl'
-                      ? { top: -TINT_RADIUS_PX, left: -TINT_RADIUS_PX }
-                      : cut.corner === 'tr'
-                        ? { top: -TINT_RADIUS_PX, right: -TINT_RADIUS_PX }
-                        : cut.corner === 'bl'
-                          ? { bottom: -TINT_RADIUS_PX, left: -TINT_RADIUS_PX }
-                          : { bottom: -TINT_RADIUS_PX, right: -TINT_RADIUS_PX }),
-                    width: TINT_RADIUS_PX * 2,
-                    height: TINT_RADIUS_PX * 2,
-                    borderRadius: '50%',
-                    backgroundColor: '#ffffff',
-                  }}
-                />
-              </div>
-            ))}
+
             {week.map((cell) => {
                   const entry = entriesByDate.get(cell.iso)
                   const isPeriod = entry?.flow !== undefined

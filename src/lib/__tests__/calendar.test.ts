@@ -14,4 +14,11 @@ describe('calendar ovulation marker', () => {
     expect(source).toContain('className="pointer-events-none absolute right-0.5 top-0.5 z-20"')
     expect(source).not.toContain('right-1 top-1')
   })
+
+  it('keeps month tint flush with no rounded segment holes', () => {
+    expect(source).toContain('backgroundColor: calStyle.monthTint')
+    expect(source).toContain('Tint must cover every pixel of every tinted day')
+    expect(source).not.toContain('borderRadius: `${seg.tl ?')
+    expect(source).not.toContain('tintCutsByRow')
+  })
 })
