@@ -155,7 +155,7 @@ describe('monthTintCuts', () => {
 
   it('rounds white month-start corner beside tinted prior month', () => {
     const weeks = strip('2026-10-19', 3)
-    expect(monthTintCuts(weeks)).toEqual([{ row: 1, col: 6, corner: 'tr' }])
+    expect(monthTintCuts(weeks)).toEqual([{ row: 1, col: 6, corner: 'tl' }])
   })
 
   it('emits no cuts when the wrap below is missing', () => {

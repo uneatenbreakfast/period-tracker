@@ -24,7 +24,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, ovulationRing, runShape, selectionRingColor } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
 import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
 import type { EditRange } from '../lib/editRange'
@@ -722,14 +722,15 @@ export default function Calendar({
                   className="absolute"
                   style={{
                     ...(cut.corner === 'tl'
-                      ? { top: 0, left: 0, borderBottomRightRadius: TINT_RADIUS_PX }
+                      ? { top: -TINT_RADIUS_PX, left: -TINT_RADIUS_PX }
                       : cut.corner === 'tr'
-                        ? { top: 0, right: 0, borderBottomLeftRadius: TINT_RADIUS_PX }
+                        ? { top: -TINT_RADIUS_PX, right: -TINT_RADIUS_PX }
                         : cut.corner === 'bl'
-                          ? { bottom: 0, left: 0, borderTopRightRadius: TINT_RADIUS_PX }
-                          : { bottom: 0, right: 0, borderTopLeftRadius: TINT_RADIUS_PX }),
-                    width: TINT_RADIUS_PX,
-                    height: TINT_RADIUS_PX,
+                          ? { bottom: -TINT_RADIUS_PX, left: -TINT_RADIUS_PX }
+                          : { bottom: -TINT_RADIUS_PX, right: -TINT_RADIUS_PX }),
+                    width: TINT_RADIUS_PX * 2,
+                    height: TINT_RADIUS_PX * 2,
+                    borderRadius: '50%',
                     backgroundColor: '#ffffff',
                   }}
                 />

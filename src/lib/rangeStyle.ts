@@ -315,13 +315,10 @@ export interface MonthTintCut {
 }
 
 export function monthTintCuts(weeks: MonthCell[][]): MonthTintCut[] {
-  return monthTintBites(weeks).map(({ row, col, corner }) => ({
-    row,
-    col,
-    // First white day after tinted month: visible target is its top-right
-    // corner (e.g. May 1 beside tinted Apr 30).
-    corner: corner === 'tl' ? 'tr' : corner,
-  }))
+  // Keep bite orientation on the white cell. The cut is a circle centered on
+  // its corner and allowed to overflow into the tinted neighbours; remapping
+  // tl→tr put the scoop on wrong side of month-start cells.
+  return monthTintBites(weeks).map(({ row, col, corner }) => ({ row, col, corner }))
 }
 
 /**
