@@ -20,6 +20,17 @@ function monthGrid(rows: number, cols: number[], mk = '2026-08'): MonthCell[][] 
 }
 
 describe('monthTintSegments', () => {
+  it('rounds April tint corner beside March 31', () => {
+    // 2026-03-30..2026-04-05: April begins mid-row immediately after
+    // March 31. Its tint enters from the right, with a rounded top-left
+    // corner at the month transition (not a sharp L).
+    const weeks = strip('2026-03-30', 1)
+    const segs = monthTintSegments(weeks)
+    expect(segs).toEqual([
+      expect.objectContaining({ monthKey: '2026-04', row: 0, c0: 2, c1: 6, tl: true }),
+    ])
+  })
+
   it('emits one segment per week row for a full-width month', () => {
     const segs = monthTintSegments(monthGrid(3, [0, 1, 2, 3, 4, 5, 6]))
     expect(segs).toHaveLength(3)
