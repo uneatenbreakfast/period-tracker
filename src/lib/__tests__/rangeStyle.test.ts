@@ -142,15 +142,15 @@ describe('monthScoopClass', () => {
 describe('cellHighlightClass', () => {
   it('keeps vertical margin while connected days touch side-to-side', () => {
     expect(cellHighlightClass('single')).toBe('absolute inset-y-[8px] left-[10px] right-[10px] rounded-full')
-    expect(cellHighlightClass('start')).toBe('absolute inset-y-[8px] left-0 rounded-l-full rounded-r-none')
+    expect(cellHighlightClass('start')).toBe('absolute inset-y-[8px] left-0 w-full rounded-l-full rounded-r-none')
     expect(cellHighlightClass('middle')).toBe('absolute inset-y-[8px] left-0 right-0 rounded-none')
-    expect(cellHighlightClass('end')).toBe('absolute inset-y-[8px] right-0 rounded-r-full rounded-l-none')
+    expect(cellHighlightClass('end')).toBe('absolute inset-y-[8px] right-0 w-full rounded-r-full rounded-l-none')
   })
 
   it('insets safe ranges above and below while keeping connected sides joined', () => {
-    expect(cellHighlightClass('start', 'safe')).toBe('absolute top-[10px] bottom-[10px] left-0 rounded-l-full rounded-r-none')
+    expect(cellHighlightClass('start', 'safe')).toBe('absolute top-[10px] bottom-[10px] left-0 w-full rounded-l-full rounded-r-none')
     expect(cellHighlightClass('middle', 'safe')).toBe('absolute top-[10px] bottom-[10px] left-0 right-0 rounded-none')
-    expect(cellHighlightClass('end', 'safe')).toBe('absolute top-[10px] bottom-[10px] right-0 rounded-r-full rounded-l-none')
+    expect(cellHighlightClass('end', 'safe')).toBe('absolute top-[10px] bottom-[10px] right-0 w-full rounded-r-full rounded-l-none')
   })
 
   it('keeps predicted ranges inset with matching dashed border sides', () => {

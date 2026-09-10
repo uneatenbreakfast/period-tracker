@@ -90,9 +90,9 @@ export function cellHighlightClass(
   const geometry = shape === 'single'
     ? `${inset} left-[10px] right-[10px] rounded-full`
     : shape === 'start'
-      ? `${inset} left-0 rounded-l-full rounded-r-none`
+      ? `${inset} left-0 w-full rounded-l-full rounded-r-none`
       : shape === 'end'
-        ? `${inset} right-0 rounded-r-full rounded-l-none`
+        ? `${inset} right-0 w-full rounded-r-full rounded-l-none`
         : `${inset} left-0 right-0 rounded-none`
   if (shapeOrigin !== 'predicted') return geometry
   const border = shape === 'single'
