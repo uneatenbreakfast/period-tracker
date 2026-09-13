@@ -804,7 +804,7 @@ export default function Calendar({
                   // rose shade. (A full-cell box outline can't mark strip
                   // cells — it would be a square bracket slicing across the
                   // capsule.)
-                  const selRingColor = isSelected
+                  const selRingColor = isSelected || isToday
                     ? selectionRingColor(shape, shapeOrigin, calStyle)
                     : null
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
@@ -971,14 +971,13 @@ export default function Calendar({
                           style={{ color: calStyle.ovulation }}
                         />
                       )}
-                      {isToday && (
+                      {isToday && !isSelected ? (
                         <span
                           aria-hidden
-                          className={`pointer-events-none absolute bottom-1 left-1/2 z-10 h-1 w-1 -translate-x-1/2 rounded-full ${
-                            shape ? 'bg-white' : 'bg-ink'
-                          }`}
+                          className="pointer-events-none absolute inset-0 z-[2] m-auto h-8 w-8 rounded-full border-2"
+                          style={{ borderColor: selRingColor ?? selectionRingColor(shape, shapeOrigin, calStyle) }}
                         />
-                      )}
+                      ) : null}
                     </button>
                   )
                 })}

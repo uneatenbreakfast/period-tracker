@@ -15,6 +15,13 @@ describe('calendar ovulation marker', () => {
     expect(source).not.toContain('right-1 top-1')
   })
 
+  it('renders today as the same selection circle used by selected days', () => {
+    expect(source).toContain('const selRingColor = isSelected || isToday')
+    expect(source).toContain('{isToday && !isSelected ? (')
+    expect(source).toContain('h-8 w-8 rounded-full border-2')
+    expect(source).not.toContain('bottom-1 left-1/2 z-10 h-1 w-1')
+  })
+
   it('rounds month-tint corners without sharp L-shaped wraps', () => {
     expect(source).toContain('backgroundColor: calStyle.monthTint')
     expect(source).toContain('borderRadius: `${seg.tl ? TINT_RADIUS_PX')
