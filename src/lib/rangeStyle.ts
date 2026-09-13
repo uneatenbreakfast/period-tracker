@@ -271,6 +271,17 @@ export interface MonthTintSeg {
  */
 export const TINT_RADIUS_PX = 16
 
+/** Slightly deepen month backgrounds after current calendar month. */
+export function futureMonthBackground(
+  monthKey: string,
+  currentMonthKey: string,
+  tint: string,
+  tinted: boolean,
+): string | undefined {
+  if (monthKey <= currentMonthKey) return undefined
+  return darken(tinted ? tint : '#ffffff', 0.04)
+}
+
 /**
  * Concave "scoop" cut for the month tint at a wrap corner — the untinted cell
  * tucked into the inner corner of an even-month block (e.g. Sep 30 with Oct

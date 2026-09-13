@@ -23,7 +23,8 @@ describe('calendar ovulation marker', () => {
   })
 
   it('rounds month-tint corners without sharp L-shaped wraps', () => {
-    expect(source).toContain('backgroundColor: calStyle.monthTint')
+    expect(source).toContain('calStyle.monthTint')
+    expect(source).toContain('futureMonthBackground(seg.monthKey, currentMonthKey, calStyle.monthTint, true)')
     expect(source).toContain('borderRadius: `${seg.tl ? TINT_RADIUS_PX')
     expect(source).toContain('tintCutsByRow')
     expect(source).toContain("borderRadius: '50%'")

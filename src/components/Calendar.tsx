@@ -24,7 +24,7 @@ import {
   SLOP_PX,
 } from '../lib/rangeDrag'
 import type { RangeDrag } from '../lib/rangeDrag'
-import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellHighlightStyle, cellLayoutClass, dragShape, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
+import { TINT_RADIUS_PX, cellFillClass, cellFillStyle, cellHighlightClass, cellHighlightStyle, cellLayoutClass, dragShape, futureMonthBackground, isTintMonth, monthTintCuts, monthTintSegments, runShape, selectionRingColor } from '../lib/rangeStyle'
 import { darken } from '../lib/color'
 import type { DayShape, MonthTintSeg } from '../lib/rangeStyle'
 import { beginEdit, commitEdit, deleteRange, editAnchorWeek, extendEditRange, moveEnd, moveStart, runBoundsAt } from '../lib/editRange'
@@ -105,6 +105,7 @@ export default function Calendar({
   onDismissUndo,
 }: CalendarProps) {
   const today = todayISO()
+  const currentMonthKey = today.slice(0, 7)
   // User-pickable calendar colors (BLOOM-0022) — drives cells + legend fills.
   const calStyle = snap.settings.style
   // The window shows the last PAST_MONTHS months plus FUTURE_MONTHS ahead and
@@ -703,7 +704,7 @@ export default function Calendar({
                 style={{
                   left: `${(seg.c0 * 100) / 7}%`,
                   width: `${((seg.c1 - seg.c0 + 1) * 100) / 7}%`,
-                  backgroundColor: calStyle.monthTint,
+                  backgroundColor: futureMonthBackground(seg.monthKey, currentMonthKey, calStyle.monthTint, true) ?? calStyle.monthTint,
                   borderRadius: `${seg.tl ? TINT_RADIUS_PX : 0}px ${seg.tr ? TINT_RADIUS_PX : 0}px ${seg.br ? TINT_RADIUS_PX : 0}px ${seg.bl ? TINT_RADIUS_PX : 0}px`,
                 }}
               />
@@ -729,7 +730,7 @@ export default function Calendar({
                     width: TINT_RADIUS_PX * 2,
                     height: TINT_RADIUS_PX * 2,
                     borderRadius: '50%',
-                    backgroundColor: '#ffffff',
+                    backgroundColor: futureMonthBackground(week[cut.col]?.iso.slice(0, 7) ?? '', currentMonthKey, calStyle.monthTint, false) ?? '#ffffff',
                   }}
                 />
               </div>
@@ -790,9 +791,12 @@ export default function Calendar({
                   cls += ' ' + cellFillClass(shape, isFertile, isPredicted, isSafe, monthTint, shapeOrigin)
                   // User-pickable colors (BLOOM-0022) — inline styles replace
                   // the old fixed Tailwind color utilities.
+                  const futureBackground = cell.inMonth
+                    ? futureMonthBackground(cell.iso.slice(0, 7), currentMonthKey, calStyle.monthTint, isTintMonth(cell.iso))
+                    : undefined
                   const fillStyle = shape
                     ? {}
-                    : cellFillStyle(null, isFertile, isPredicted, isSafe, monthTint, calStyle)
+                    : { ...cellFillStyle(null, isFertile, isPredicted, isSafe, monthTint, calStyle), ...(futureBackground ? { backgroundColor: futureBackground } : {}) }
                   if (!cell.inMonth) cls += ' hover:bg-rose-50'
                   if (editHandle) cls += ' cursor-grab ring-2 ring-white/80'
                   // Selected ring: ONE marker geometry for every selected
